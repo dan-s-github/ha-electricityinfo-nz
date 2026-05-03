@@ -1,0 +1,94 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ha-electricityinfo-nz"
+version = "0.1.0"
+description = "Home Assistant custom integration for Electricityinfo NZ"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [
+    { name = "Daniel M", email = "daniel@mohni.info" },
+]
+requires-python = ">=3.14.2"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Plugins",
+    "Intended Audience :: Developers",
+
+    "License :: OSI Approved :: MIT License",
+
+    "Natural Language :: English",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.14",
+]
+dependencies = [
+    "electricityinfo-nz",
+]
+
+[dependency-groups]
+dev = [
+    "aiousbwatcher",
+    "commitizen>=3.29.1",
+    "colorlog>=6.10.1",
+    "homeassistant==2026.3.1",
+    "pycares>=5.0.0,<6",
+    "pytest>=8.2.0",
+    "pytest-asyncio>=1.3.0",
+    "pytest-homeassistant-custom-component==0.13.317",
+    "pyserial",
+    "ruff>=0.15.0",
+    "mypy>=1.8.0",
+    "pre-commit>=4.5.1",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["custom_components/electricityinfo_nz"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+minversion = "8.2"
+
+[tool.mypy]
+python_version = "3.14"
+strict = false
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_unused_configs = true
+ignore_missing_imports = true
+
+# The contents of this section is based on
+# https://github.com/home-assistant/core/blob/dev/pyproject.toml
+[tool.ruff]
+target-version = "py314"
+lint.select = [
+    "ALL",
+]
+lint.ignore = [
+    "ANN401", # Dynamically typed expressions (typing.Any) are disallowed
+    "D203", # no-blank-line-before-class (incompatible with formatter)
+    "D212", # multi-line-summary-first-line (incompatible with formatter)
+    "COM812", # incompatible with formatter
+    "ISC001", # incompatible with formatter
+]
+lint.isort.known-first-party = ["custom_components", "tests"]
+lint.flake8-pytest-style.fixture-parentheses = false
+lint.pyupgrade.keep-runtime-typing = true
+lint.mccabe.max-complexity = 25
+
+lint.per-file-ignores."tests/**/*.py" = [
+    "ANN001", # Allow untyped helper args in tests
+    "PLR0913", # Test fixtures/helpers may need multiple explicit fields
+    "PLR2004", # Literal values in test assertions are intentional
+    "S101", # Pytest uses assert statements
+]
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+version_provider = "pep621"
+version_files = ["custom_components/electricityinfo_nz/manifest.json:version"]
+tag_format = "v$version"
+update_changelog_on_bump = true

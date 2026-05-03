@@ -1,0 +1,14 @@
+{
+  "domain": "electricityinfo_nz",
+  "name": "Electricityinfo NZ",
+  "codeowners": [
+    "@dan-s-github"
+  ],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/dan-s-github/ha-electricityinfo-nz",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/dan-s-github/ha-electricityinfo-nz/issues",
+  "requirements": ["electricityinfo-nz"],
+  "version": "0.1.0"
+}

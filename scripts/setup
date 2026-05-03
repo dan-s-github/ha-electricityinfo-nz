@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+
+set -e
+
+cd "$(dirname "$0")/.."
+
+UV_REQUIRED_VERSION="0.10.6"
+
+if ! command -v uv &> /dev/null; then
+    echo "Installing uv..."
+    python3 -m pip install --user "uv==${UV_REQUIRED_VERSION}"
+    export PATH="$HOME/.local/bin:$PATH"
+else
+    UV_CURRENT_VERSION="$(uv --version | awk '{print $2}')"
+    if [[ "${UV_CURRENT_VERSION}" != "${UV_REQUIRED_VERSION}" ]]; then
+        echo "Updating uv from ${UV_CURRENT_VERSION} to ${UV_REQUIRED_VERSION}..."
+        python3 -m pip install --user "uv==${UV_REQUIRED_VERSION}"
+        export PATH="$HOME/.local/bin:$PATH"
+    fi
+fi
+
+uv sync --group dev
+uv run --group dev pre-commit install
+uv run --group dev pre-commit install --hook-type commit-msg
+
+mkdir -p "${PWD}/config"
+if [[ ! -e "${PWD}/config/custom_components" ]]; then
+    ln -s ../custom_components "${PWD}/config/custom_components"
+fi

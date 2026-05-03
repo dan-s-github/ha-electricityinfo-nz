@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+
+set -e
+
+cd "$(dirname "$0")/.."
+
+uv run --group dev ruff format .
+uv run --group dev ruff check . --fix
