@@ -1,17 +1,39 @@
 {
   "config": {
     "abort": {
-      "already_configured": "[%key:common::config_flow::abort::already_configured_device%]",
-      "already_in_progress": "[%key:common::config_flow::abort::already_in_progress%]"
+      "already_configured": "Electricityinfo NZ is already configured",
+      "already_in_progress": "Configuration already in progress",
+      "not_implemented": "Feature not yet implemented"
     },
-    "flow_title": "{name}",
+    "flow_title": "Electricityinfo NZ",
     "step": {
       "user": {
+        "title": "Electricityinfo NZ OAuth Setup",
+        "description": "Enter your OAuth credentials from {help_url}\n\nNeed help? Visit the developer portal at {help_url} to register and obtain your credentials.",
         "data": {
-          "name": "[%key:common::config_flow::data::name%]"
+          "client_id": "Client ID",
+          "client_secret": "Client Secret"
         },
-        "description": "Enter a name for this Electricityinfo NZ instance."
+        "data_description": {
+          "client_id": "Your OAuth Client ID",
+          "client_secret": "Your OAuth Client Secret (secure)"
+        }
+      },
+      "auth": {
+        "title": "Authorize with Electricityinfo NZ"
+      },
+      "auth_callback": {
+        "title": "Processing Authorization"
+      },
+      "auth_validate": {
+        "title": "Validating Credentials"
       }
     }
+  },
+  "error": {
+    "client_id_required": "Client ID is required",
+    "client_secret_required": "Client Secret is required",
+    "invalid_token": "Token validation failed. Please check your credentials.",
+    "cannot_connect": "Cannot connect to API. Please try again."
   }
 }
