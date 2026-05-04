@@ -20,7 +20,7 @@ def auto_enable_custom_integrations(enable_custom_integrations: None) -> None:
 def mock_oauth_session() -> Generator[MagicMock]:
     """Mock OAuth session for testing."""
     with patch(
-        "custom_components.electricityinfo_nz.config_flow.requests_oauthlib.OAuth2Session"
+        "custom_components.electricityinfo.config_flow.requests_oauthlib.OAuth2Session"
     ) as mock:
         session = MagicMock()
         session.authorization_url.return_value = (
@@ -42,7 +42,7 @@ def mock_oauth_session() -> Generator[MagicMock]:
 def mock_wrapper() -> Generator[AsyncMock]:
     """Mock electricityinfo-nz wrapper for testing."""
     with patch(
-        "custom_components.electricityinfo_nz.config_flow.ElectricityinfoNZ"
+        "custom_components.electricityinfo.config_flow.ElectricityinfoNZ"
     ) as mock:
         wrapper = AsyncMock()
         wrapper.validate_token = AsyncMock(return_value=True)
@@ -54,7 +54,7 @@ def mock_wrapper() -> Generator[AsyncMock]:
 def mock_wrapper_invalid() -> Generator[AsyncMock]:
     """Mock wrapper that returns invalid token."""
     with patch(
-        "custom_components.electricityinfo_nz.config_flow.ElectricityinfoNZ"
+        "custom_components.electricityinfo.config_flow.ElectricityinfoNZ"
     ) as mock:
         wrapper = AsyncMock()
         wrapper.validate_token = AsyncMock(side_effect=Exception("Invalid token"))

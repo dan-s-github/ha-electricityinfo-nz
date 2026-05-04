@@ -10,8 +10,8 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
 
-from custom_components.electricityinfo_nz import async_setup_entry, async_unload_entry
-from custom_components.electricityinfo_nz.const import DOMAIN
+from custom_components.electricityinfo import async_setup_entry, async_unload_entry
+from custom_components.electricityinfo.const import DOMAIN
 
 
 async def test_async_setup_entry_success(hass: HomeAssistant) -> None:

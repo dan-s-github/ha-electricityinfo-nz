@@ -2,10 +2,11 @@
 
 **Phase**: Phase 1 Design
 **Date**: 2025-05-03
+**Updated**: 2026-05-04
 
 ## Overview
 
-The config flow is the user-facing interface for OAuth setup. This contract defines the steps, inputs, outputs, and error handling.
+The config flow is the user-facing interface for OAuth2 Client Credentials setup. This contract defines the steps, inputs, outputs, and error handling. Unlike Authorization Code flow, Client Credentials eliminates browser redirects and works in offline/local network environments.
 
 ---
 
@@ -25,7 +26,7 @@ The config flow is the user-facing interface for OAuth setup. This contract defi
 - No length validation (variable across providers)
 
 **Output**:
-- Success: Proceed to Step 2 (OAuth redirect)
+- Success: Proceed to Step 2 (token exchange and validation)
 - Validation Error: Show form with error message
 
 **UI**:
@@ -48,7 +49,7 @@ Fields:
 
 Buttons:
   - Action: submit
-    Label: "Authenticate"
+    Label: "Connect"
 ```
 
 **Security**:
@@ -58,120 +59,67 @@ Buttons:
 
 ---
 
-### Step 2: OAuth Authorization Redirect
+### Step 2: Token Exchange & Validation
 
-**Purpose**: Redirect user to OAuth provider for authorization
+**Purpose**: Exchange credentials for access token and validate it works
 
 **Input**:
 - `client_id` (from Step 1)
-- `redirect_uri`: https://your-ha-domain/auth/authorize_callback
+- `client_secret` (from Step 1)
 
 **Processing**:
-1. Generate CSRF token (`oauth_state`) - 32-char random
-2. Construct authorization URL: `{provider_url}?client_id={id}&redirect_uri={uri}&state={state}`
-3. Return external redirect
+1. Create OAuth2ClientCredentials instance
+2. Call get_token() to exchange credentials for access token
+3. Create PyPI wrapper instance with token
+4. Call get_schedules() to validate token works
+5. Catch and classify errors:
+   - AuthenticationError: Invalid credentials (permanent)
+   - TransportError/TimeoutError: Network issue (transient, allow retry)
 
 **Output**:
-- Success: User redirected to provider login
-- Error: Show error + option to retry
+- Success: Proceed to Step 3 (create config entry)
+- Invalid Credentials: Show error "Invalid client ID or secret" (return to Step 1)
+- Network Error: Show retry button (state preserved)
 
-**External Action**:
-```
-GET {provider_oauth_authorize_url}
-  ?client_id={client_id}
-  &redirect_uri=https://{ha_domain}/auth/authorize_callback
-  &state={random_csrf_token}
-  &response_type=code
-```
-
-**Security**:
-- CSRF token prevents authorization code interception
-- State token validated on callback
-
----
-
-### Step 3: OAuth Callback Handling
-
-**Purpose**: Receive authorization code from provider and exchange for token
-
-**Input** (from provider callback):
-- `code`: Authorization code (valid for ~10 minutes)
-- `state`: CSRF token (must match Step 2)
-
-**Processing**:
-1. Validate CSRF token matches Step 2
-2. Exchange code for token: POST to `{provider_token_url}`
-   ```
-   POST {provider_token_url}
-     client_id={id}
-     client_secret={secret}
-     code={code}
-     grant_type=authorization_code
-     redirect_uri={redirect_uri}
-   ```
-3. Parse response: extract `access_token`, `expires_in`, `refresh_token` (if present)
-
-**Output**:
-- Success: Proceed to Step 4 (token validation)
-- Code Invalid: Show error "Authorization code invalid or expired"
-- CSRF Mismatch: Security error (abort, don't retry)
-
-**Error Handling**:
-- Transient errors (timeout, 5xx): Show retry button
-- Permanent errors (invalid code, CSRF mismatch): Show help text, link to docs
-
----
-
-### Step 4: Token Validation
-
-**Purpose**: Verify token works by making test API call
-
-**Input**:
-- `access_token` (from Step 3)
-
-**Processing**:
-1. Create PyPI wrapper instance with token
-2. Make test API call (e.g., get account info or test endpoint)
-3. Catch and classify errors:
-   - Authentication error: Token invalid
-   - Connection error: Transient (allow retry)
-   - Timeout: Transient (allow retry)
-
-**Output**:
-- Success: Proceed to Step 5 (create config entry)
-- Invalid Token: Show error "Token validation failed. Please re-authenticate." (return to Step 1)
-- Transient Error: Show retry button (state preserved)
-
-**Validation Details**:
+**Token Exchange Details**:
 ```python
-# Test API call structure
-wrapper = ElectricityinfoNZ(access_token=token)
-wrapper.validate_token()  # Throws AuthenticationError if invalid
+from electricityinfo_nz.auth import OAuth2ClientCredentials
+from electricityinfo_nz.client import MarketPricesClient
+
+# Exchange credentials for token
+oauth = OAuth2ClientCredentials(
+    client_id=client_id,
+    client_secret=client_secret,
+    base_url="https://api.electricityinfo.co.nz"
+)
+access_token = oauth.get_token()
+
+# Validate token works
+client = MarketPricesClient(access_token=access_token)
+schedules = client.get_schedules()  # Throws AuthenticationError if invalid
 ```
 
 ---
 
-### Step 5: Create Config Entry
+### Step 3: Create Config Entry
 
 **Purpose**: Save configuration and complete setup
 
 **Input**:
-- `access_token` (validated from Step 4)
-- `token_type`, `expires_in`, etc. (from Step 3)
+- `access_token` (validated from Step 2)
+- `client_id`, `client_secret` (encrypted)
 
 **Processing**:
-1. Home Assistant encrypts token automatically
+1. Home Assistant encrypts credentials automatically
 2. Create config entry:
    ```json
    {
      "title": "Electricityinfo NZ",
      "data": {
        "auth_implementation": "electricityinfo_nz",
-       "token": {
-         "access_token": "<encrypted>",
-         "token_type": "Bearer",
-         "expires_in": 3600,
-         "obtained_at": 1714761123.45
+       "credentials": {
+         "client_id": "<encrypted>",
+         "client_secret": "<encrypted>"
        }
      }
    }
@@ -187,7 +135,7 @@ wrapper.validate_token()  # Throws AuthenticationError if invalid
 Result:
   Type: create_entry
   Title: "Electricityinfo NZ"
-  Description: "Authenticated successfully. Integration ready for sensors."
+  Description: "Connected successfully. Integration ready for sensors."
 ```
 
 ---
@@ -196,12 +144,12 @@ Result:
 
 ### Transient Error Retry
 
-**Scenario**: Network timeout during Step 3 (code exchange)
+**Scenario**: Network timeout during Step 2 (token exchange)
 
 **Handling**:
 1. Catch timeout exception
 2. Show form with error: "Connection timeout. Please try again."
-3. Preserve state (client_id, oauth_state)
+3. Preserve state (client_id, client_secret)
 4. Show retry button (calls same step again)
 5. No re-authentication required
 
@@ -209,7 +157,7 @@ Result:
 ```python
 self.context["flow_state"] = {
     "client_id": user_input["client_id"],
-    "oauth_state": original_state,
+    "client_secret": user_input["client_secret"],
     "retry_count": 1
 }
 ```
@@ -221,9 +169,8 @@ self.context["flow_state"] = {
 **Handling**:
 1. Catch AuthenticationError
 2. Show form with error + help text
-3. Clear sensitive state (oauth_state, code)
-4. Return to Step 1 (user re-enters credentials)
-5. Link to https://developer.electricityinfo.co.nz for credential help
+3. Return to Step 1 (user re-enters credentials)
+4. Link to https://developer.electricityinfo.co.nz for credential help
 
 **Help Text**:
 ```
@@ -237,17 +184,6 @@ Did you:
 Verify your credentials and try again.
 ```
 
-### User Cancellation
-
-**Scenario**: User closes OAuth provider window without authorizing
-
-**Handling**:
-1. OAuth callback not received
-2. After timeout (~5 minutes), offer user:
-   - "Try again" → Return to Step 2
-   - "Use different credentials" → Return to Step 1
-   - "Cancel" → Abort config flow
-
 ---
 
 ## Security Considerations
@@ -255,17 +191,16 @@ Verify your credentials and try again.
 ### Token Handling
 
 ✅ **DO**:
-- Store encrypted via Home Assistant credential storage
-- Use HTTPS for all OAuth redirects
-- Validate CSRF token on callback
+- Store credentials encrypted via Home Assistant credential storage
+- Use HTTPS for all token exchange requests
 - Make test API call to validate token before saving
 - Use password input field for client_secret
 
 ❌ **DON'T**:
 - Log access token or client_secret
 - Store credentials in plaintext
-- Skip CSRF validation
 - Save invalid tokens
+- Display raw error details in UI
 
 ### Error Messages
 
@@ -290,49 +225,26 @@ Start Config Flow
     ↓
 Step 1: Enter Credentials
     ↓
-Step 2: Redirect to OAuth Provider
-    ↓
-User Authorizes
-    ↓
-Callback Received
-    ↓
 ┌───────────────────────────────────────────────┐
-│ Step 3: Exchange Code for Token              │
+│ Step 2: Exchange Credentials for Token       │
+│         & Validate Token Works               │
 └───────────────────────────────────────────────┘
     ↓
     ├─ Timeout/Network Error?
-    │     ├─ Yes: Show retry button → Step 3 again
-    │     └─ State preserved (oauth_state, code)
+    │     ├─ Yes: Show retry button → Step 2 again
+    │     └─ State preserved (client_id, client_secret)
     │
-    ├─ Invalid Code?
-    │     ├─ Yes: Show error "Authorization expired"
+    ├─ Invalid Credentials?
+    │     ├─ Yes: Show error + help text
     │     └─ Return to Step 1
     │
-    └─ CSRF Mismatch?
-          ├─ Yes: ABORT (security violation)
-          └─ Log incident
-    │
-    ↓ (Success: code exchanged for token)
-    │
-┌───────────────────────────────────────────────┐
-│ Step 4: Validate Token                       │
-└───────────────────────────────────────────────┘
-    ↓
-    ├─ Invalid Token?
-    │     ├─ Yes: Show error + link to help
-    │     └─ Return to Step 1
-    │
-    ├─ Timeout/Network Error?
-    │     ├─ Yes: Show retry button → Step 4 again
-    │     └─ State preserved (access_token)
-    │
-    └─ Valid Token?
-          ├─ Yes: Continue to Step 5
+    └─ Token Valid?
+          ├─ Yes: Continue to Step 3
           └─ No: Abort with error
     │
     ↓
 ┌───────────────────────────────────────────────┐
-│ Step 5: Create Config Entry                  │
+│ Step 3: Create Config Entry                  │
 └───────────────────────────────────────────────┘
     ↓
 SUCCESS: "Configuration saved!"
@@ -356,11 +268,9 @@ class ConfigEntry:
     # data contains:
     # {
     #   "auth_implementation": "electricityinfo_nz",
-    #   "token": {
-    #     "access_token": "<encrypted>",
-    #     "token_type": "Bearer",
-    #     "expires_in": 3600,
-    #     "obtained_at": 1714761123.45
+    #   "credentials": {
+    #     "client_id": "<encrypted>",
+    #     "client_secret": "<encrypted>"
     #   }
     # }
 
@@ -375,11 +285,10 @@ class ConfigEntry:
 | Step | Duration | User Action | System Action |
 |------|----------|-------------|---------------|
 | 1 | <10s | Enter credentials | Collect input |
-| 2 | ~1s | Click "Authenticate" | Generate redirect URL |
-| 3 | ~30s | Authorize in provider | Exchange code for token |
-| 4 | ~3s | (automatic) | Validate token with API call |
-| 5 | <1s | (automatic) | Save config entry |
-| **Total** | **~45s** | | |
+| 2 | ~2s | (automatic) | Exchange credentials & validate token |
+| 3 | <1s | (automatic) | Save config entry |
+| **Total** | **~13s** | | |
 
 **Success**: User sees "Electricityinfo NZ configured successfully"
 **Error Recovery**: User retries with state preserved (no loss of progress)
+**Benefit**: Works in offline/local network environments (no browser redirect required)

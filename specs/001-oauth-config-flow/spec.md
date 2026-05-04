@@ -27,10 +27,10 @@ A new user installs the Electricityinfo NZ integration from HACS and needs to au
 
 **Acceptance Scenarios**:
 
-1. **Given** user navigates to Settings → Devices & Services → Create Integration, **When** user selects "Electricityinfo NZ", **Then** config flow starts with OAuth authentication prompt
-2. **Given** user in OAuth prompt, **When** clicking "Authenticate", **Then** user is redirected to OAuth provider's authorization page
-3. **Given** user authorizes on OAuth provider, **When** OAuth provider redirects back to Home Assistant, **Then** config flow receives and validates access token
-4. **Given** valid OAuth token received, **When** config flow saves configuration, **Then** token is stored encrypted in Home Assistant and visible in Integrations list
+1. **Given** user navigates to Settings → Devices & Services → Create Integration, **When** user selects "Electricityinfo NZ", **Then** config flow starts with credential prompt
+2. **Given** user in credential prompt, **When** user enters client_id and client_secret, **Then** config flow immediately exchanges credentials for access token
+3. **Given** valid credentials received, **When** config flow validates token, **Then** token is stored encrypted in Home Assistant and visible in Integrations list
+4. **Given** invalid credentials provided, **When** config flow attempts token exchange, **Then** error message displays and user can retry with corrected credentials
 
 ---
 
@@ -85,11 +85,11 @@ A user can view, edit, or remove a configured Electricityinfo NZ integration ent
 ## Functional Requirements
 
 ### FR-001: OAuth Flow Implementation
-The integration MUST implement OAuth 2.0 authorization code flow using client_id and client_secret provided by the user during config flow setup. Users MUST sign up at https://developer.electricityinfo.co.nz, create an application, and obtain their OAuth credentials. The config flow MUST provide detailed guidance including help text, links to the developer portal, step-by-step instructions for obtaining credentials, and field validation hints. The config flow must guide users through the authorization process without requiring manual token entry.
+The integration MUST implement OAuth 2.0 Client Credentials flow using client_id and client_secret provided by the user during config flow setup. Users MUST sign up at https://developer.electricityinfo.co.nz, create an application, and obtain their OAuth credentials. The config flow MUST provide detailed guidance including help text, links to the developer portal, step-by-step instructions for obtaining credentials, and field validation hints. The config flow immediately exchanges credentials for an access token without requiring browser-based authorization or redirect callbacks.
 
-**Clarification**: Client credentials are user-provided via config flow with detailed guidance. Users register at https://developer.electricityinfo.co.nz first. Config flow includes helpful links and instructions for first-time users.
+**Clarification**: Client Credentials flow eliminates the need for browser redirects, making the integration work in offline/local network environments. Client credentials are user-provided via config flow with detailed guidance. Users register at https://developer.electricityinfo.co.nz first. Config flow includes helpful links and instructions for first-time users.
 
-**Assumptions**: OAuth provider supports standard authorization code flow; Home Assistant provides OAuth helper utilities; developer portal is stable and documented.
+**Assumptions**: OAuth provider supports Client Credentials flow; PyPI library provides OAuth2ClientCredentials wrapper; developer portal is stable and documented.
 
 ### FR-002: Credential Encryption & Storage
 OAuth access tokens MUST be stored encrypted using Home Assistant's credential storage system. Client credentials (client_id, client_secret) collected from users via config flow MUST also be stored encrypted in Home Assistant's device database. Tokens and credentials MUST NEVER appear in logs, debug output, or error messages. The PyPI wrapper uses stored credentials to obtain and manage access tokens.
@@ -155,12 +155,12 @@ All error states (network failure, invalid token, provider unavailable) MUST dis
 ## Scope & Constraints
 
 **In Scope**:
-- OAuth 2.0 authorization code flow implementation with user-provided credentials
+- OAuth 2.0 Client Credentials flow implementation with user-provided credentials
 - Config flow UI for credential collection with detailed guidance and links
+- Immediate credential exchange for access token (no browser redirect)
 - Token validation before saving
 - Re-authentication flow for expired tokens
 - Automatic token refresh via PyPI wrapper
-- State checkpointing for error recovery
 - Encrypted credential storage (client_id, client_secret, access token)
 - Single instance enforcement
 
@@ -170,6 +170,8 @@ All error states (network failure, invalid token, provider unavailable) MUST dis
 - Sensor configuration options (handled in later feature)
 - Home Assistant authentication/account setup
 - Multiple concurrent integrations per installation
+- Browser-based OAuth authorization flow
+- External URL configuration
 
 **Constraints**:
 - Must use Home Assistant config flow framework (async/await)
@@ -178,17 +180,17 @@ All error states (network failure, invalid token, provider unavailable) MUST dis
 - Integration must validate token before user can save configuration
 - Only one config entry allowed per Home Assistant instance
 - Config flow must include links to https://developer.electricityinfo.co.nz
+- No browser-based redirects required (works in offline/local network environments)
 
 ---
 
 ## Assumptions
 
-1. PyPI library wrapper provides a working OAuth client and token validation method
+1. PyPI library wrapper provides a working OAuth2ClientCredentials class and token validation method
 2. Electricity provider OAuth service is publicly documented and stable
 3. Home Assistant credential encryption is available and enabled
-4. Users have stable internet connection for OAuth redirect flow
-5. OAuth provider callback URL is `<home-assistant-url>/auth/external/callback` (standard Home Assistant pattern)
-6. Client ID and secret are provisioned separately (not part of this feature)
+4. Users have access to their client_id and client_secret from https://developer.electricityinfo.co.nz
+5. Client ID and secret are provisioned separately (not part of this feature)
 
 ---
 
