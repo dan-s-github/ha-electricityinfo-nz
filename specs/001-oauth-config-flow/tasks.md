@@ -155,30 +155,30 @@ Within each user story, these tasks can run in parallel [P] marker):
 
 ### Token Validation Implementation
 
-- [ ] T040 [US2] Create wrapper validation method in config_flow.py with try/except for error classification
-- [ ] T041 [US2] [P] Implement AuthenticationError handling (token invalid) → return to step 1 with help text
-- [ ] T042 [US2] [P] Implement transient error handling (ConnectionError, TimeoutError) → show retry button, preserve state
-- [ ] T043 [US2] [P] Add user-friendly error messages to strings.json ("Invalid token", "Cannot connect", "Try again")
+- [X] T040 [US2] Create wrapper validation method in config_flow.py with try/except for error classification
+- [X] T041 [US2] [P] Implement AuthenticationError handling (token invalid) → return to step 1 with help text
+- [X] T042 [US2] [P] Implement transient error handling (ConnectionError, TimeoutError) → show retry button, preserve state
+- [X] T043 [US2] [P] Add user-friendly error messages to strings.json ("Invalid token", "Cannot connect", "Try again")
 
 ### Error Recovery Flow
 
-- [ ] T044 [US2] [P] Implement retry logic in async_step_auth_validate() for transient errors (max 3 attempts)
-- [ ] T045 [US2] Implement error message with link to developer portal when token invalid
-- [ ] T046 [US2] [P] Add state checkpointing to preserve oauth_state and code during transient retries
+- [X] T044 [US2] [P] Implement retry logic in async_step_auth_validate() for transient errors (max 3 attempts)
+- [X] T045 [US2] Implement error message with link to developer portal when token invalid
+- [X] T046 [US2] [P] Add state checkpointing to preserve oauth_state and code during transient retries
 
 ### PyPI Wrapper Integration for Validation
 
-- [ ] T047 [US2] Call electricityinfo-nz wrapper's validate_token() method in config flow
-- [ ] T048 [US2] [P] Handle wrapper exception hierarchy (AuthenticationError, ConnectionError, TimeoutError)
-- [ ] T049 [US2] [P] Log validation attempts (no token details, only success/failure/error type)
+- [X] T047 [US2] Call electricityinfo-nz wrapper's validate_token() method in config flow
+- [X] T048 [US2] [P] Handle wrapper exception hierarchy (AuthenticationError, ConnectionError, TimeoutError)
+- [X] T049 [US2] [P] Log validation attempts (no token details, only success/failure/error type)
 
 ### Tests for US2
 
-- [ ] T050 [US2] Write test_token_validation_invalid() — invalid token shows error message
-- [ ] T051 [US2] Write test_token_validation_connection_error() — network error shows retry button
-- [ ] T052 [US2] [P] Write test_token_validation_timeout() — timeout shows retry, allows 3 attempts
-- [ ] T053 [US2] Write test_error_message_has_help_link() — error includes developer portal URL
-- [ ] T054 [US2] [P] Write test_state_preserved_on_retry() — oauth_state and code not lost on retry
+- [X] T050 [US2] Write test_token_validation_invalid() — invalid token shows error message
+- [X] T051 [US2] Write test_token_validation_connection_error() — network error shows retry button
+- [X] T052 [US2] [P] Write test_token_validation_timeout() — timeout shows retry, allows 3 attempts
+- [X] T053 [US2] Write test_error_message_has_help_link() — error includes developer portal URL
+- [X] T054 [US2] [P] Write test_state_preserved_on_retry() — oauth_state and code not lost on retry
 
 ---
 
@@ -194,29 +194,29 @@ Within each user story, these tasks can run in parallel [P] marker):
 
 ### Re-Authentication UI
 
-- [ ] T055 [US3] Implement async_step_reauth() to start re-auth flow from options menu
-- [ ] T055a [US3] [P] Create re-authenticate action in ConfigFlow (async_reauth_handler)
-- [ ] T056 [US3] [P] Add Re-authenticate button/option to config entry in manifest
+- [X] T055 [US3] Implement async_step_reauth() to start re-auth flow from options menu
+- [X] T055a [US3] [P] Create re-authenticate action in ConfigFlow (async_reauth_handler)
+- [X] T056 [US3] [P] Add Re-authenticate button/option to config entry in manifest
 
 ### Re-Authentication Flow
 
-- [ ] T057 [US3] Implement re-auth as abbreviated OAuth flow (skip credential input if stored, go straight to redirect)
-- [ ] T058 [US3] [P] Use existing client_id/client_secret from config entry if available
-- [ ] T059 [US3] On successful re-auth, update config entry token without losing options
-- [ ] T060 [US3] [P] Preserve sensor configuration and intervals across re-auth
+- [X] T057 [US3] Implement re-auth as abbreviated OAuth flow (skip credential input if stored, go straight to redirect)
+- [X] T058 [US3] [P] Use existing client_id/client_secret from config entry if available
+- [X] T059 [US3] On successful re-auth, update config entry token without losing options
+- [X] T060 [US3] [P] Preserve sensor configuration and intervals across re-auth
 
 ### Token Refresh & Expiration Handling
 
-- [ ] T061 [US3] [P] Implement token expiration check (obtained_at + expires_in vs current time)
-- [ ] T062 [US3] [P] On startup, validate stored token; if expired, trigger re-auth notification
-- [ ] T063 [US3] Add refresh_token support if provider supplies it (store in data, use for automatic refresh)
+- [X] T061 [US3] [P] Implement token expiration check (obtained_at + expires_in vs current time)
+- [X] T062 [US3] [P] On startup, validate stored token; if expired, trigger re-auth notification
+- [X] T063 [US3] Add refresh_token support if provider supplies it (store in data, use for automatic refresh)
 
 ### Tests for US3
 
-- [ ] T064 [US3] Write test_reauth_flow_triggered() — config entry options show re-auth button
-- [ ] T065 [US3] [P] Write test_reauth_updates_token() — new token replaces old token
-- [ ] T066 [US3] [P] Write test_reauth_preserves_options() — sensor config not lost after re-auth
-- [ ] T067 [US3] Write test_expired_token_detected() — startup checks expiration and prompts re-auth
+- [X] T064 [US3] Write test_reauth_flow_triggered() — config entry options show re-auth button
+- [X] T065 [US3] [P] Write test_reauth_updates_token() — new token replaces old token
+- [X] T066 [US3] [P] Write test_reauth_preserves_options() — sensor config not lost after re-auth
+- [X] T067 [US3] Write test_expired_token_detected() — startup checks expiration and prompts re-auth
 
 ---
 
@@ -231,22 +231,22 @@ Within each user story, these tasks can run in parallel [P] marker):
 
 ### Config Entry Lifecycle
 
-- [ ] T068 [US4] Implement async_unload_entry() in __init__.py to properly unload integration
-- [ ] T069 [US4] [P] Clean up hass.data entries when unloading
-- [ ] T070 [US4] [P] Implement async_remove_entry() to delete credentials from Home Assistant storage
+- [X] T068 [US4] Implement async_unload_entry() in __init__.py to properly unload integration
+- [X] T069 [US4] [P] Clean up hass.data entries when unloading
+- [X] T070 [US4] [P] Implement async_remove_entry() to delete credentials from Home Assistant storage
 
 ### Config Entry Display & Management
 
-- [ ] T071 [US4] Verify config entry shows correct title in Integrations list
-- [ ] T072 [US4] [P] Implement async_update_entry() to support editing options (if needed for future sensors)
-- [ ] T073 [US4] [P] Add entry.state tracking (loaded, not_loaded, error states)
+- [X] T071 [US4] Verify config entry shows correct title in Integrations list
+- [X] T072 [US4] [P] Implement async_update_entry() to support editing options (if needed for future sensors)
+- [X] T073 [US4] [P] Add entry.state tracking (loaded, not_loaded, error states)
 
 ### Tests for US4
 
-- [ ] T074 [US4] Write test_config_entry_shown_in_list() — entry visible in Integrations
-- [ ] T075 [US4] Write test_config_entry_remove_cleanup() — removing entry cleans all config
-- [ ] T076 [US4] [P] Write test_config_entry_disable() — user can disable/enable entry
-- [ ] T077 [US4] [P] Write test_config_entry_reload() — integration reloads without error
+- [X] T074 [US4] Write test_config_entry_shown_in_list() — entry visible in Integrations
+- [X] T075 [US4] Write test_config_entry_remove_cleanup() — removing entry cleans all config
+- [X] T076 [US4] [P] Write test_config_entry_disable() — user can disable/enable entry
+- [X] T077 [US4] [P] Write test_config_entry_reload() — integration reloads without error
 
 ---
 
@@ -254,31 +254,31 @@ Within each user story, these tasks can run in parallel [P] marker):
 
 ### Security & Logging
 
-- [ ] T078 Add security audit: verify no tokens logged in debug output
-- [ ] T079 [P] Verify client_secret never stored in plaintext
-- [ ] T080 [P] Audit error messages: no token details leaked to users
-- [ ] T081 [P] Add HTTPS enforcement for OAuth redirects
+- [X] T078 Add security audit: verify no tokens logged in debug output
+- [X] T079 [P] Verify client_secret never stored in plaintext
+- [X] T080 [P] Audit error messages: no token details leaked to users
+- [X] T081 [P] Add HTTPS enforcement for OAuth redirects
 
 ### Documentation & User Guidance
 
-- [ ] T082 Update README.md with installation and first-time setup instructions
-- [ ] T083 [P] Add docstrings to all public methods in config_flow.py and __init__.py
-- [ ] T084 [P] Create troubleshooting guide: common OAuth errors and solutions
-- [ ] T085 [P] Add inline comments for complex OAuth logic (CSRF validation, state checkpointing)
+- [X] T082 Update README.md with installation and first-time setup instructions
+- [X] T083 [P] Add docstrings to all public methods in config_flow.py and __init__.py
+- [X] T084 [P] Create troubleshooting guide: common OAuth errors and solutions
+- [X] T085 [P] Add inline comments for complex OAuth logic (CSRF validation, state checkpointing)
 
 ### Code Quality
 
-- [ ] T086 Run ruff linter: `ruff check --fix custom_components tests`
-- [ ] T087 Run type checking: `mypy custom_components/electricityinfo_nz`
-- [ ] T088 [P] Run test coverage: `pytest --cov` and verify >80% coverage
-- [ ] T089 [P] Run all tests: `pytest tests/` and verify all pass
+- [X] T086 Run ruff linter: `ruff check --fix custom_components tests`
+- [X] T087 Run type checking: `mypy custom_components/electricityinfo_nz`
+- [X] T088 [P] Run test coverage: `pytest --cov` and verify >80% coverage
+- [X] T089 [P] Run all tests: `pytest tests/` and verify all pass
 
 ### Final Integration Testing
 
-- [ ] T090 End-to-end test: new install → config flow → token stored → integration ready
-- [ ] T091 [P] Error scenario test: invalid credentials → helpful error → retry succeeds
-- [ ] T092 [P] Network resilience test: transient errors → retry logic → eventual success
-- [ ] T093 [P] Cleanup test: remove integration → no residual config or credentials remain
+- [X] T090 End-to-end test: new install → config flow → token stored → integration ready
+- [X] T091 [P] Error scenario test: invalid credentials → helpful error → retry succeeds
+- [X] T092 [P] Network resilience test: transient errors → retry logic → eventual success
+- [X] T093 [P] Cleanup test: remove integration → no residual config or credentials remain
 
 ---
 

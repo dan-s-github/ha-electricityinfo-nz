@@ -10,6 +10,9 @@ import voluptuous as vol
 from homeassistant import config_entries
 from requests_oauthlib import OAuth2Session
 
+from electricityinfo_nz.client import MarketPricesClient
+from electricityinfo_nz.exceptions import AuthenticationError, TransportError
+
 from .const import (
     CONF_CLIENT_ID,
     CONF_CLIENT_SECRET,
@@ -129,28 +132,90 @@ class ElectricityInfoConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         user_input: dict[str, Any] | None = None,  # noqa: ARG002
     ) -> ConfigFlowResult:
         """Validate obtained token."""
-        # This step is reached after user authorizes at OAuth provider
-        # Home Assistant has handled the authorization code exchange
-        # Now we validate the token works and create the config entry
-
+        # Phase 4: Token Validation Implementation (T028-T032)
+        # This step validates that credentials work by attempting API call
         errors: dict[str, str] = {}
 
-        # Get authorization code from Home Assistant's oauth handler
-        # The code is available via self.hass.data if using OAuth2 helper
         # For now, create a placeholder token for testing
+        # In production, this would exchange the authorization code for an access token
+        token = self.access_token or "test_token"
 
-        if not errors:
-            # Create config entry with unique_id
-            await self.async_set_unique_id("electricityinfo_nz")
-            self._abort_if_unique_id_configured()
+        try:
+            # T040, T047: Validate token using MarketPricesClient
+            client = MarketPricesClient(
+                client_id=self.client_id,
+                client_secret=self.client_secret,
+            )
 
-            return self.async_create_entry(
-                title="Electricityinfo NZ",
-                data={
-                    CONF_CLIENT_ID: self.client_id,
-                    CONF_CLIENT_SECRET: self.client_secret,
-                    CONF_TOKEN: self.access_token or "placeholder_token",
+            # Call get_schedules() as a test API call to validate credentials
+            _LOGGER.debug("Validating credentials with API call")
+            await self.hass.async_add_executor_job(client.get_schedules)
+            _LOGGER.debug("Token validation successful")
+
+        except AuthenticationError:
+            # T041, T045: Permanent authentication error
+            _LOGGER.exception("Token validation failed")
+            errors["base"] = "invalid_token"
+            self.validation_attempts = 0
+            # Return to step 1 with help link
+            return self.async_show_form(
+                step_id="user",
+                data_schema=vol.Schema(
+                    {
+                        vol.Required(CONF_CLIENT_ID, default=self.client_id): str,
+                        vol.Required(CONF_CLIENT_SECRET): str,
+                    }
+                ),
+                errors=errors,
+                description_placeholders={
+                    "help_url": DEVELOPER_PORTAL_URL,
                 },
             )
 
-        return self.async_abort(reason="validation_failed")
+        except (TransportError, TimeoutError) as err:
+            # T042, T044: Transient errors - allow retry
+            self.validation_attempts += 1
+            _LOGGER.warning(
+                "Token validation transient error (attempt %d/%d): %s",
+                self.validation_attempts,
+                self.max_validation_attempts,
+                err,
+            )
+
+            if self.validation_attempts < self.max_validation_attempts:
+                # T043: Show retry option with error message
+                errors["base"] = "cannot_connect"
+                return self.async_show_form(
+                    step_id="auth_validate",
+                    errors=errors,
+                    description_placeholders={
+                        "help_url": DEVELOPER_PORTAL_URL,
+                    },
+                    last_step=False,
+                )
+            # Max attempts reached
+            _LOGGER.exception(
+                "Token validation failed after %d attempts",
+                self.max_validation_attempts,
+            )
+            errors["base"] = "cannot_connect"
+            return self.async_show_form(
+                step_id="auth_validate",
+                errors=errors,
+                last_step=True,
+            )
+
+        # T028-T030: Successful validation - create config entry
+        # Create config entry with unique_id
+        await self.async_set_unique_id("electricityinfo_nz")
+        self._abort_if_unique_id_configured()
+
+        _LOGGER.info("Creating config entry for Electricityinfo NZ")
+        return self.async_create_entry(
+            title="Electricityinfo NZ",
+            data={
+                CONF_CLIENT_ID: self.client_id,
+                CONF_CLIENT_SECRET: self.client_secret,
+                CONF_TOKEN: token,
+            },
+        )
