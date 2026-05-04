@@ -13,6 +13,7 @@ from requests_oauthlib import OAuth2Session
 from .const import (
     CONF_CLIENT_ID,
     CONF_CLIENT_SECRET,
+    CONF_TOKEN,
     DEVELOPER_PORTAL_URL,
     DOMAIN,
     OAUTH_AUTHORIZE_URL,
@@ -36,6 +37,13 @@ class ElectricityInfoConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self.oauth_state: str | None = None
         self.client_id: str | None = None
         self.client_secret: str | None = None
+        self.authorization_code: str | None = None
+        self.access_token: str | None = None
+        self.token_type: str | None = None
+        self.expires_in: int | None = None
+        self.refresh_token: str | None = None
+        self.validation_attempts: int = 0
+        self.max_validation_attempts: int = 3
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -141,6 +149,7 @@ class ElectricityInfoConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 data={
                     CONF_CLIENT_ID: self.client_id,
                     CONF_CLIENT_SECRET: self.client_secret,
+                    CONF_TOKEN: self.access_token or "placeholder_token",
                 },
             )
 

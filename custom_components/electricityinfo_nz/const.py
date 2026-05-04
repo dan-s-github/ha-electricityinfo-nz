@@ -19,3 +19,7 @@ CONF_TOKEN = "token"  # noqa: S105
 
 # Help URLs
 DEVELOPER_PORTAL_URL = "https://developer.electricityinfo.co.nz"
+
+# Validation retry configuration
+MAX_VALIDATION_ATTEMPTS = 3
+VALIDATION_TIMEOUT = 10  # seconds

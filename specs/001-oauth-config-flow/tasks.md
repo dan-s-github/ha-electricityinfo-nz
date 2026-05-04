@@ -57,19 +57,19 @@ Within each user story, these tasks can run in parallel [P] marker):
 
 ### Project Initialization & Dependencies
 
-- [ ] T001 Create integration entry point (`custom_components/electricityinfo_nz/__init__.py`) with async_setup_entry placeholder and logging setup
-- [ ] T002 Create config flow module (`custom_components/electricityinfo_nz/config_flow.py`) with ConfigFlow class stub
-- [ ] T003 [P] Create constants module (`custom_components/electricityinfo_nz/const.py`) with DOMAIN, VERSION, OAuth URLs, strings
-- [ ] T004 [P] Create strings file (`custom_components/electricityinfo_nz/strings.json`) with user-facing text (config flow, errors, help)
-- [ ] T005 [P] Create manifest file (`custom_components/electricityinfo_nz/manifest.json`) with version, requirements, codeowners, dependencies
-- [ ] T006 [P] Create test fixtures (`tests/conftest.py`) with Home Assistant hass fixture, mocked OAuth session, mocked wrapper
+- [X] T001 Create integration entry point (`custom_components/electricityinfo_nz/__init__.py`) with async_setup_entry placeholder and logging setup
+- [X] T002 Create config flow module (`custom_components/electricityinfo_nz/config_flow.py`) with ConfigFlow class stub
+- [X] T003 [P] Create constants module (`custom_components/electricityinfo_nz/const.py`) with DOMAIN, VERSION, OAuth URLs, strings
+- [X] T004 [P] Create strings file (`custom_components/electricityinfo_nz/strings.json`) with user-facing text (config flow, errors, help)
+- [X] T005 [P] Create manifest file (`custom_components/electricityinfo_nz/manifest.json`) with version, requirements, codeowners, dependencies
+- [X] T006 [P] Create test fixtures (`tests/conftest.py`) with Home Assistant hass fixture, mocked OAuth session, mocked wrapper
 
 ### Test Infrastructure Setup
 
-- [ ] T007 Create test config flow module (`tests/test_config_flow.py`) with imports, fixtures, test class stub
-- [ ] T008 Create test init module (`tests/test_init.py`) with setup_entry tests stub
-- [ ] T009 [P] Create OAuth tests module (`tests/test_oauth.py`) with token validation tests stub
-- [ ] T010 [P] Create pytest configuration validation (ensure pytest-homeassistant-custom-component installed, asyncio_mode set)
+- [X] T007 Create test config flow module (`tests/test_config_flow.py`) with imports, fixtures, test class stub
+- [X] T008 Create test init module (`tests/test_init.py`) with setup_entry tests stub
+- [X] T009 [P] Create OAuth tests module (`tests/test_oauth.py`) with token validation tests stub
+- [X] T010 [P] Create pytest configuration validation (ensure pytest-homeassistant-custom-component installed, asyncio_mode set)
 
 ---
 
@@ -77,16 +77,16 @@ Within each user story, these tasks can run in parallel [P] marker):
 
 ### OAuth Infrastructure & Constants
 
-- [ ] T011 Define OAuth URLs in const.py (provider authorize URL, token URL, redirect URI format)
-- [ ] T012 [P] Define DOMAIN, VERSION, PLATFORMS constants in const.py
-- [ ] T013 [P] Create integration manifest with OAuth scopes and version
-- [ ] T014 Implement async config flow scaffolding in config_flow.py with all step methods stubbed
+- [X] T011 Define OAuth URLs in const.py (provider authorize URL, token URL, redirect URI format)
+- [X] T012 [P] Define DOMAIN, VERSION, PLATFORMS constants in const.py
+- [X] T013 [P] Create integration manifest with OAuth scopes and version
+- [X] T014 Implement async config flow scaffolding in config_flow.py with all step methods stubbed
 
 ### PyPI Wrapper Integration Foundation
 
-- [ ] T015 Add electricityinfo-nz import and initialize wrapper class in config_flow
-- [ ] T016 [P] Implement async error handling patterns for transient vs permanent failures
-- [ ] T017 [P] Create wrapper validation method that calls library's validate_token() with proper error classification
+- [X] T015 Add electricityinfo-nz import and initialize wrapper class in config_flow
+- [X] T016 [P] Implement async error handling patterns for transient vs permanent failures
+- [X] T017 [P] Create wrapper validation method that calls library's validate_token() with proper error classification
 
 ---
 
@@ -103,43 +103,43 @@ Within each user story, these tasks can run in parallel [P] marker):
 
 ### Step 1: Credential Input & OAuth Initialization
 
-- [ ] T018 [US1] Implement async_step_user() for credential input form (client_id, client_secret fields) in config_flow.py
-- [ ] T019 [US1] Add client_id/client_secret validation (non-empty check, syntax validation)
-- [ ] T020 [US1] Add help text and developer portal link (https://developer.electricityinfo.co.nz) to Step 1 form
+- [X] T018 [US1] Implement async_step_user() for credential input form (client_id, client_secret fields) in config_flow.py
+- [X] T019 [US1] Add client_id/client_secret validation (non-empty check, syntax validation)
+- [X] T020 [US1] Add help text and developer portal link (https://developer.electricityinfo.co.nz) to Step 1 form
 
 ### Step 2: OAuth Redirect & State Generation
 
-- [ ] T021 [US1] [P] Implement async_step_auth() to generate CSRF token (oauth_state) and construct authorization URL
-- [ ] T022 [US1] [P] Implement config flow state checkpointing (store client_id, oauth_state, current_step for recovery)
-- [ ] T023 [US1] Return external action to redirect user to OAuth provider with authorization URL
+- [X] T021 [US1] [P] Implement async_step_auth() to generate CSRF token (oauth_state) and construct authorization URL
+- [X] T022 [US1] [P] Implement config flow state checkpointing (store client_id, oauth_state, current_step for recovery)
+- [X] T023 [US1] Return external action to redirect user to OAuth provider with authorization URL
 
 ### Step 3: OAuth Callback Handling
 
-- [ ] T024 [US1] [P] Implement async_step_auth_callback() to receive authorization code and state
-- [ ] T025 [US1] [P] Validate CSRF token matches Step 2 state (security check)
-- [ ] T026 [US1] Implement code-to-token exchange (POST to token URL with client_id, client_secret, code)
-- [ ] T027 [US1] [P] Parse OAuth response and extract access_token, token_type, expires_in, refresh_token
+- [X] T024 [US1] [P] Implement async_step_auth_callback() to receive authorization code and state
+- [X] T025 [US1] [P] Validate CSRF token matches Step 2 state (security check)
+- [X] T026 [US1] Implement code-to-token exchange (POST to token URL with client_id, client_secret, code)
+- [X] T027 [US1] [P] Parse OAuth response and extract access_token, token_type, expires_in, refresh_token
 
 ### Step 4: Token Validation & Persistence
 
-- [ ] T028 [US1] [P] Implement async_step_auth_validate() to call wrapper.validate_token() with obtained access_token
-- [ ] T029 [US1] [P] Handle validation errors: classify as permanent (show help) or transient (allow retry)
-- [ ] T030 [US1] On successful validation, create config entry with encrypted token via Home Assistant
+- [X] T028 [US1] [P] Implement async_step_auth_validate() to call wrapper.validate_token() with obtained access_token
+- [X] T029 [US1] [P] Handle validation errors: classify as permanent (show help) or transient (allow retry)
+- [X] T030 [US1] On successful validation, create config entry with encrypted token via Home Assistant
 
 ### Integration Setup Completion
 
-- [ ] T031 [US1] [P] Implement async_setup_entry() in __init__.py to load token and store wrapper in hass.data
-- [ ] T032 [US1] [P] Implement config entry title ("Electricityinfo NZ") and unique_id enforcement (single instance)
+- [X] T031 [US1] [P] Implement async_setup_entry() in __init__.py to load token and store wrapper in hass.data
+- [X] T032 [US1] [P] Implement config entry title ("Electricityinfo NZ") and unique_id enforcement (single instance)
 
 ### Tests for US1
 
-- [ ] T033 [US1] Write test_user_form_valid() — user enters valid credentials, proceeds to auth step
-- [ ] T034 [US1] Write test_user_form_invalid_client_id() — empty client_id shows error
-- [ ] T035 [US1] [P] Write test_oauth_redirect() — auth step generates valid authorization URL with state
-- [ ] T036 [US1] [P] Write test_oauth_callback_valid() — code exchanged for token successfully
-- [ ] T037 [US1] [P] Write test_oauth_callback_csrf_mismatch() — CSRF mismatch aborts (security)
-- [ ] T038 [US1] Write test_token_validation_success() — valid token creates config entry
-- [ ] T039 [US1] Write test_config_entry_created() — config entry has correct title and unique_id
+- [X] T033 [US1] Write test_user_form_valid() — user enters valid credentials, proceeds to auth step
+- [X] T034 [US1] Write test_user_form_invalid_client_id() — empty client_id shows error
+- [X] T035 [US1] [P] Write test_oauth_redirect() — auth step generates valid authorization URL with state
+- [X] T036 [US1] [P] Write test_oauth_callback_valid() — code exchanged for token successfully
+- [X] T037 [US1] [P] Write test_oauth_callback_csrf_mismatch() — CSRF mismatch aborts (security)
+- [X] T038 [US1] Write test_token_validation_success() — valid token creates config entry
+- [X] T039 [US1] Write test_config_entry_created() — config entry has correct title and unique_id
 
 ---
 
