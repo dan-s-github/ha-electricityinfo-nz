@@ -42,12 +42,12 @@ Establish test infrastructure, add constants, and prepare for sensor platform im
 
 ### Phase 1 Tasks
 
-- [ ] T001 Create constants for allowed schedule types, market types, nodes in `custom_components/electricityinfo/const.py`
-- [ ] T002 Add sensor-related string translations to `custom_components/electricityinfo/strings.json` (config flow steps, field labels, validation errors)
-- [ ] T003 Create mock market prices fixture in `tests/fixtures/market_prices.json` for all test scenarios
-- [ ] T004 [P] Update `tests/conftest.py` with mock_market_prices, mock_coordinator fixtures
-- [ ] T005 [P] Create `tests/integration/` directory structure for E2E tests
-- [ ] T006 [P] Create test helper module `tests/helpers.py` for sensor setup, coordinator mocking utilities
+- [x] T001 Create constants for allowed schedule types, market types, nodes in `custom_components/electricityinfo/const.py`
+- [x] T002 Add sensor-related string translations to `custom_components/electricityinfo/strings.json` (config flow steps, field labels, validation errors)
+- [x] T003 Create mock market prices fixture in `tests/fixtures/market_prices.json` for all test scenarios
+- [x] T004 [P] Update `tests/conftest.py` with mock_market_prices, mock_coordinator fixtures
+- [x] T005 [P] Create `tests/integration/` directory structure for E2E tests
+- [x] T006 [P] Create test helper module `tests/helpers.py` for sensor setup, coordinator mocking utilities
 
 ### Independent Test Criteria
 - Constants file loads without errors; allowed values match API documentation
@@ -64,11 +64,11 @@ Build core DataUpdateCoordinator and scaffold for config flow options.
 
 ### Phase 2 Tasks
 
-- [ ] T007 Create DataUpdateCoordinator in `custom_components/electricityinfo/__init__.py` with `_async_update_data()` method
-- [ ] T008 Implement exponential backoff retry logic (1-minute first retry, mark unavailable after 2nd failure) in coordinator
-- [ ] T009 Add `OptionsFlowHandler` class to `custom_components/electricityinfo/config_flow.py`
-- [ ] T010 [P] Implement `async_step_init()` → `async_step_configure_sensors()` flow in OptionsFlowHandler
-- [ ] T011 [P] Implement sensor list display and action button routing in config flow
+- [x] T007 Create DataUpdateCoordinator in `custom_components/electricityinfo/__init__.py` with `_async_update_data()` method
+- [x] T008 Implement exponential backoff retry logic (1-minute first retry, mark unavailable after 2nd failure) in coordinator
+- [x] T009 Add `OptionsFlowHandler` class to `custom_components/electricityinfo/config_flow.py`
+- [x] T010 [P] Implement `async_step_init()` → `async_step_configure_sensors()` flow in OptionsFlowHandler
+- [x] T011 [P] Implement sensor list display and action button routing in config flow
 
 ### Independent Test Criteria
 - Coordinator fetches prices without errors (mocked API)
@@ -90,26 +90,26 @@ Implement core MVP: users can add a single sensor and see it update every 30 min
 
 #### US1 Config Flow Tasks
 
-- [ ] T012 [US1] Implement `async_step_add_sensor()` form in OptionsFlowHandler with fields: id, schedule_type, market_type, node, forward_prices_count, unit_preference
-- [ ] T013 [US1] Add sensor validation in `async_step_add_sensor()`: unique ID, allowed schedule_type/market_type/node, valid forward_prices_count, unit_preference in ["NZD/MWh", "c/kWh"]
-- [ ] T014 [US1] Save sensor config to `config_entry.options["sensors"]` list after validation
-- [ ] T015 [P] [US1] Implement `async_step_edit_sensor()` for editing existing sensor config
-- [ ] T016 [P] [US1] Implement sensor deletion with confirmation dialog in `async_step_configure_sensors()`
+- [x] T012 [US1] Implement `async_step_add_sensor()` form in OptionsFlowHandler with fields: id, schedule_type, market_type, node, forward_prices_count, unit_preference
+- [x] T013 [US1] Add sensor validation in `async_step_add_sensor()`: unique ID, allowed schedule_type/market_type/node, valid forward_prices_count, unit_preference in ["NZD/MWh", "c/kWh"]
+- [x] T014 [US1] Save sensor config to `config_entry.options["sensors"]` list after validation
+- [x] T015 [P] [US1] Implement `async_step_edit_sensor()` for editing existing sensor config
+- [x] T016 [P] [US1] Implement sensor deletion with confirmation dialog in `async_step_configure_sensors()`
 
 #### US1 Sensor Platform Tasks
 
-- [ ] T017 [US1] Create PriceSensorEntity class in `custom_components/electricityinfo/sensor.py` inheriting from SensorEntity, RestoreEntity, CoordinatorEntity
-- [ ] T018 [US1] Implement PriceSensorEntity properties: entity_id, unique_id, name, icon, device_class, native_value (current price)
-- [ ] T019 [US1] Implement PriceSensorEntity attributes: timestamp, confidence_level, forecast_period, market_type, node, schedule_type, prices_array
-- [ ] T020 [US1] Implement `async_setup_entry()` sensor platform function to create PriceSensorEntity for each SensorConfiguration
-- [ ] T021 [US1] Implement RestoreEntity `async_added_to_hass()` to restore previous state after Home Assistant restart
-- [ ] T022 [US1] Implement unit conversion in entity state property: apply NZD/MWh ↔ c/kWh conversion based on unit_preference
+- [x] T017 [US1] Create PriceSensorEntity class in `custom_components/electricityinfo/sensor.py` inheriting from SensorEntity, RestoreEntity, CoordinatorEntity
+- [x] T018 [US1] Implement PriceSensorEntity properties: entity_id, unique_id, name, icon, device_class, native_value (current price)
+- [x] T019 [US1] Implement PriceSensorEntity attributes: timestamp, confidence_level, forecast_period, market_type, node, schedule_type, prices_array
+- [x] T020 [US1] Implement `async_setup_entry()` sensor platform function to create PriceSensorEntity for each SensorConfiguration
+- [x] T021 [US1] Implement RestoreEntity `async_added_to_hass()` to restore previous state after Home Assistant restart
+- [x] T022 [US1] Implement unit conversion in entity state property: apply NZD/MWh ↔ c/kWh conversion based on unit_preference
 
 #### US1 Tests
 
-- [ ] T023 [US1] Write unit tests for config flow validation in `tests/test_config_flow_sensor_options.py`: test valid/invalid IDs, schedule types, nodes, units
-- [ ] T024 [US1] Write integration test for single sensor add/display in `tests/integration/test_sensor_end_to_end.py`
-- [ ] T025 [US1] Write test for state persistence: verify state restored after Home Assistant restart
+- [x] T023 [US1] Write unit tests for config flow validation in `tests/test_config_flow_sensor_options.py`: test valid/invalid IDs, schedule types, nodes, units
+- [x] T024 [US1] Write integration test for single sensor add/display in `tests/integration/test_sensor_end_to_end.py`
+- [x] T025 [US1] Write test for state persistence: verify state restored after Home Assistant restart
 
 ### User Story 4: Handle Update Failures Gracefully (P1)
 
@@ -117,16 +117,16 @@ Implement core MVP: users can add a single sensor and see it update every 30 min
 
 #### US4 Error Handling Tasks
 
-- [ ] T026 [US4] Implement error handling in coordinator `_async_update_data()`: catch TokenExpiredError, ConnectionError, TimeoutError
-- [ ] T027 [US4] Implement automatic entity unavailable state transition when coordinator fails (after 2 failures)
-- [ ] T028 [US4] Implement automatic recovery: transition entity from unavailable to available when coordinator succeeds
-- [ ] T029 [US4] Handle partial API responses: if prices missing for sensor's node/schedule_type, mark that sensor unavailable only (not others)
+- [x] T026 [US4] Implement error handling in coordinator `_async_update_data()`: catch TokenExpiredError, ConnectionError, TimeoutError
+- [x] T027 [US4] Implement automatic entity unavailable state transition when coordinator fails (after 2 failures)
+- [x] T028 [US4] Implement automatic recovery: transition entity from unavailable to available when coordinator succeeds
+- [x] T029 [US4] Handle partial API responses: if prices missing for sensor's node/schedule_type, mark that sensor unavailable only (not others)
 
 #### US4 Tests
 
-- [ ] T030 [US4] Write test for API failure → unavailable transition in `tests/test_sensor_platform.py`
-- [ ] T031 [US4] Write test for recovery on API success
-- [ ] T032 [US4] Write test for partial data handling (one sensor fails while others update)
+- [x] T030 [US4] Write test for API failure → unavailable transition in `tests/test_sensor_platform.py`
+- [x] T031 [US4] Write test for recovery on API success
+- [x] T032 [US4] Write test for partial data handling (one sensor fails while others update)
 
 ---
 
@@ -141,11 +141,11 @@ Support multiple price sensors with independent updates and failure handling.
 
 #### US2 Tasks
 
-- [ ] T033 [US2] Verify config flow CRUD operations support multiple sensors (T012-T016 already support this; verify in tests)
-- [ ] T034 [US2] Write integration test for adding multiple sensors with different configs in `tests/integration/test_sensor_end_to_end.py`
-- [ ] T035 [US2] Write test for coordinator handling multiple sensor updates without interference
-- [ ] T036 [US2] Write test for isolated failure: one sensor fails to fetch, others update normally
-- [ ] T037 [US2] Verify unique entity_id generation per sensor (no collisions with multiple sensors)
+- [x] T033 [US2] Verify config flow CRUD operations support multiple sensors (T012-T016 already support this; verify in tests)
+- [x] T034 [US2] Write integration test for adding multiple sensors with different configs in `tests/integration/test_sensor_end_to_end.py`
+- [x] T035 [US2] Write test for coordinator handling multiple sensor updates without interference
+- [x] T036 [US2] Write test for isolated failure: one sensor fails to fetch, others update normally
+- [x] T037 [US2] Verify unique entity_id generation per sensor (no collisions with multiple sensors)
 
 ---
 
@@ -160,10 +160,10 @@ Support price display in both NZD/MWh and c/kWh with accurate conversion.
 
 #### US3 Tasks
 
-- [ ] T038 [US3] Add price unit conversion helper function in `custom_components/electricityinfo/sensor.py`: NZD/MWh ↔ c/kWh
-- [ ] T039 [US3] Verify entity `unit_of_measurement` property returns correct display unit based on SensorConfiguration
-- [ ] T040 [US3] Write test for unit conversion accuracy (within ±0.01 c/kWh)
-- [ ] T041 [US3] Write test for dynamic unit reconfiguration: change unit → verify display updates
+- [x] T038 [US3] Add price unit conversion helper function in `custom_components/electricityinfo/sensor.py`: NZD/MWh ↔ c/kWh
+- [x] T039 [US3] Verify entity `unit_of_measurement` property returns correct display unit based on SensorConfiguration
+- [x] T040 [US3] Write test for unit conversion accuracy (within ±0.01 c/kWh)
+- [x] T041 [US3] Write test for dynamic unit reconfiguration: change unit → verify display updates
 
 ---
 
@@ -174,21 +174,21 @@ Comprehensive testing, documentation, and final refinement.
 
 ### Testing & Documentation Tasks
 
-- [ ] T042 Run full test suite: `pytest tests/ -v` → verify all tests pass
-- [ ] T043 Run linting: `ruff check --fix custom_components/ tests/` → verify no linting errors
-- [ ] T044 Run type checking: `mypy custom_components/` → verify no type errors
-- [ ] T045 Create manual testing guide documenting live API tests (optional, with credentials)
-- [ ] T046 Update CHANGELOG.md with Phase 2 feature summary and user-facing changes
-- [ ] T047 Verify all entity IDs follow naming convention: `sensor.electricityinfo_nz_{node}_{schedule_type}_{market_type}_{unit}`
-- [ ] T048 Add PR description template with reference to spec, plan, research docs
-- [ ] T049 Verify no sensitive data (tokens, credentials) in logs or error messages
-- [ ] T050 Final integration test: add sensor, verify full 30-minute update cycle, check state persistence
+- [x] T042 Run full test suite: `pytest tests/ -v` → verify all tests pass
+- [x] T043 Run linting: `ruff check --fix custom_components/ tests/` → verify no linting errors
+- [x] T044 Run type checking: `mypy custom_components/` → verify no type errors
+- [x] T045 Create manual testing guide documenting live API tests (optional, with credentials)
+- [x] T046 Update CHANGELOG.md with Phase 2 feature summary and user-facing changes
+- [x] T047 Verify all entity IDs follow naming convention: `sensor.electricityinfo_nz_{node}_{schedule_type}_{market_type}_{unit}`
+- [x] T048 Add PR description template with reference to spec, plan, research docs
+- [x] T049 Verify no sensitive data (tokens, credentials) in logs or error messages
+- [x] T050 Final integration test: add sensor, verify full 30-minute update cycle, check state persistence
 
 ### Final Verification
 
-- [ ] T051 Verify Constitution compliance: OAuth security, library wrapper usage, TDD methodology, configurable architecture
-- [ ] T052 Verify success criteria met (SC-001 through SC-008 from spec)
-- [ ] T053 Create GitHub PR with all commits and reference to planning documents
+- [x] T051 Verify Constitution compliance: OAuth security, library wrapper usage, TDD methodology, configurable architecture
+- [x] T052 Verify success criteria met (SC-001 through SC-008 from spec)
+- [x] T053 Create GitHub PR with all commits and reference to planning documents
 
 ---
 
