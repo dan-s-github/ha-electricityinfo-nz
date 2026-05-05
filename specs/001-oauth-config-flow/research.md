@@ -21,53 +21,51 @@ All NEEDS CLARIFICATION items have been resolved through research. Ready for Pha
 
 The `electricityinfo-nz` PyPI library is a **data wrapper** library that provides convenient access to New Zealand electricity market data.
 
-**Current Status**: The library does **not** natively include OAuth 2.0 support built-in.
+**Current Status**: The library **includes OAuth 2.0 Client Credentials support** via `electricityinfo_nz.auth.OAuth2ClientCredentials`.
 
 ### Implications
 
-- **OAuth Responsibility**: The Home Assistant integration **must implement OAuth logic** itself
-- **Token Management**: Integration will use Python OAuth libraries (e.g., `requests-oauthlib`, `authlib`) to handle token exchange and refresh
-- **Library Usage**: The `electricityinfo-nz` library will accept the validated access token as a parameter for API requests
-- **Wrapper Pattern**: Integration acts as OAuth wrapper around the PyPI library
+- **OAuth Responsibility**: The Home Assistant integration uses the library's built-in OAuth support for Client Credentials flow
+- **Token Management**: Library handles token exchange and refresh automatically
+- **Library Usage**: Integration instantiates `OAuth2ClientCredentials` with client_id/client_secret, calls `get_token()` to obtain access token, then passes token to `MarketPricesClient` for API requests
+- **Wrapper Pattern**: Library provides OAuth client and validated market prices client
 
 ### Technology Decision
 
-**OAuth Implementation**: Use `requests-oauthlib` (standard Python OAuth 2.0 library)
+**OAuth Implementation**: Use `electricityinfo-nz` library's built-in `OAuth2ClientCredentials` class
 
 **Rationale**:
-- Widely used in Home Assistant community
-- Proven async support via `aiohttp` integration
-- Minimal dependencies
-- Active maintenance
-
-**Alternative Considered**: `authlib`
-- More full-featured
-- Heavier dependency
-- Not as prevalent in Home Assistant integrations
-- Rejected in favor of lighter `requests-oauthlib`
+- Library implements OAuth 2.0 Client Credentials flow (no browser redirects needed)
+- Handles token exchange and management internally
+- Seamless integration with MarketPricesClient for validation
+- No external OAuth dependencies required
 
 ### API Integration Pattern
 
 ```python
-# Config flow obtains token via OAuth
-token = oauth_session.fetch_token(token_url, client_secret=client_secret)
+# Config flow obtains token via Client Credentials flow
+oauth = OAuth2ClientCredentials(
+    client_id=client_id,
+    client_secret=client_secret,
+    base_url="https://api.electricityinfo.co.nz"
+)
+access_token = oauth.get_token()
 
-# Pass token to electricityinfo-nz library
-wrapper = ElectricityinfoNZ(access_token=token['access_token'])
+# Pass token to MarketPricesClient for validation
+client = MarketPricesClient(access_token=access_token)
 
-# Library uses token for API requests
-data = wrapper.get_data()
+# Client uses token for API requests
+schedules = client.get_schedules()
 ```
 
 ### Token Refresh Strategy
 
-**Implementation**: Home Assistant's built-in token refresh via `aiohttp` session with refresh handler
+**Implementation**: Library's `OAuth2ClientCredentials` handles token refresh automatically
 
 **Rationale**:
-- Home Assistant provides credential storage that handles token updates automatically
-- Config entry can store refresh_token if provider supports it
-- Integration requests fresh token from config entry if validation fails
-- Users only see re-auth prompt if provider revokes token or refresh fails
+- Library manages token expiration and refresh internally
+- Integration stores credentials (client_id/client_secret) for re-exchange if needed
+- Users never see re-auth prompts unless credentials are invalid or revoked
 
 ### Open Questions Resolved
 

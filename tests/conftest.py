@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
+from electricityinfo_nz.exceptions import AuthenticationError
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -17,46 +18,38 @@ def auto_enable_custom_integrations(enable_custom_integrations: None) -> None:
 
 
 @pytest.fixture
-def mock_oauth_session() -> Generator[MagicMock]:
-    """Mock OAuth session for testing."""
+def mock_oauth_credentials() -> Generator[AsyncMock]:
+    """Mock OAuth2ClientCredentials for testing."""
     with patch(
-        "custom_components.electricityinfo.config_flow.requests_oauthlib.OAuth2Session"
+        "custom_components.electricityinfo.config_flow.OAuth2ClientCredentials"
     ) as mock:
-        session = MagicMock()
-        session.authorization_url.return_value = (
-            "https://provider.com/authorize?state=test",
-            "test_state",
-        )
-        session.fetch_token = AsyncMock(
-            return_value={
-                "access_token": "test_token_123",
-                "token_type": "Bearer",
-                "expires_in": 3600,
-            }
-        )
-        mock.return_value = session
-        yield session
+        oauth = AsyncMock()
+        oauth.get_token = AsyncMock(return_value="test_token_123")
+        mock.return_value = oauth
+        yield oauth
 
 
 @pytest.fixture
-def mock_wrapper() -> Generator[AsyncMock]:
-    """Mock electricityinfo-nz wrapper for testing."""
+def mock_market_prices_client() -> Generator[AsyncMock]:
+    """Mock MarketPricesClient for validation."""
     with patch(
-        "custom_components.electricityinfo.config_flow.ElectricityinfoNZ"
+        "custom_components.electricityinfo.config_flow.MarketPricesClient"
     ) as mock:
-        wrapper = AsyncMock()
-        wrapper.validate_token = AsyncMock(return_value=True)
-        mock.return_value = wrapper
-        yield wrapper
+        client = AsyncMock()
+        client.get_schedules = AsyncMock(return_value=[])
+        mock.return_value = client
+        yield client
 
 
 @pytest.fixture
-def mock_wrapper_invalid() -> Generator[AsyncMock]:
-    """Mock wrapper that returns invalid token."""
+def mock_market_prices_client_invalid() -> Generator[AsyncMock]:
+    """Mock MarketPricesClient that raises authentication error."""
     with patch(
-        "custom_components.electricityinfo.config_flow.ElectricityinfoNZ"
+        "custom_components.electricityinfo.config_flow.MarketPricesClient"
     ) as mock:
-        wrapper = AsyncMock()
-        wrapper.validate_token = AsyncMock(side_effect=Exception("Invalid token"))
-        mock.return_value = wrapper
-        yield wrapper
+        client = AsyncMock()
+        client.get_schedules = AsyncMock(
+            side_effect=AuthenticationError("Invalid token")
+        )
+        mock.return_value = client
+        yield client

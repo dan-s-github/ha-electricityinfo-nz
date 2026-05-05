@@ -6,7 +6,7 @@
 
 ## Summary
 
-Implement OAuth 2.0 configuration flow for Home Assistant Electricityinfo NZ integration. Users provide client_id/client_secret (obtained from https://developer.electricityinfo.co.nz), config flow handles OAuth redirect authorization, validates tokens via electricityinfo-nz PyPI wrapper, and stores encrypted credentials in Home Assistant. Automatic token refresh via PyPI wrapper prevents user-facing auth failures. Single instance per installation with state checkpointing for error recovery.
+Implement OAuth 2.0 Client Credentials configuration flow for Home Assistant Electricityinfo NZ integration. Users provide client_id/client_secret (obtained from https://developer.electricityinfo.co.nz), config flow directly exchanges credentials for access token (no browser redirects), validates token via electricityinfo-nz PyPI wrapper, and stores encrypted credentials in Home Assistant. Automatic token refresh via PyPI wrapper prevents user-facing auth failures. Single instance per installation.
 
 ## Technical Context
 

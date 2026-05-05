@@ -1,4 +1,4 @@
-"""Config flow for electricityinfo_nz integration."""
+"""Config flow for electricityinfo integration."""
 
 from __future__ import annotations
 
@@ -10,12 +10,18 @@ from electricityinfo_nz.auth import OAuth2ClientCredentials
 from electricityinfo_nz.client import MarketPricesClient
 from electricityinfo_nz.exceptions import AuthenticationError, TransportError
 from homeassistant import config_entries
+from homeassistant.helpers.selector import (
+    TextSelector,
+    TextSelectorConfig,
+    TextSelectorType,
+)
 
 from .const import (
     CONF_CLIENT_ID,
     CONF_CLIENT_SECRET,
     DEVELOPER_PORTAL_URL,
     DOMAIN,
+    MAX_VALIDATION_ATTEMPTS,
     OAUTH_BASE_URL,
 )
 
@@ -35,8 +41,8 @@ class ElectricityInfoConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         super().__init__()
         self.client_id: str | None = None
         self.client_secret: str | None = None
+        self.access_token: str | None = None
         self.validation_attempts: int = 0
-        self.max_validation_attempts: int = 3
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -64,7 +70,7 @@ class ElectricityInfoConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 )
 
                 # Check for existing entry (single instance)
-                await self.async_set_unique_id("electricityinfo_nz")
+                await self.async_set_unique_id(DOMAIN)
                 self._abort_if_unique_id_configured()
 
                 # Proceed to token exchange and validation
@@ -76,7 +82,9 @@ class ElectricityInfoConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             data_schema=vol.Schema(
                 {
                     vol.Required(CONF_CLIENT_ID): str,
-                    vol.Required(CONF_CLIENT_SECRET): str,
+                    vol.Required(CONF_CLIENT_SECRET): TextSelector(
+                        TextSelectorConfig(type=TextSelectorType.PASSWORD)
+                    ),
                 }
             ),
             errors=errors,
@@ -95,24 +103,18 @@ class ElectricityInfoConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         try:
             # Step 2: Exchange credentials using Client Credentials flow
-            _LOGGER.info(
-                "Exchanging credentials for access token with client_id: %s",
-                self.client_id,
-            )
+            _LOGGER.info("Exchanging credentials for access token")
             oauth = OAuth2ClientCredentials(
                 client_id=self.client_id,
                 client_secret=self.client_secret,
                 base_url=OAUTH_BASE_URL,
             )
-            await self.hass.async_add_executor_job(oauth.get_token)
+            self.access_token = await self.hass.async_add_executor_job(oauth.get_token)
             _LOGGER.info("✓ Successfully obtained access token")
 
             # Step 3: Validate credentials using MarketPricesClient
             _LOGGER.info("Validating credentials by calling get_schedules()")
-            client = MarketPricesClient(
-                client_id=self.client_id,
-                client_secret=self.client_secret,
-            )
+            client = MarketPricesClient(access_token=self.access_token)
             await self.hass.async_add_executor_job(client.get_schedules)
             _LOGGER.info("✓ Credential validation successful")
 
@@ -129,7 +131,9 @@ class ElectricityInfoConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 data_schema=vol.Schema(
                     {
                         vol.Required(CONF_CLIENT_ID, default=self.client_id): str,
-                        vol.Required(CONF_CLIENT_SECRET): str,
+                        vol.Required(CONF_CLIENT_SECRET): TextSelector(
+                            TextSelectorConfig(type=TextSelectorType.PASSWORD)
+                        ),
                     }
                 ),
                 errors=errors,
@@ -144,11 +148,11 @@ class ElectricityInfoConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             _LOGGER.warning(
                 "Token exchange/validation transient error (attempt %d/%d): %s",
                 self.validation_attempts,
-                self.max_validation_attempts,
+                MAX_VALIDATION_ATTEMPTS,
                 err,
             )
 
-            if self.validation_attempts < self.max_validation_attempts:
+            if self.validation_attempts < MAX_VALIDATION_ATTEMPTS:
                 # Show retry option with error message
                 errors["base"] = "cannot_connect"
                 return self.async_show_form(
@@ -162,7 +166,7 @@ class ElectricityInfoConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             # Max attempts reached
             _LOGGER.exception(
                 "Token exchange/validation failed after %d attempts",
-                self.max_validation_attempts,
+                MAX_VALIDATION_ATTEMPTS,
             )
             errors["base"] = "cannot_connect"
             return self.async_show_form(
@@ -173,7 +177,7 @@ class ElectricityInfoConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         # Successful validation - create config entry
         # Set unique_id again to verify single instance
-        await self.async_set_unique_id("electricityinfo_nz")
+        await self.async_set_unique_id(DOMAIN)
         self._abort_if_unique_id_configured()
 
         _LOGGER.info("✓ Creating config entry for Electricityinfo NZ")

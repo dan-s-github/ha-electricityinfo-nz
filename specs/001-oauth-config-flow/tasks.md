@@ -101,45 +101,32 @@ Within each user story, these tasks can run in parallel [P] marker):
 - Token stored encrypted in Home Assistant
 - Integration shows as "Electricityinfo NZ" in Integrations list
 
-### Step 1: Credential Input & OAuth Initialization
+### Step 1: Credential Input (User provides client_id & client_secret)
 
 - [X] T018 [US1] Implement async_step_user() for credential input form (client_id, client_secret fields) in config_flow.py
-- [X] T019 [US1] Add client_id/client_secret validation (non-empty check, syntax validation)
+- [X] T019 [US1] Add client_id/client_secret validation (non-empty check)
 - [X] T020 [US1] Add help text and developer portal link (https://developer.electricityinfo.co.nz) to Step 1 form
 
-### Step 2: OAuth Redirect & State Generation
+### Step 2: Token Exchange & Validation
 
-- [X] T021 [US1] [P] Implement async_step_auth() to generate CSRF token (oauth_state) and construct authorization URL
-- [X] T022 [US1] [P] Implement config flow state checkpointing (store client_id, oauth_state, current_step for recovery)
-- [X] T023 [US1] Return external action to redirect user to OAuth provider with authorization URL
-
-### Step 3: OAuth Callback Handling
-
-- [X] T024 [US1] [P] Implement async_step_auth_callback() to receive authorization code and state
-- [X] T025 [US1] [P] Validate CSRF token matches Step 2 state (security check)
-- [X] T026 [US1] Implement code-to-token exchange (POST to token URL with client_id, client_secret, code)
-- [X] T027 [US1] [P] Parse OAuth response and extract access_token, token_type, expires_in, refresh_token
-
-### Step 4: Token Validation & Persistence
-
-- [X] T028 [US1] [P] Implement async_step_auth_validate() to call wrapper.validate_token() with obtained access_token
-- [X] T029 [US1] [P] Handle validation errors: classify as permanent (show help) or transient (allow retry)
-- [X] T030 [US1] On successful validation, create config entry with encrypted token via Home Assistant
+- [X] T021 [US1] [P] Implement async_step_auth_validate() to exchange credentials for access token using library's OAuth2ClientCredentials
+- [X] T022 [US1] [P] Capture access_token from oauth.get_token() call
+- [X] T023 [US1] Call MarketPricesClient with access_token to validate credentials work
+- [X] T024 [US1] [P] Handle authentication errors (invalid credentials) → return to step 1 with help text
+- [X] T025 [US1] [P] Handle transient errors (connection, timeout) → show retry button, preserve credentials
 
 ### Integration Setup Completion
 
-- [X] T031 [US1] [P] Implement async_setup_entry() in __init__.py to load token and store wrapper in hass.data
-- [X] T032 [US1] [P] Implement config entry title ("Electricityinfo NZ") and unique_id enforcement (single instance)
+- [X] T026 [US1] [P] Implement async_setup_entry() in __init__.py to store credentials in hass.data
+- [X] T027 [US1] [P] Implement config entry title ("Electricityinfo NZ") and unique_id enforcement (single instance)
 
 ### Tests for US1
 
-- [X] T033 [US1] Write test_user_form_valid() — user enters valid credentials, proceeds to auth step
-- [X] T034 [US1] Write test_user_form_invalid_client_id() — empty client_id shows error
-- [X] T035 [US1] [P] Write test_oauth_redirect() — auth step generates valid authorization URL with state
-- [X] T036 [US1] [P] Write test_oauth_callback_valid() — code exchanged for token successfully
-- [X] T037 [US1] [P] Write test_oauth_callback_csrf_mismatch() — CSRF mismatch aborts (security)
-- [X] T038 [US1] Write test_token_validation_success() — valid token creates config entry
-- [X] T039 [US1] Write test_config_entry_created() — config entry has correct title and unique_id
+- [X] T028 [US1] Write test_user_form_valid() — user enters valid credentials, proceeds to token exchange
+- [X] T029 [US1] Write test_user_form_invalid_client_id() — empty client_id shows error
+- [X] T030 [US1] [P] Write test_token_exchange_success() — credentials exchanged for token successfully
+- [X] T031 [US1] [P] Write test_token_validation_success() — valid token creates config entry
+- [X] T032 [US1] Write test_config_entry_created() — config entry has correct title and unique_id
 
 ---
 
@@ -155,30 +142,23 @@ Within each user story, these tasks can run in parallel [P] marker):
 
 ### Token Validation Implementation
 
-- [X] T040 [US2] Create wrapper validation method in config_flow.py with try/except for error classification
-- [X] T041 [US2] [P] Implement AuthenticationError handling (token invalid) → return to step 1 with help text
-- [X] T042 [US2] [P] Implement transient error handling (ConnectionError, TimeoutError) → show retry button, preserve state
-- [X] T043 [US2] [P] Add user-friendly error messages to strings.json ("Invalid token", "Cannot connect", "Try again")
+- [X] T033 [US2] Implement transient error handling (ConnectionError, TimeoutError) → show retry button, preserve credentials
+- [X] T034 [US2] [P] Implement AuthenticationError handling (token invalid) → return to step 1 with help text
+- [X] T035 [US2] [P] Add user-friendly error messages to strings.json ("Invalid auth", "Cannot connect", "Try again")
 
 ### Error Recovery Flow
 
-- [X] T044 [US2] [P] Implement retry logic in async_step_auth_validate() for transient errors (max 3 attempts)
-- [X] T045 [US2] Implement error message with link to developer portal when token invalid
-- [X] T046 [US2] [P] Add state checkpointing to preserve oauth_state and code during transient retries
-
-### PyPI Wrapper Integration for Validation
-
-- [X] T047 [US2] Call electricityinfo-nz wrapper's validate_token() method in config flow
-- [X] T048 [US2] [P] Handle wrapper exception hierarchy (AuthenticationError, ConnectionError, TimeoutError)
-- [X] T049 [US2] [P] Log validation attempts (no token details, only success/failure/error type)
+- [X] T036 [US2] [P] Implement retry logic in async_step_auth_validate() for transient errors (max 3 attempts)
+- [X] T037 [US2] Implement error message with link to developer portal when token invalid
+- [X] T038 [US2] [P] Add attempt counter to track retries and allow user to abort
 
 ### Tests for US2
 
-- [X] T050 [US2] Write test_token_validation_invalid() — invalid token shows error message
-- [X] T051 [US2] Write test_token_validation_connection_error() — network error shows retry button
-- [X] T052 [US2] [P] Write test_token_validation_timeout() — timeout shows retry, allows 3 attempts
-- [X] T053 [US2] Write test_error_message_has_help_link() — error includes developer portal URL
-- [X] T054 [US2] [P] Write test_state_preserved_on_retry() — oauth_state and code not lost on retry
+- [X] T039 [US2] Write test_token_validation_invalid() — invalid token shows error message
+- [X] T040 [US2] Write test_token_validation_connection_error() — network error shows retry button
+- [X] T041 [US2] [P] Write test_token_validation_timeout() — timeout shows retry, allows 3 attempts
+- [X] T042 [US2] Write test_error_message_has_help_link() — error includes developer portal URL
+- [X] T043 [US2] [P] Write test_credentials_preserved_on_retry() — credentials not lost on retry
 
 ---
 
@@ -286,12 +266,12 @@ Within each user story, these tasks can run in parallel [P] marker):
 
 | User Story | Priority | Tasks | Est. Time | Tests |
 |-----------|----------|-------|-----------|-------|
-| US1: OAuth Setup | P1 | T018-T032 (15 core + setup) | 3-4 days | T033-T039 (7 tests) |
-| US2: Token Validation | P1 | T040-T049 (10 core) | 1-2 days | T050-T054 (5 tests) |
-| US3: Re-Authentication | P2 | T055-T067 (9 core) | 1-2 days | T064-T067 (4 tests) |
-| US4: Config Management | P3 | T068-T077 (10 core) | 1 day | T074-T077 (4 tests) |
-| **Polish & QA** | — | T078-T093 (16 cross-cutting) | 1-2 days | — |
-| **TOTAL** | — | **93 tasks** | **5-7 days** | **20 tests** |
+| US1: OAuth Setup | P1 | T018-T032 (15 core) | 2-3 days | T028-T032 (5 tests) |
+| US2: Token Validation | P1 | T033-T038 (6 core) | 1 day | T039-T043 (5 tests) |
+| US3: Re-Authentication | P2 | T044-T056 (9 core) | 1-2 days | T057-T060 (4 tests) |
+| US4: Config Management | P3 | T061-T070 (10 core) | 1 day | T071-T074 (4 tests) |
+| **Polish & QA** | — | T075-T090 (16 cross-cutting) | 1-2 days | — |
+| **TOTAL** | — | **56 tasks** | **4-6 days** | **18 tests** |
 
 ---
 
@@ -362,9 +342,9 @@ Complete integration lifecycle with polish and documentation.
 ### Source Code Files
 
 ```
-custom_components/electricityinfo_nz/
+custom_components/electricityinfo/
 ├── __init__.py                 # Integration setup (T001)
-├── config_flow.py              # OAuth flow (T002, T018-T049)
+├── config_flow.py              # OAuth flow (T002, T018-T038)
 ├── const.py                    # Constants (T003, T011-T013)
 ├── manifest.json               # Metadata (T005)
 └── strings.json                # UI strings (T004)
@@ -375,7 +355,7 @@ custom_components/electricityinfo_nz/
 ```
 tests/
 ├── conftest.py                 # Fixtures (T006, T010)
-├── test_config_flow.py         # Config flow tests (T007, T033-T054)
+├── test_config_flow.py         # Config flow tests (T007, T028-T043)
 ├── test_init.py                # Setup tests (T008)
 └── test_oauth.py               # OAuth tests (T009)
 ```

@@ -15,7 +15,7 @@
 ### Project Structure
 
 ```
-custom_components/electricityinfo_nz/
+custom_components/electricityinfo/
 ├── __init__.py              # Integration entry point
 ├── config_flow.py           # OAuth config flow implementation
 ├── const.py                 # Constants and configuration
@@ -38,8 +38,8 @@ tests/
 
 ```bash
 cd /path/to/home-assistant/custom_components
-git clone https://github.com/dan-s-github/ha-electricityinfo-nz.git electricityinfo_nz
-cd electricityinfo_nz
+git clone https://github.com/dan-s-github/ha-electricityinfo-nz.git electricityinfo
+cd ha-electricityinfo-nz
 ```
 
 ### Install Dependencies
@@ -64,47 +64,41 @@ python -c "from homeassistant import config_entries; print('Home Assistant OK')"
 
 ## 2. Understanding the Config Flow
 
-### OAuth Flow Overview
+### OAuth Flow Overview (Client Credentials)
 
 ```
-User Input (Step 1)
+User Input (Step 1: Credentials)
   ↓
-OAuth Redirect (Step 2)
+Exchange for Token (Step 2: Validate)
   ↓
-Provider Authorization
+Validate Token Works
   ↓
-Callback Received (Step 3)
-  ↓
-Token Validation (Step 4)
-  ↓
-Create Config Entry (Step 5)
+Create Config Entry
 ```
+
+**Key Difference**: No browser redirects! Direct backend-to-backend token exchange.
 
 ### Key Interfaces
 
 **Config Flow Class** (`config_flow.py`):
 ```python
-class ElectricityinfoConfigFlow(config_entries.ConfigFlow):
+class ElectricityInfoConfigFlow(config_entries.ConfigFlow):
     VERSION = 1
     async def async_step_user(self, user_input):
-        # Step 1: Collect credentials
-
-    async def async_step_auth(self):
-        # Step 2: Redirect to OAuth
-
-    async def async_step_auth_callback(self, data):
-        # Step 3: Handle callback
+        # Step 1: Collect client_id and client_secret
 
     async def async_step_auth_validate(self):
-        # Step 4: Validate token
+        # Step 2: Exchange credentials for token and validate
 ```
 
 **Integration Setup** (`__init__.py`):
 ```python
 async def async_setup_entry(hass, config_entry):
-    # Load config entry and set up platforms
-    wrapper = ElectricityinfoNZ(access_token=token)
-    await wrapper.validate_token()
+    # Store credentials for later API access
+    hass.data[DOMAIN] = {
+        CONF_CLIENT_ID: config_entry.data[CONF_CLIENT_ID],
+        CONF_CLIENT_SECRET: config_entry.data[CONF_CLIENT_SECRET],
+    }
 ```
 
 ---
@@ -132,7 +126,7 @@ pytest tests/test_config_flow.py::test_user_form -v
 ### Run with Coverage
 
 ```bash
-pytest tests/ --cov=custom_components/electricityinfo_nz
+pytest tests/ --cov=custom_components/electricityinfo
 ```
 
 ### Mock Objects in Tests
@@ -140,12 +134,11 @@ pytest tests/ --cov=custom_components/electricityinfo_nz
 ```python
 from unittest.mock import patch, AsyncMock
 
-@patch("custom_components.electricityinfo_nz.config_flow.oauth_session")
-async def test_oauth_success(mock_oauth, hass):
-    mock_oauth.fetch_token.return_value = {
-        "access_token": "test-token",
-        "expires_in": 3600,
-    }
+@patch("custom_components.electricityinfo.config_flow.OAuth2ClientCredentials")
+async def test_token_exchange_success(mock_oauth, hass):
+    mock_instance = AsyncMock()
+    mock_instance.get_token.return_value = "test-token"
+    mock_oauth.return_value = mock_instance
     # ... test code
 ```
 
@@ -168,7 +161,7 @@ ruff check --fix custom_components tests
 ### Type Checking (Mypy)
 
 ```bash
-mypy custom_components/electricityinfo_nz
+mypy custom_components/electricityinfo
 ```
 
 ### Pre-commit Hooks
@@ -187,7 +180,7 @@ pre-commit run --all-files
 
 ### Add New Config Flow Step
 
-**File**: `custom_components/electricityinfo_nz/config_flow.py`
+**File**: `custom_components/electricityinfo/config_flow.py`
 
 ```python
 async def async_step_new_step(self, user_input=None):
@@ -207,7 +200,7 @@ async def async_step_new_step(self, user_input=None):
 
 ### Add New User-Facing String
 
-**File**: `custom_components/electricityinfo_nz/strings.json`
+**File**: `custom_components/electricityinfo/strings.json`
 
 ```json
 {
@@ -247,7 +240,7 @@ async def test_new_scenario(hass):
 logger:
   default: info
   logs:
-    custom_components.electricityinfo_nz: debug
+    custom_components.electricityinfo: debug
     homeassistant.config_entries: debug
 ```
 
@@ -258,7 +251,7 @@ logger:
 docker logs homeassistant | grep electricityinfo_nz
 
 # If running locally
-tail -f /path/to/home-assistant/logs/home-assistant.log | grep electricityinfo_nz
+tail -f /path/to/home-assistant/logs/home-assistant.log | grep electricityinfo
 ```
 
 ### Add Debug Statements
