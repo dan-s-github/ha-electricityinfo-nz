@@ -45,7 +45,7 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["custom_components/electricityinfo_nz"]
+packages = ["custom_components/electricityinfo"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -89,6 +89,6 @@ lint.per-file-ignores."tests/**/*.py" = [
 [tool.commitizen]
 name = "cz_conventional_commits"
 version_provider = "pep621"
-version_files = ["custom_components/electricityinfo_nz/manifest.json:version"]
+version_files = ["custom_components/electricityinfo/manifest.json:version"]
 tag_format = "v$version"
 update_changelog_on_bump = true

@@ -2,7 +2,7 @@
 
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.electricityinfo_nz.const import DOMAIN
+from custom_components.electricityinfo.const import DOMAIN
 
 
 async def test_sensor_platform_sets_up(hass) -> None:

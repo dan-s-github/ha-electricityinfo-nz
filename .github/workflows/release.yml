@@ -1,0 +1,90 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      increment:
+        description: "Version increment"
+        required: true
+        default: PATCH
+        type: choice
+        options:
+          - PATCH
+          - MINOR
+          - MAJOR
+          - PATCH_RC
+          - MINOR_RC
+          - MAJOR_RC
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Commitizen release
+    runs-on: ubuntu-latest
+    environment: release
+    steps:
+      - name: Generate GitHub App token
+        id: app_token
+        uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3 # v3.1.1
+        with:
+          client-id: ${{ secrets.APP_CLIENT_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      - name: Checkout the repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          token: ${{ steps.app_token.outputs.token }}
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.14"
+          cache: "pip"
+          cache-dependency-path: "uv.lock"
+
+      - name: Install uv
+        run: python3 -m pip install uv==0.10.6
+
+      - name: Sync dependencies
+        run: uv sync --group dev --frozen
+
+      - name: Configure git user
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Bump version and create changelog
+        run: |
+          INCREMENT=$(echo "${{ inputs.increment }}" | sed 's/_RC$//')
+          if [[ "${{ inputs.increment }}" == *_RC ]]; then
+            uv run --group dev cz bump --yes --changelog --increment "$INCREMENT" --prerelease rc
+          else
+            uv run --group dev cz bump --yes --changelog --increment "$INCREMENT"
+          fi
+
+      - name: Push commit and tags
+        run: |
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+          git push origin --tags
+
+      - name: Resolve release tag
+        id: release_tag
+        run: echo "tag=$(git describe --tags --abbrev=0)" >> "$GITHUB_OUTPUT"
+
+      - name: Verify release tag on origin
+        run: git ls-remote --exit-code --tags origin "refs/tags/${{ steps.release_tag.outputs.tag }}"
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ steps.app_token.outputs.token }}
+        run: |
+          TAG="${{ steps.release_tag.outputs.tag }}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists; skipping creation."
+          else
+            gh release create "$TAG" --generate-notes
+          fi

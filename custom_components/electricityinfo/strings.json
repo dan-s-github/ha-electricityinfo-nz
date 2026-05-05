@@ -1,0 +1,34 @@
+{
+  "config": {
+    "abort": {
+      "already_configured": "Electricityinfo NZ is already configured",
+      "already_in_progress": "Configuration already in progress",
+      "not_implemented": "Feature not yet implemented"
+    },
+    "flow_title": "Electricityinfo NZ",
+    "error": {
+      "client_id_required": "Client ID is required",
+      "client_secret_required": "Client Secret is required",
+      "invalid_token": "Token validation failed. Please check your credentials.",
+      "cannot_connect": "Cannot connect to API. Please try again.",
+      "invalid_auth": "Invalid credentials. Please check your client ID and secret."
+    },
+    "step": {
+      "user": {
+        "title": "Electricityinfo NZ OAuth Setup",
+        "description": "Enter your OAuth credentials from {help_url}\n\nNeed help? Visit the developer portal at {help_url} to register and obtain your credentials.",
+        "data": {
+          "client_id": "Client ID",
+          "client_secret": "Client Secret"
+        },
+        "data_description": {
+          "client_id": "Your OAuth Client ID",
+          "client_secret": "Your OAuth Client Secret (secure)"
+        }
+      },
+      "auth_validate": {
+        "title": "Validating Credentials"
+      }
+    }
+  }
+}
