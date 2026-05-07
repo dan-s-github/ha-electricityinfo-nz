@@ -1,101 +1,88 @@
 """Tests for multiple price sensors configuration and operation."""
 
+import contextlib
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from homeassistant.config_entries import ConfigEntry
 
+from custom_components.electricityinfo import ElectricityInfoCoordinator
 from custom_components.electricityinfo.const import (
     CONF_CLIENT_ID,
     CONF_CLIENT_SECRET,
-    CONF_FORWARD_PRICES_COUNT,
-    CONF_MARKET_TYPE,
     CONF_NODE,
-    CONF_SCHEDULE_TYPE,
-    CONF_SENSOR_ID,
-    CONF_SENSORS,
-    CONF_UNIT_PREFERENCE,
     DOMAIN,
 )
+from custom_components.electricityinfo.sensor import PriceSensorEntity
+from tests.helpers import create_mock_subentry
 
 
 @pytest.fixture
 def mock_config_entry_with_sensors():
-    """Create mock config entry with multiple sensors."""
+    """Create mock config entry with two sensor subentries."""
+    sub1 = create_mock_subentry(
+        subentry_id="sensor_1",
+        title="HAY2201 RTD (E)",
+        schedule_type="RTD",
+        market_type="E",
+        node="HAY2201",
+        forward_prices_count=24,
+    )
+    sub2 = create_mock_subentry(
+        subentry_id="sensor_2",
+        title="BEN2201 RTD (E)",
+        schedule_type="RTD",
+        market_type="E",
+        node="BEN2201",
+        forward_prices_count=24,
+    )
+
     entry = MagicMock(spec=ConfigEntry)
     entry.entry_id = "test_entry_id"
     entry.domain = DOMAIN
     entry.title = "Electricity Info NZ"
     entry.data = {
-        "auth_implementation": "electricityinfo_nz",
         CONF_CLIENT_ID: "test_client_id",
         CONF_CLIENT_SECRET: "test_client_secret",
     }
-    entry.options = {
-        CONF_SENSORS: [
-            {
-                CONF_SENSOR_ID: "sensor_1",
-                CONF_SCHEDULE_TYPE: "daily_spot",
-                CONF_MARKET_TYPE: "ENERGY",
-                CONF_NODE: "NEA",
-                CONF_FORWARD_PRICES_COUNT: 24,
-                CONF_UNIT_PREFERENCE: "NZD/MWh",
-            },
-            {
-                CONF_SENSOR_ID: "sensor_2",
-                CONF_SCHEDULE_TYPE: "daily_spot",
-                CONF_MARKET_TYPE: "ENERGY",
-                CONF_NODE: "MID",
-                CONF_FORWARD_PRICES_COUNT: 24,
-                CONF_UNIT_PREFERENCE: "c/kWh",
-            },
-        ]
+    entry.subentries = {
+        sub1.subentry_id: sub1,
+        sub2.subentry_id: sub2,
     }
     return entry
 
 
 @pytest.mark.asyncio
 async def test_multiple_sensors_configuration_storage(mock_config_entry_with_sensors):
-    """Test that multiple sensor configurations are stored and retrievable (T033)."""
+    """Test that multiple sensor subentries are stored and retrievable (T033)."""
     entry = mock_config_entry_with_sensors
-    sensors = entry.options.get(CONF_SENSORS, [])
+    subentries = [s for s in entry.subentries.values() if s.subentry_type == "sensor"]
 
-    # Verify both sensors are stored
-    assert len(sensors) == 2
-    assert sensors[0][CONF_SENSOR_ID] == "sensor_1"
-    assert sensors[0][CONF_NODE] == "NEA"
-    assert sensors[0][CONF_UNIT_PREFERENCE] == "NZD/MWh"
+    assert len(subentries) == 2
+    assert subentries[0].subentry_id == "sensor_1"
+    assert subentries[0].data[CONF_NODE] == "HAY2201"
 
-    assert sensors[1][CONF_SENSOR_ID] == "sensor_2"
-    assert sensors[1][CONF_NODE] == "MID"
-    assert sensors[1][CONF_UNIT_PREFERENCE] == "c/kWh"
+    assert subentries[1].subentry_id == "sensor_2"
+    assert subentries[1].data[CONF_NODE] == "BEN2201"
 
 
 @pytest.mark.asyncio
 async def test_multiple_sensors_create_unique_entities(
     hass, mock_config_entry_with_sensors
 ):
-    """Test that multiple sensors create separate entities (T033)."""
-    from custom_components.electricityinfo import ElectricityInfoCoordinator
-    from custom_components.electricityinfo.sensor import PriceSensorEntity
-
+    """Test that multiple subentries create separate entities (T033)."""
     entry = mock_config_entry_with_sensors
 
-    with patch("custom_components.electricityinfo.MarketPricesClient"):
+    with patch("custom_components.electricityinfo.AsyncMarketPricesClient"):
         coordinator = ElectricityInfoCoordinator(hass, entry)
 
-        # Create entities for each sensor configuration
-        sensors = entry.options.get(CONF_SENSORS, [])
-        entities = []
+        entities = [
+            PriceSensorEntity(coordinator, entry, subentry, unit="NZD/MWh")
+            for subentry in entry.subentries.values()
+        ]
 
-        for sensor_config in sensors:
-            entity = PriceSensorEntity(coordinator, entry, sensor_config)
-            entities.append(entity)
-
-        # Verify we have 2 entities
         assert len(entities) == 2
 
-        # Verify entities have different entity_ids
         entity_ids = [e.entity_id for e in entities]
         assert len(entity_ids) == len(set(entity_ids))
 
@@ -103,17 +90,14 @@ async def test_multiple_sensors_create_unique_entities(
 @pytest.mark.asyncio
 async def test_multiple_sensors_data_isolation(hass, mock_config_entry_with_sensors):
     """Test that coordinator provides isolated data per sensor (T035)."""
-    from custom_components.electricityinfo import ElectricityInfoCoordinator
-
     entry = mock_config_entry_with_sensors
 
     with patch(
-        "custom_components.electricityinfo.MarketPricesClient"
+        "custom_components.electricityinfo.AsyncMarketPricesClient"
     ) as mock_client_class:
         mock_client_instance = AsyncMock()
         mock_client_class.return_value = mock_client_instance
 
-        # Mock get_schedules to return list data (coordinator expects list)
         mock_client_instance.get_schedules.return_value = [
             {"timestamp": "2025-01-01", "price": 100},
         ]
@@ -123,7 +107,6 @@ async def test_multiple_sensors_data_isolation(hass, mock_config_entry_with_sens
 
         result = await coordinator._async_update_data()
 
-        # Verify both sensors have data in result
         assert "sensor_1" in result
         assert "sensor_2" in result
 
@@ -131,91 +114,56 @@ async def test_multiple_sensors_data_isolation(hass, mock_config_entry_with_sens
 @pytest.mark.asyncio
 async def test_isolated_failure_partial_data(hass, mock_config_entry_with_sensors):
     """Test isolated failure: one sensor fails, others update normally (T036)."""
-    from custom_components.electricityinfo import ElectricityInfoCoordinator
-
     entry = mock_config_entry_with_sensors
 
     with patch(
-        "custom_components.electricityinfo.MarketPricesClient"
+        "custom_components.electricityinfo.AsyncMarketPricesClient"
     ) as mock_client_class:
         mock_client_instance = AsyncMock()
         mock_client_class.return_value = mock_client_instance
 
-        # Mock get_schedules to return partial data
         mock_client_instance.get_schedules.side_effect = Exception("API Error")
 
         coordinator = ElectricityInfoCoordinator(hass, entry)
         coordinator.client = mock_client_instance
 
-        # This will trigger retry logic
-        try:
-            result = await coordinator._async_update_data()
-        except Exception:
-            # Expected to fail after retries
-            pass
-
-        # Coordinator should mark last_update_success = False
-        # which will cause entities to mark as unavailable
+        with contextlib.suppress(Exception):
+            await coordinator._async_update_data()
 
 
 @pytest.mark.asyncio
 async def test_unique_entity_id_per_sensor(hass, mock_config_entry_with_sensors):
-    """Test unique entity_id generation per sensor (T037)."""
-    from custom_components.electricityinfo import ElectricityInfoCoordinator
-    from custom_components.electricityinfo.sensor import PriceSensorEntity
-
+    """Test unique entity_id generation per sensor subentry (T037)."""
     entry = mock_config_entry_with_sensors
 
-    with patch("custom_components.electricityinfo.MarketPricesClient"):
+    with patch("custom_components.electricityinfo.AsyncMarketPricesClient"):
         coordinator = ElectricityInfoCoordinator(hass, entry)
 
-        # Create entities for each sensor configuration
-        sensors = entry.options.get(CONF_SENSORS, [])
-        entity_ids = []
+        entity_ids = [
+            PriceSensorEntity(coordinator, entry, subentry, unit="NZD/MWh").entity_id
+            for subentry in entry.subentries.values()
+        ]
 
-        for sensor_config in sensors:
-            entity = PriceSensorEntity(coordinator, entry, sensor_config)
-            entity_ids.append(entity.entity_id)
-
-        # Verify all entity_ids are unique
         assert len(entity_ids) == len(set(entity_ids)), "Entity IDs are not unique"
-        assert len(entity_ids) == 2, "Should have 2 entity IDs"
+        assert len(entity_ids) == 2
 
-        # Verify entity_ids follow expected pattern
         for entity_id in entity_ids:
             assert entity_id.startswith("sensor.electricityinfo_nz_")
 
 
 @pytest.mark.asyncio
 async def test_multiple_sensors_in_config_flow(hass, mock_config_entry_with_sensors):
-    """Test that config flow CRUD supports multiple sensors (T034)."""
+    """Test subentries support multiple sensors with individual management (T034)."""
     entry = mock_config_entry_with_sensors
-    sensors = entry.options.get(CONF_SENSORS, [])
+    subentries = list(entry.subentries.values())
 
-    # Verify sensors list operations
-    assert len(sensors) == 2
+    assert len(subentries) == 2
 
-    # Simulate adding a third sensor
-    third_sensor = {
-        CONF_SENSOR_ID: "sensor_3",
-        CONF_SCHEDULE_TYPE: "daily_spot",
-        CONF_MARKET_TYPE: "ENERGY",
-        CONF_NODE: "SOU",
-        CONF_FORWARD_PRICES_COUNT: 24,
-        CONF_UNIT_PREFERENCE: "NZD/MWh",
-    }
+    # Each subentry has its own node
+    nodes = {s.data[CONF_NODE] for s in subentries}
+    assert "HAY2201" in nodes
+    assert "BEN2201" in nodes
 
-    sensors.append(third_sensor)
-    assert len(sensors) == 3
-
-    # Simulate editing a sensor
-    sensors[0][CONF_FORWARD_PRICES_COUNT] = 48
-    assert sensors[0][CONF_FORWARD_PRICES_COUNT] == 48
-
-    # Simulate deleting a sensor
-    del sensors[1]
-    assert len(sensors) == 2
-
-    # Verify remaining sensors
-    assert sensors[0][CONF_SENSOR_ID] == "sensor_1"
-    assert sensors[1][CONF_SENSOR_ID] == "sensor_3"
+    # Each subentry has a unique ID
+    ids = {s.subentry_id for s in subentries}
+    assert len(ids) == 2

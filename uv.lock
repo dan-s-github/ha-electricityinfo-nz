@@ -849,15 +849,16 @@ wheels = [
 
 [[package]]
 name = "electricityinfo-nz"
-version = "1.0.0rc1"
+version = "1.0.0rc2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
+    { name = "aiohttp" },
     { name = "python-dateutil" },
     { name = "requests" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/08/f5/48e1c3ad78a71b0256abc80a36f37a911d2c521744a26b436b3af4e8bdcd/electricityinfo_nz-1.0.0rc1.tar.gz", hash = "sha256:1521c74d1c3a1e8e37bd8632e5fcde4a3b799ca1868761d609b685a38f21d8f6", size = 20522, upload-time = "2026-04-19T04:22:37.129Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/72/b5/a19c19b62f19c4177bda700c4f07b44f6a7a830d20f7f9d87c86f807ce28/electricityinfo_nz-1.0.0rc2.tar.gz", hash = "sha256:0597400b452d92a8687035752f903f6ee644fe8b78e446ea618591bb548e32a4", size = 22963, upload-time = "2026-05-06T04:25:19.108Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/8e/39/bc4e3edaa60413a4899cc04ccd205ab6462c50488410418059c7100f496e/electricityinfo_nz-1.0.0rc1-py3-none-any.whl", hash = "sha256:51c25120899f14fd3c50311581982474f06c1f69e470a1f9b0e7c9f3278fcd01", size = 13298, upload-time = "2026-04-19T04:22:35.775Z" },
+    { url = "https://files.pythonhosted.org/packages/3a/47/13b162af29b42ec36b5a1bb27ad78c581dbf87cafc070630dec5019e9339/electricityinfo_nz-1.0.0rc2-py3-none-any.whl", hash = "sha256:8dfa660f165c43dbcfa5b7a44332cf637bb76eb6fc762180399849b63aab3ecb", size = 19862, upload-time = "2026-05-06T04:25:17.744Z" },
 ]
 
 [[package]]
@@ -1031,7 +1032,7 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "electricityinfo-nz" }]
+requires-dist = [{ name = "electricityinfo-nz", specifier = "==1.0.0rc2" }]
 
 [package.metadata.requires-dev]
 dev = [

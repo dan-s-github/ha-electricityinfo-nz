@@ -1,16 +1,86 @@
 {
   "config": {
     "abort": {
-      "already_configured": "[%key:common::config_flow::abort::already_configured_device%]",
-      "already_in_progress": "[%key:common::config_flow::abort::already_in_progress%]"
+      "already_configured": "Electricityinfo NZ is already configured",
+      "already_in_progress": "Configuration already in progress",
+      "not_implemented": "Feature not yet implemented"
     },
-    "flow_title": "{name}",
+    "flow_title": "Electricityinfo NZ",
+    "error": {
+      "client_id_required": "Client ID is required",
+      "client_secret_required": "Client Secret is required",
+      "invalid_token": "Token validation failed. Please check your credentials.",
+      "cannot_connect": "Cannot connect to API. Please try again.",
+      "invalid_auth": "Invalid credentials. Please check your client ID and secret."
+    },
     "step": {
       "user": {
+        "title": "Electricityinfo NZ OAuth Setup",
+        "description": "Enter your OAuth credentials from {help_url}\n\nNeed help? Visit the developer portal at {help_url} to register and obtain your credentials.",
         "data": {
-          "name": "[%key:common::config_flow::data::name%]"
+          "client_id": "Client ID",
+          "client_secret": "Client Secret"
         },
-        "description": "Enter a name for this Electricityinfo NZ instance."
+        "data_description": {
+          "client_id": "Your OAuth Client ID",
+          "client_secret": "Your OAuth Client Secret (secure)"
+        }
+      },
+      "auth_validate": {
+        "title": "Validating Credentials"
+      }
+    }
+  },
+  "config_subentries": {
+    "sensor": {
+      "initiate_flow": {
+        "user": "Add price sensor"
+      },
+      "entry_type": "Price Sensor",
+      "abort": {
+        "reconfigure_successful": "Sensor updated successfully"
+      },
+      "error": {
+        "schedule_type_invalid": "Invalid schedule type selected",
+        "market_type_invalid": "Invalid market type selected",
+        "node_invalid": "Invalid market node selected"
+      },
+      "step": {
+        "user": {
+          "title": "Add Price Sensor",
+          "description": "Configure a new electricity price sensor",
+          "data": {
+            "name": "Display Name",
+            "schedule_type": "Schedule Type",
+            "market_type": "Market Type",
+            "node": "Market Node",
+            "forward_prices_count": "Number of Forward Hours"
+          },
+          "data_description": {
+            "name": "Optional friendly name shown in the UI (e.g., Auckland Daily Prices)",
+            "schedule_type": "Type of price schedule",
+            "market_type": "Electricity market segment",
+            "node": "Market node / region code",
+            "forward_prices_count": "Hours of forward prices to retrieve (1-84). Each hour = 2 prices (30-min intervals)"
+          }
+        },
+        "reconfigure": {
+          "title": "Edit Price Sensor",
+          "data": {
+            "name": "Display Name",
+            "schedule_type": "Schedule Type",
+            "market_type": "Market Type",
+            "node": "Market Node",
+            "forward_prices_count": "Number of Forward Hours"
+          },
+          "data_description": {
+            "name": "Optional friendly name shown in the UI",
+            "schedule_type": "Type of price schedule",
+            "market_type": "Electricity market segment",
+            "node": "Market node / region code",
+            "forward_prices_count": "Hours of forward prices to retrieve (1-84). Each hour = 2 prices (30-min intervals)"
+          }
+        }
       }
     }
   }

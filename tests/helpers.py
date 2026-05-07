@@ -2,34 +2,43 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from types import MappingProxyType
+from typing import Any
+from unittest.mock import AsyncMock
 
-if TYPE_CHECKING:
-    from unittest.mock import AsyncMock
+from homeassistant.config_entries import ConfigSubentry
 
 
-def create_mock_sensor_config(
-    sensor_id: str = "test_sensor",
-    schedule_type: str = "daily_spot",
-    market_type: str = "energy",
-    node: str = "NEA",
+def create_mock_subentry(
+    subentry_id: str = "test_subentry_01",
+    title: str = "Test Sensor",
+    schedule_type: str = "RTD",
+    market_type: str = "E",
+    node: str = "HAY2201",
     forward_prices_count: int = 24,
-    unit_preference: str = "NZD/MWh",
-) -> dict[str, Any]:
-    """Create a mock sensor configuration."""
-    return {
-        "id": sensor_id,
+    name: str | None = None,
+) -> ConfigSubentry:
+    """Create a mock ConfigSubentry for a price sensor."""
+    data: dict[str, Any] = {
         "schedule_type": schedule_type,
         "market_type": market_type,
         "node": node,
         "forward_prices_count": forward_prices_count,
-        "unit_preference": unit_preference,
     }
+    if name:
+        data["name"] = name
+    return ConfigSubentry(
+        data=MappingProxyType(data),
+        subentry_id=subentry_id,
+        subentry_type="sensor",
+        title=title,
+        unique_id=None,
+    )
 
 
 def create_mock_price_response(
-    node: str = "NEA",
-    schedule_type: str = "daily_spot",
+    node: str = "HAY2201",
+    schedule_type: str = "RTD",
     market_type: str = "energy",
     current_price: float = 45.23,
     prices_count: int = 24,
@@ -54,8 +63,6 @@ def create_mock_coordinator(
     error: str | None = None,
 ) -> AsyncMock:
     """Create a mock DataUpdateCoordinator."""
-    from unittest.mock import AsyncMock
-
     coordinator = AsyncMock()
     coordinator.data = data or {}
     coordinator.last_update_success = last_update_success
@@ -65,19 +72,14 @@ def create_mock_coordinator(
 
 
 def create_mock_entity_id(
-    node: str = "NEA",
-    schedule_type: str = "daily_spot",
-    market_type: str = "energy",
+    node: str = "HAY2201",
+    schedule_type: str = "RTD",
+    market_type: str = "E",
     unit: str = "NZD/MWh",
 ) -> str:
     """Create expected entity ID for a sensor."""
     unit_suffix = unit.replace("/", "_").lower()
-    return f"sensor.electricityinfo_nz_{node.lower()}_{schedule_type}_{market_type}_{unit_suffix}"
-
-
-def create_mock_unique_id(
-    config_entry_id: str = "test_config_123",
-    sensor_id: str = "test_sensor",
-) -> str:
-    """Create expected unique ID for a sensor."""
-    return f"electricityinfo_nz_{config_entry_id}_{sensor_id}"
+    return (
+        f"sensor.electricityinfo_nz_{node.lower()}"
+        f"_{schedule_type.lower()}_{market_type.lower()}_{unit_suffix}"
+    )
