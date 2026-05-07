@@ -1,6 +1,10 @@
 """Constants for electricityinfo_nz."""
 
 from logging import Logger, getLogger
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from homeassistant.helpers.selector import SelectOptionDict
 
 LOGGER: Logger = getLogger(__package__)
 
@@ -48,7 +52,7 @@ SCHEDULE_TYPES = [
 ]
 
 # UI label/value pairs for schedule type selector
-SCHEDULE_TYPE_OPTIONS = [
+SCHEDULE_TYPE_OPTIONS: list[SelectOptionDict] = [
     {"value": "Final", "label": "Final (Final settled prices)"},
     {"value": "Interim", "label": "Interim (Interim prices)"},
     {"value": "NRSL", "label": "NRSL (Non-responsive long)"},
@@ -66,7 +70,7 @@ MARKET_TYPES = [
 ]
 
 # UI label/value pairs for market type selector
-MARKET_TYPE_OPTIONS = [
+MARKET_TYPE_OPTIONS: list[SelectOptionDict] = [
     {"value": "E", "label": "Energy (E)"},
     {"value": "R", "label": "Reserve (R)"},
 ]
@@ -89,7 +93,7 @@ MARKET_NODES = [
 ]
 
 # UI label/value pairs for node selector (NI = North Island, SI = South Island)
-MARKET_NODE_OPTIONS = [
+MARKET_NODE_OPTIONS: list[SelectOptionDict] = [
     {"value": "BRB0331", "label": "BRB0331 (Bream Bay, NI)"},
     {"value": "OTA2201", "label": "OTA2201 (Otahuhu, NI)"},
     {"value": "HLY2201", "label": "HLY2201 (Huntly, NI)"},

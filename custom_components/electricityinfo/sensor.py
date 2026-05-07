@@ -12,7 +12,9 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.core import HomeAssistant  # noqa: TC002
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
-from homeassistant.helpers.entity_platform import AddEntitiesCallback  # noqa: TC002
+from homeassistant.helpers.entity_platform import (
+    AddConfigEntryEntitiesCallback,  # noqa: TC002
+)
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
@@ -35,7 +37,7 @@ _LOGGER = logging.getLogger(__name__)
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
-    async_add_entities: AddEntitiesCallback,
+    async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Set up price sensor entities from config entry."""
     coordinator: ElectricityInfoCoordinator = hass.data[DOMAIN][entry.entry_id][
