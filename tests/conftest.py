@@ -68,13 +68,16 @@ def mock_coordinator() -> AsyncMock:
 def mock_market_prices_client_sensor(mock_market_prices: dict) -> Generator[AsyncMock]:
     """Mock AsyncMarketPricesClient for sensor platform tests."""
     with patch(
-        "custom_components.electricityinfo.sensor.AsyncMarketPricesClient"
+        "custom_components.electricityinfo.coordinator.AsyncMarketPricesClient"
     ) as mock:
         client = AsyncMock()
 
-        async def mock_get_schedules(node: str) -> list:
-            """Return mock prices for given node."""
-            key = f"{node.lower()}_daily_spot"
+        async def mock_get_schedule_prices(**kwargs: object) -> list:
+            """Return mock prices for given schedule/node."""
+            nodes = kwargs.get("nodes") or []
+            node = nodes[0].lower() if nodes else ""
+            schedule = str(kwargs.get("schedule", "")).lower()
+            key = f"{node}_{schedule}"
             if key in mock_market_prices:
                 data = mock_market_prices[key]
                 return [
@@ -91,6 +94,6 @@ def mock_market_prices_client_sensor(mock_market_prices: dict) -> Generator[Asyn
                 ]
             return []
 
-        client.get_schedules = AsyncMock(side_effect=mock_get_schedules)
+        client.get_schedule_prices = AsyncMock(side_effect=mock_get_schedule_prices)
         mock.return_value = client
         yield client

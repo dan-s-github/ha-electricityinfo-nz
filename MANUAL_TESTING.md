@@ -208,11 +208,11 @@ automation:
   - alias: "Run appliances during low-price periods"
     trigger:
       platform: state
-      entity_id: sensor.electricityinfo_nz_nea_daily_spot_energy_c_per_kwh
+      entity_id: sensor.electricityinfo_nz_nea_daily_spot_energy_c_kwh
       # Trigger when prices drop below 10 c/kWh
     condition:
       condition: numeric_state
-      entity_id: sensor.electricityinfo_nz_nea_daily_spot_energy_c_per_kwh
+      entity_id: sensor.electricityinfo_nz_nea_daily_spot_energy_c_kwh
       below: 10
     action:
       service: switch.turn_on
@@ -235,14 +235,13 @@ automation:
 4. Monitor coordinator refresh cycle
 
 ### Incorrect Unit Conversion
-1. Verify `CONF_UNIT_PREFERENCE` is set correctly
-2. Check that conversion factor is 0.1 (1 NZD/MWh = 0.1 c/kWh)
-3. Compare manual calculation with displayed value
-4. Check entity attributes for `prices_array` conversion
+1. Check that conversion factor is 0.1 (1 NZD/MWh = 0.1 c/kWh)
+2. Compare manual calculation with displayed value
+3. Check entity attributes for `prices_array` conversion
 
 ### Missing Sensor Entities
-1. Verify sensors are configured in options flow
-2. Check that `CONF_SENSORS` list is not empty
+1. Verify sensors are configured via Settings > Devices & Services > your integration > Configure
+2. Confirm at least one sensor subentry has been added
 3. Restart Home Assistant to reload config
 4. Monitor logs for entity creation errors
 

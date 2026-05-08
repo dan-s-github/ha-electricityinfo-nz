@@ -1,9 +1,9 @@
 """Tests for multiple price sensors configuration and operation."""
 
-import contextlib
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from electricityinfo_nz.exceptions import MarketPricesAPIError
 from homeassistant.config_entries import ConfigEntry
 
 from custom_components.electricityinfo import ElectricityInfoCoordinator
@@ -83,8 +83,8 @@ async def test_multiple_sensors_create_unique_entities(
 
         assert len(entities) == 2
 
-        entity_ids = [e.entity_id for e in entities]
-        assert len(entity_ids) == len(set(entity_ids))
+        unique_ids = [e._attr_unique_id for e in entities]
+        assert len(unique_ids) == len(set(unique_ids))
 
 
 @pytest.mark.asyncio
@@ -98,9 +98,7 @@ async def test_multiple_sensors_data_isolation(hass, mock_config_entry_with_sens
         mock_client_instance = AsyncMock()
         mock_client_class.return_value = mock_client_instance
 
-        mock_client_instance.get_schedules.return_value = [
-            {"timestamp": "2025-01-01", "price": 100},
-        ]
+        mock_client_instance.get_schedule_prices.return_value = MagicMock()
 
         coordinator = ElectricityInfoCoordinator(hass, entry)
         coordinator.client = mock_client_instance
@@ -109,6 +107,7 @@ async def test_multiple_sensors_data_isolation(hass, mock_config_entry_with_sens
 
         assert "sensor_1" in result
         assert "sensor_2" in result
+        mock_client_instance.get_schedule_prices.assert_called()
 
 
 @pytest.mark.asyncio
@@ -122,33 +121,43 @@ async def test_isolated_failure_partial_data(hass, mock_config_entry_with_sensor
         mock_client_instance = AsyncMock()
         mock_client_class.return_value = mock_client_instance
 
-        mock_client_instance.get_schedules.side_effect = Exception("API Error")
+        # First subentry succeeds, second raises a per-sensor API error
+        mock_client_instance.get_schedule_prices.side_effect = [
+            MagicMock(),
+            MarketPricesAPIError("API Error for sensor 2"),
+        ]
 
         coordinator = ElectricityInfoCoordinator(hass, entry)
         coordinator.client = mock_client_instance
 
-        with contextlib.suppress(Exception):
-            await coordinator._async_update_data()
+        result = await coordinator._async_update_data()
+
+        assert "sensor_1" in result
+        assert "sensor_2" in result
+        assert "error" not in result["sensor_1"]
+        assert "error" in result["sensor_2"]
 
 
 @pytest.mark.asyncio
-async def test_unique_entity_id_per_sensor(hass, mock_config_entry_with_sensors):
-    """Test unique entity_id generation per sensor subentry (T037)."""
+async def test_unique_unique_id_per_sensor(hass, mock_config_entry_with_sensors):
+    """Test unique_id uniqueness per sensor subentry (T037)."""
     entry = mock_config_entry_with_sensors
 
     with patch("custom_components.electricityinfo.AsyncMarketPricesClient"):
         coordinator = ElectricityInfoCoordinator(hass, entry)
 
-        entity_ids = [
-            PriceSensorEntity(coordinator, entry, subentry, unit="NZD/MWh").entity_id
+        unique_ids = [
+            PriceSensorEntity(
+                coordinator, entry, subentry, unit="NZD/MWh"
+            )._attr_unique_id
             for subentry in entry.subentries.values()
         ]
 
-        assert len(entity_ids) == len(set(entity_ids)), "Entity IDs are not unique"
-        assert len(entity_ids) == 2
+        assert len(unique_ids) == len(set(unique_ids)), "Unique IDs are not unique"
+        assert len(unique_ids) == 2
 
-        for entity_id in entity_ids:
-            assert entity_id.startswith("sensor.electricityinfo_nz_")
+        for uid in unique_ids:
+            assert "electricityinfo_nz" in uid
 
 
 @pytest.mark.asyncio

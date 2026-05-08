@@ -18,9 +18,7 @@ from homeassistant.helpers.entity_platform import (
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
-    CONF_MARKET_TYPE,
-    CONF_NODE,
-    CONF_SCHEDULE_TYPE,
+    C_PER_KWH_TO_NZD_PER_MWH,
     DOMAIN,
     NZD_PER_MWH_TO_C_PER_KWH,
 )
@@ -78,21 +76,10 @@ class PriceSensorEntity(CoordinatorEntity, RestoreEntity, SensorEntity):
         self._attr_icon = "mdi:flash"
         self._attr_name = unit
 
-        # Extract configuration
-        node = self._sensor_config.get(CONF_NODE, "")
-        schedule_type = self._sensor_config.get(CONF_SCHEDULE_TYPE, "")
-        market_type = self._sensor_config.get(CONF_MARKET_TYPE, "")
-
         # Unique ID: one per unit
         unit_suffix = unit.replace("/", "_").lower()
         self._attr_unique_id = (
             f"electricityinfo_nz_{entry.entry_id}_{self._sensor_id}_{unit_suffix}"
-        )
-
-        # entity_id: sensor.electricityinfo_nz_{node}_{schedule}_{market}_{unit}
-        self.entity_id = (
-            f"sensor.electricityinfo_nz"
-            f"_{node}_{schedule_type}_{market_type}_{unit_suffix}".lower()
         )
 
         # Device: one device per subentry, both unit entities share it
@@ -152,12 +139,22 @@ class PriceSensorEntity(CoordinatorEntity, RestoreEntity, SensorEntity):
         await super().async_added_to_hass()
 
         if (last_state := await self.async_get_last_state()) is not None:
-            self._native_value = (
+            raw_value = (
                 float(last_state.state)
                 if last_state.state not in ("unknown", "unavailable")
                 else None
             )
-            self._attributes = dict(last_state.attributes)
+            # Persisted state is in display units; convert back to canonical NZD/MWh
+            if raw_value is not None and self._unit == "c/kWh":
+                raw_value = raw_value * C_PER_KWH_TO_NZD_PER_MWH
+            self._native_value = raw_value
+
+            attrs = dict(last_state.attributes)
+            if self._unit == "c/kWh" and "prices_array" in attrs:
+                attrs["prices_array"] = [
+                    p * C_PER_KWH_TO_NZD_PER_MWH for p in attrs["prices_array"]
+                ]
+            self._attributes = attrs
             _LOGGER.debug(
                 "Restored state for %s: %s",
                 self._sensor_id,

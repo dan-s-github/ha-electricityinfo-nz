@@ -122,8 +122,9 @@ class ElectricityInfoCoordinator(DataUpdateCoordinator):
                         "config": sensor_config,
                     }
 
-            # Reset retry counter on successful update
+            # Reset retry counter and interval on successful update
             self._retry_count = 0
+            self.update_interval = timedelta(minutes=UPDATE_INTERVAL_MINUTES)
 
         except AuthenticationError as err:
             _LOGGER.exception("Authentication error")
