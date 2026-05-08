@@ -10,6 +10,18 @@
       "registered_commands": {},
       "registered_skills": [],
       "installed_at": "2026-05-03T03:51:52.241033+00:00"
+    },
+    "reconcile": {
+      "version": "1.0.0",
+      "source": "local",
+      "manifest_hash": "sha256:e1674fb7e16923c0e9e32eee78ef5a04626d05f092c56cc7c59e26fab07c210b",
+      "enabled": true,
+      "priority": 10,
+      "registered_commands": {},
+      "registered_skills": [
+        "speckit-reconcile-run"
+      ],
+      "installed_at": "2026-05-07T08:35:44.795259+00:00"
     }
   }
 }

@@ -39,13 +39,13 @@ This contract defines the user interface and user experience for the Options Flo
      Schedule Type* [dropdown: "daily_spot", "forward_market", "generation_forecast"]
      Market Type* [dropdown: "energy", "ancillary", "reserve"]
      Market Node* [dropdown: "NEA", "MID", "SOU", "West"]
-     Forward Prices Count* [number input, default=24, range 1-168]
+     Forward Prices Count* [number input, default=24, range 1-84]
      Price Unit* [radio: "NZD/MWh" | "c/kWh", default="NZD/MWh"]
      ```
    - Display validation errors inline if user enters invalid values:
      ```
      ⚠ Sensor ID: Required and must be unique
-     ⚠ Forward Prices Count: Must be between 1 and 168
+     ⚠ Forward Prices Count: Must be between 1 and 84
      ⚠ Market Node: Invalid node selected
      ```
    - Display two action buttons:
@@ -149,13 +149,13 @@ This contract defines the user interface and user experience for the Options Flo
 ### Forward Prices Count
 - Required
 - Must be positive integer
-- Must be <= 168 (7 days * 24 hours)
-- Typically 24 (1 day) or 168 (1 week)
+- Must be <= 84 (FR-012)
+- Typically 24 (1 day) or 84 (3.5 days)
 
 **Error messages**:
 - "Forward prices count is required"
 - "Must be a positive number"
-- "Cannot exceed 168 (7 days of hourly prices)"
+- "Cannot exceed 84 (FR-012 maximum)"
 
 ### Price Unit
 - Required
@@ -177,7 +177,7 @@ This contract defines the user interface and user experience for the Options Flo
     "schedule_type": "daily_spot",    # str, from API-allowed values
     "market_type": "energy",          # str, from API-allowed values
     "node": "NEA",                    # str, from API-allowed nodes
-    "forward_prices_count": 24,       # int, 1-168
+    "forward_prices_count": 24,       # int, 1-84
     "unit_preference": "NZD/MWh"      # str, "NZD/MWh" or "c/kWh"
 }
 ```
@@ -200,7 +200,7 @@ config_entry.options = {
             "schedule_type": "forward_market",
             "market_type": "energy",
             "node": "MID",
-            "forward_prices_count": 168,
+            "forward_prices_count": 84,
             "unit_preference": "c/kWh"
         }
     ]
@@ -270,10 +270,10 @@ Required: Yes
 ### Number Input (Forward Prices Count)
 ```
 Label: "Forward Prices Count*"
-Hint: "Number of hourly prices to retrieve (1-168, typically 24 for daily or 168 for weekly)"
+Hint: "Number of hourly prices to retrieve (1-84, typically 24 for daily or 84 for extended)"
 Input: Number field
 Min: 1
-Max: 168
+Max: 84
 Default: 24
 Required: Yes
 ```
