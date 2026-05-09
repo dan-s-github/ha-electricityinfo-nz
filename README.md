@@ -129,7 +129,7 @@ forecast:
 | `RTD` | Real-time dispatch | Live 5-minute dispatch prices (most current) |
 | `Final` | Final | Final settled prices (after settlement) |
 | `Interim` | Interim | Interim prices before final settlement |
-| `PRSL` | Price-responsive long | Long-run price-responsive schedule |
+| `PRSL` | Price-responsive long | Long-run price-responsive schedule — best for market price forecasts |
 | `PRSS` | Price-responsive short | Short-run price-responsive schedule |
 | `NRSL` | Non-responsive long | Long-run non-responsive schedule |
 | `NRSS` | Non-responsive short | Short-run non-responsive schedule |
