@@ -227,7 +227,7 @@ class PriceSensorEntity(CoordinatorEntity, RestoreEntity, SensorEntity):
         _LOGGER.debug(
             "Updated sensor %s: price=%s %s",
             self._sensor_id,
-            current_price,
+            self.native_value,
             self._unit,
         )
 
