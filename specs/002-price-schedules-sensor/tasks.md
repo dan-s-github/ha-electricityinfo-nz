@@ -183,6 +183,18 @@
 
 ---
 
+## Spec Revision: Forecast Excludes Current Period
+
+**Source**: Spec revision 2026-05-09 — FR-006 updated: the `forecast` attribute must contain **future periods only**. The current trading period price is the sensor state; it must not appear in `forecast`. This mirrors `forecast_solar` convention exactly.
+
+**TDD ordering**: T068 (RED test) → T069 (implement slice) → T070 (update existing forecast tests).
+
+- [ ] T068 [P] [US1] Write failing test: assert `extra_state_attributes["forecast"][0]["period_start"]` is strictly after the current period's `timestamp`; assert `forecast` does not contain an entry matching the current state's price/period in `tests/test_sensor.py` [Forecast: exclude-current]
+- [ ] T069 [US1] Update `_handle_coordinator_update` to slice the API price list from index 1 onwards when building `forecast` (index 0 = current period = sensor state, not included in forecast list) in `custom_components/electricityinfo/sensor.py` [Forecast: exclude-current] *(depends-on: T068)*
+- [ ] T070 [P] Update existing forecast shape tests (T056/T061) to assert `forecast[0]` is the **second** API price period, not the first; verify `len(forecast) == forward_prices_count - 1` in `tests/test_sensor.py` [Forecast: exclude-current] *(depends-on: T069)*
+
+---
+
 ## Staleness Guard: SC-008 Restore Threshold
 
 **Source**: Spec clarification 2026-05-09 — FR-007 and SC-008 updated to discard restored state older than one update interval (30 minutes). If the restored `timestamp` attribute is older than 30 minutes, `async_added_to_hass` must NOT populate `_native_value`; entity remains unavailable until the first coordinator fetch succeeds.
@@ -197,6 +209,13 @@
 ---
 
 ## Dependencies & Execution Order (updated)
+
+### Forecast Exclude-Current Phase Dependencies
+
+- T068: No dependencies — write RED test first
+- T069: Depends on T068 written
+- T070: Depends on T069 (update tests after implementation)
+- T068 is [P] with T064/T065 — different test functions, non-overlapping
 
 ### Staleness Guard Phase Dependencies
 

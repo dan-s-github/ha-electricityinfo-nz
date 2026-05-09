@@ -79,10 +79,11 @@ This document defines the core data entities, their attributes, relationships, a
 | **node** | str | `"NEA"` | The market node (for reference; matches SensorConfiguration) |
 | **schedule** | str | `"daily_spot"` | The schedule type (for reference; matches SensorConfiguration) |
 | **run_type** | str | `"actual"` | Price run type returned by the API |
-| **forecast** | list[dict] | `[{"period_start": "2026-05-09T12:00:00+12:00", "price": 45.23}, …]` | Time-series forecast in `forecast_solar` format. Each entry: `period_start` (ISO 8601 datetime with NZ timezone) and `price` (float in entity display unit). One entry per 30-min trading period up to `forward_prices_count`. |
+| **forecast** | list[dict] | `[{"period_start": "2026-05-09T12:30:00+12:00", "price": 46.10}, …]` | Time-series forecast in `forecast_solar` format. Contains **future periods only** — the current period (whose price is the sensor state) is excluded. Each entry: `period_start` (ISO 8601 datetime with NZ timezone) and `price` (float in entity display unit). Entries start from the period immediately after the current one, up to `forward_prices_count`. |
 | **available** | bool | `true` or `false` | Entity availability; set to False when data retrieval fails (FR-010) |
 
 **State JSON Example**:
+> Note: `state` is the current period price (45.23 NZD/MWh). `forecast` begins at the **next** period (12:30) — the current period (12:00, 45.23) is intentionally excluded.
 ```json
 {
   "entity_id": "sensor.electricityinfo_nz_nea_daily_spot_energy_nzd_mwh",
@@ -94,7 +95,6 @@ This document defines the core data entities, their attributes, relationships, a
     "schedule": "daily_spot",
     "run_type": "actual",
     "forecast": [
-      {"period_start": "2026-05-09T12:00:00+12:00", "price": 45.23},
       {"period_start": "2026-05-09T12:30:00+12:00", "price": 46.10},
       {"period_start": "2026-05-09T13:00:00+12:00", "price": 47.50}
     ],
