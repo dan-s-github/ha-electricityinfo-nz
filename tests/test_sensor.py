@@ -228,12 +228,12 @@ async def test_dual_unit_entities_reflect_same_data_after_coordinator_update(
 
 
 # ---------------------------------------------------------------------------
-# T054 - prices_array dict structure shape
+# T054 / T061 - forecast attribute shape (updated from prices_array)
 # ---------------------------------------------------------------------------
 
 
-async def test_prices_array_contains_required_dict_keys(hass, mock_entry) -> None:
-    """prices_array elements have trading_date, trading_period, price keys (T054)."""
+async def test_forecast_contains_period_start_and_price_keys(hass, mock_entry) -> None:
+    """Forecast elements have period_start and price keys (T054, updated by T061)."""
     subentry = create_mock_subentry()
     mock_price1 = MagicMock()
     mock_price1.trading_datetime = datetime(2026, 5, 9, 17, 30, tzinfo=UTC)
@@ -269,24 +269,25 @@ async def test_prices_array_contains_required_dict_keys(hass, mock_entry) -> Non
             entity._handle_coordinator_update()
 
         attrs = entity.extra_state_attributes
-        assert "prices_array" in attrs
-        prices_array = attrs["prices_array"]
-        assert len(prices_array) == 2
+        assert "forecast" in attrs
+        assert "prices_array" not in attrs
 
-        for item in prices_array:
-            assert "trading_date" in item
-            assert "trading_period" in item
+        forecast = attrs["forecast"]
+        assert len(forecast) == 2
+
+        for item in forecast:
+            assert "period_start" in item
             assert "price" in item
-            assert isinstance(item["trading_date"], str)
+            assert isinstance(item["period_start"], str)
+            assert "T" in item["period_start"]
             assert isinstance(item["price"], float)
 
-        # Values should match the mock data
-        assert prices_array[0]["price"] == pytest.approx(45.23, abs=0.001)
-        assert prices_array[1]["price"] == pytest.approx(47.11, abs=0.001)
+        assert forecast[0]["price"] == pytest.approx(45.23, abs=0.001)
+        assert forecast[1]["price"] == pytest.approx(47.11, abs=0.001)
 
 
-async def test_ckwh_prices_array_converts_price_field(hass, mock_entry) -> None:
-    """c/kWh entity prices_array prices are NZD/MWh x 0.1 (T054)."""
+async def test_ckwh_forecast_converts_price_field(hass, mock_entry) -> None:
+    """c/kWh entity forecast prices are NZD/MWh x 0.1 (T054, updated by T061)."""
     subentry = create_mock_subentry()
     mock_schedule = _make_mock_schedule(45.23)
 
@@ -305,7 +306,77 @@ async def test_ckwh_prices_array_converts_price_field(hass, mock_entry) -> None:
             entity._handle_coordinator_update()
 
         attrs = entity.extra_state_attributes
-        prices_array = attrs["prices_array"]
-        assert prices_array[0]["price"] == pytest.approx(
+        forecast = attrs["forecast"]
+        assert forecast[0]["price"] == pytest.approx(
             45.23 * NZD_PER_MWH_TO_C_PER_KWH, abs=0.001
         )
+
+
+# ---------------------------------------------------------------------------
+# T056 - forecast attribute shape (forecast_solar convention) - RED before T058
+# ---------------------------------------------------------------------------
+
+
+async def test_forecast_attribute_has_period_start_and_price_keys(
+    hass, mock_entry
+) -> None:
+    """
+    Forecast attribute uses period_start/price shape (not prices_array) (T056).
+
+    This test is RED before T058: sensor.py still writes prices_array.
+    After T058 it goes GREEN.
+    """
+    subentry = create_mock_subentry()
+    mock_price1 = MagicMock()
+    mock_price1.trading_datetime = datetime(2026, 5, 9, 17, 30, tzinfo=UTC)
+    mock_price1.trading_period = 35
+    mock_price1.node = "HAY2201"
+    mock_price1.schedule = "RTD"
+    mock_price1.run_type = "actual"
+    mock_price1.price = 45.23
+
+    mock_price2 = MagicMock()
+    mock_price2.trading_datetime = datetime(2026, 5, 9, 18, 0, tzinfo=UTC)
+    mock_price2.trading_period = 36
+    mock_price2.node = "HAY2201"
+    mock_price2.schedule = "RTD"
+    mock_price2.run_type = "actual"
+    mock_price2.price = 47.11
+
+    mock_schedule = MagicMock()
+    mock_schedule.prices = [mock_price1, mock_price2]
+
+    with patch("custom_components.electricityinfo.AsyncMarketPricesClient"):
+        coordinator = ElectricityInfoCoordinator(hass, mock_entry)
+        coordinator.last_update_success = True
+        coordinator.data = {
+            subentry.subentry_id: {
+                "prices": mock_schedule,
+                "config": dict(subentry.data),
+            }
+        }
+
+        entity = PriceSensorEntity(coordinator, mock_entry, subentry, unit="NZD/MWh")
+        with patch.object(entity, "async_write_ha_state", MagicMock()):
+            entity._handle_coordinator_update()
+
+        attrs = entity.extra_state_attributes
+
+        # Must have forecast, not prices_array
+        assert "forecast" in attrs, "forecast key missing from extra_state_attributes"
+        assert "prices_array" not in attrs, "prices_array should not be present"
+
+        forecast = attrs["forecast"]
+        assert len(forecast) == 2
+
+        for item in forecast:
+            assert "period_start" in item, f"period_start missing from: {item}"
+            assert "price" in item, f"price missing from: {item}"
+            # period_start must be ISO 8601 with timezone indicator
+            ps = item["period_start"]
+            assert isinstance(ps, str)
+            assert "T" in ps, f"period_start not ISO8601: {ps}"
+            assert "+" in ps or ps.endswith("Z"), f"period_start has no timezone: {ps}"
+
+        assert forecast[0]["price"] == pytest.approx(45.23, abs=0.001)
+        assert forecast[1]["price"] == pytest.approx(47.11, abs=0.001)

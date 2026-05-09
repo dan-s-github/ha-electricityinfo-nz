@@ -81,17 +81,19 @@ Attributes align with **FR-006** (shipped implementation). The following are sto
 | `node` | str | `"HAY2201"` | Market node (from API response) |
 | `schedule` | str | `"RTD"` | Schedule type (from API response) |
 | `run_type` | str | `"RTD"` | Run type (from API response) |
-| `prices_array` | list[dict] | see below | All forward prices |
+| `forecast` | list[dict] | see below | All forward prices |
 
-`prices_array` element shape:
+`forecast` element shape (compatible with `forecast_solar` integration convention):
 ```json
 {
-  "trading_date": "2026-05-05",
-  "trading_period": 35,
+  "period_start": "2026-05-05T17:30:00+12:00",
   "price": 45.23
 }
 ```
-For c/kWh entities, `price` in each element is converted to c/kWh. For NZD/MWh entities, `price` is in NZD/MWh.
+- `period_start` is an ISO 8601 datetime string including timezone offset, derived from `trading_datetime.isoformat()` on the API response object.
+- `price` is in the entity's display unit: NZD/MWh for NZD/MWh entities, c/kWh (= NZD/MWh × 0.1) for c/kWh entities.
+- One entry per 30-minute NZ trading period returned by the API.
+- Internal storage (`_attributes["forecast"]`) always holds prices in canonical NZD/MWh. Conversion to c/kWh is applied in `extra_state_attributes` at read time; on state restore the reverse conversion is applied.
 
 ### Example State JSON
 
@@ -100,14 +102,14 @@ For c/kWh entities, `price` in each element is converted to c/kWh. For NZD/MWh e
   "entity_id": "sensor.electricityinfo_nz_abc123_sub001_nzd_mwh",
   "state": "45.23",
   "attributes": {
-    "timestamp": "2026-05-05T17:30:00+00:00",
+    "timestamp": "2026-05-05T17:30:00+12:00",
     "trading_period": 35,
     "node": "HAY2201",
     "schedule": "RTD",
     "run_type": "RTD",
-    "prices_array": [
-      {"trading_date": "2026-05-05", "trading_period": 35, "price": 45.23},
-      {"trading_date": "2026-05-05", "trading_period": 36, "price": 46.10}
+    "forecast": [
+      {"period_start": "2026-05-05T17:30:00+12:00", "price": 45.23},
+      {"period_start": "2026-05-05T18:00:00+12:00", "price": 46.10}
     ],
     "native_unit_of_measurement": "NZD/MWh",
     "icon": "mdi:flash"

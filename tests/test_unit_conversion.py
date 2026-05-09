@@ -1,17 +1,20 @@
 """Tests for price unit conversion (NZD/MWh <-> c/kWh)."""
 
+from __future__ import annotations
+
+from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
 from homeassistant.config_entries import ConfigEntry
 
-from custom_components.electricityinfo import ElectricityInfoCoordinator
 from custom_components.electricityinfo.const import (
     CONF_CLIENT_ID,
     CONF_CLIENT_SECRET,
     DOMAIN,
     NZD_PER_MWH_TO_C_PER_KWH,
 )
+from custom_components.electricityinfo.coordinator import ElectricityInfoCoordinator
 from custom_components.electricityinfo.sensor import PriceSensorEntity
 from tests.helpers import create_mock_subentry
 
@@ -118,13 +121,13 @@ async def test_unit_conversion_rounding(hass):
 
 
 # ---------------------------------------------------------------------------
-# T055 - c/kWh prices_array price field conversion
+# T055 / T062 - forecast attribute c/kWh conversion (updated from prices_array)
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_ckwh_entity_prices_array_converts_price_field(hass, mock_entry):
-    """c/kWh prices_array multiplies NZD/MWh prices by conversion factor (T055)."""
+async def test_ckwh_entity_forecast_converts_price_field_direct(hass, mock_entry):
+    """c/kWh forecast prices are multiplied by NZD_PER_MWH_TO_C_PER_KWH (T055/T062)."""
     subentry = create_mock_subentry()
     nzd_price = 452.3  # NZD/MWh
 
@@ -132,12 +135,11 @@ async def test_ckwh_entity_prices_array_converts_price_field(hass, mock_entry):
         coordinator = ElectricityInfoCoordinator(hass, mock_entry)
         entity = PriceSensorEntity(coordinator, mock_entry, subentry, unit="c/kWh")
 
-    # Set attributes directly — _attributes always stores prices in NZD/MWh
+    # Set attributes directly - _attributes always stores prices in NZD/MWh canonically
     entity._attributes = {
-        "prices_array": [
+        "forecast": [
             {
-                "trading_date": "2026-05-09",
-                "trading_period": 35,
+                "period_start": "2026-05-09T17:30:00+00:00",
                 "price": nzd_price,  # canonical NZD/MWh value
             }
         ]
@@ -145,10 +147,59 @@ async def test_ckwh_entity_prices_array_converts_price_field(hass, mock_entry):
     entity._native_value = nzd_price
 
     attrs = entity.extra_state_attributes
-    prices = attrs["prices_array"]
-    assert len(prices) == 1
-    assert prices[0]["price"] == pytest.approx(
+    forecast = attrs["forecast"]
+    assert len(forecast) == 1
+    assert forecast[0]["price"] == pytest.approx(
         nzd_price * NZD_PER_MWH_TO_C_PER_KWH, rel=1e-4
     )
-    assert prices[0]["trading_date"] == "2026-05-09"
-    assert prices[0]["trading_period"] == 35
+    assert forecast[0]["period_start"] == "2026-05-09T17:30:00+00:00"
+
+
+# ---------------------------------------------------------------------------
+# T057 - forecast attribute c/kWh conversion (forecast_solar convention)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_ckwh_entity_forecast_converts_price_field(hass, mock_entry):
+    """c/kWh forecast attribute prices are in c/kWh (not NZD/MWh) (T057)."""
+    subentry = create_mock_subentry()
+    nzd_price = 452.3  # NZD/MWh
+
+    mock_price = MagicMock()
+    mock_price.trading_datetime = datetime(2026, 5, 9, 17, 30, tzinfo=UTC)
+    mock_price.trading_period = 35
+    mock_price.node = "HAY2201"
+    mock_price.schedule = "RTD"
+    mock_price.run_type = "actual"
+    mock_price.price = nzd_price
+
+    mock_schedule = MagicMock()
+    mock_schedule.prices = [mock_price]
+
+    with patch("custom_components.electricityinfo.AsyncMarketPricesClient"):
+        coordinator = ElectricityInfoCoordinator(hass, mock_entry)
+        coordinator.last_update_success = True
+        coordinator.data = {
+            subentry.subentry_id: {
+                "prices": mock_schedule,
+                "config": dict(subentry.data),
+            }
+        }
+
+        entity = PriceSensorEntity(coordinator, mock_entry, subentry, unit="c/kWh")
+        with patch.object(entity, "async_write_ha_state", MagicMock()):
+            entity._handle_coordinator_update()
+
+        attrs = entity.extra_state_attributes
+
+        # Must use forecast key, not prices_array
+        err_msg = "forecast key missing from c/kWh extra_state_attributes"
+        assert "forecast" in attrs, err_msg
+        assert "prices_array" not in attrs
+
+        forecast = attrs["forecast"]
+        assert len(forecast) == 1
+        expected_c_per_kwh = nzd_price * NZD_PER_MWH_TO_C_PER_KWH
+        assert forecast[0]["price"] == pytest.approx(expected_c_per_kwh, rel=1e-4)
+        assert "period_start" in forecast[0]

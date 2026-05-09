@@ -129,10 +129,10 @@ class PriceSensorEntity(CoordinatorEntity, RestoreEntity, SensorEntity):
         """Return additional attributes."""
         attrs = dict(self._attributes)
 
-        if self._unit == "c/kWh" and "prices_array" in attrs:
-            attrs["prices_array"] = [
+        if self._unit == "c/kWh" and "forecast" in attrs:
+            attrs["forecast"] = [
                 {**p, "price": round(p["price"] * NZD_PER_MWH_TO_C_PER_KWH, 3)}
-                for p in attrs["prices_array"]
+                for p in attrs["forecast"]
             ]
 
         return attrs
@@ -153,10 +153,10 @@ class PriceSensorEntity(CoordinatorEntity, RestoreEntity, SensorEntity):
             self._native_value = raw_value
 
             attrs = dict(last_state.attributes)
-            if self._unit == "c/kWh" and "prices_array" in attrs:
-                attrs["prices_array"] = [
+            if self._unit == "c/kWh" and "forecast" in attrs:
+                attrs["forecast"] = [
                     {**p, "price": p["price"] * C_PER_KWH_TO_NZD_PER_MWH}
-                    for p in attrs["prices_array"]
+                    for p in attrs["forecast"]
                 ]
             self._attributes = attrs
             _LOGGER.debug(
@@ -226,10 +226,9 @@ class PriceSensorEntity(CoordinatorEntity, RestoreEntity, SensorEntity):
         }
 
         if sorted_prices:
-            self._attributes["prices_array"] = [
+            self._attributes["forecast"] = [
                 {
-                    "trading_date": p.trading_datetime.date().isoformat(),
-                    "trading_period": p.trading_period,
+                    "period_start": p.trading_datetime.isoformat(),
                     "price": round(p.price, 3),
                 }
                 for p in sorted_prices

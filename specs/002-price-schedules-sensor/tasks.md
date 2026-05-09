@@ -166,7 +166,39 @@
 
 ---
 
-## Dependencies & Execution Order
+## Migration: Forecast Format (forecast_solar convention)
+
+**Source**: Spec revision 2026-05-09 — FR-006 updated to replace `prices_array` with `forecast` attribute using `{period_start: ISO8601+tz, price: float}` element shape, compatible with the `forecast_solar` integration.
+
+**TDD ordering**: T056–T057 (write RED tests) → T058–T060 (implement, makes T056/T057 GREEN and T054/T055 RED) → T061–T062 (update old tests) → T063 (contract update).
+
+- [x] T056 [P] [US1] Write failing `forecast` attribute shape test: assert `extra_state_attributes["forecast"]` is a list of `{period_start, price}` dicts for a NZD/MWh entity; assert `period_start` is an ISO 8601 string with timezone; assert no `prices_array` key present in `tests/test_sensor.py` [Migration: forecast-solar format]
+- [x] T057 [P] [US3] Write failing `forecast` c/kWh conversion test: assert `extra_state_attributes["forecast"][0]["price"]` equals NZD/MWh price × 0.1 for a c/kWh entity; assert no `prices_array` key in `tests/test_unit_conversion.py` [Migration: forecast-solar format]
+- [x] T058 [US1] Rename `prices_array` → `forecast` in `_handle_coordinator_update`; change element shape from `{trading_date, trading_period, price}` to `{period_start: p.trading_datetime.isoformat(), price: round(p.price, 3)}` in `custom_components/electricityinfo/sensor.py` [Migration: forecast-solar format] *(depends-on: T056, T057)*
+- [x] T059 [US3] Update `extra_state_attributes` to apply c/kWh conversion on `forecast` key (not `prices_array`): convert each element's `price` by `* NZD_PER_MWH_TO_C_PER_KWH` in `custom_components/electricityinfo/sensor.py` [Migration: forecast-solar format] *(depends-on: T058)*
+- [x] T060 [US1] Update `async_added_to_hass` restore logic to reverse-convert `forecast` (not `prices_array`) for c/kWh entities: multiply `price` by `C_PER_KWH_TO_NZD_PER_MWH` in `custom_components/electricityinfo/sensor.py` [Migration: forecast-solar format] *(depends-on: T059)*
+- [x] T061 [P] [US1] Update existing T054 tests to assert `forecast` attribute shape (not `prices_array`): update mock assertions to use `period_start`/`price` keys and verify ISO8601 timezone format in `tests/test_sensor.py` [Migration: forecast-solar format] *(depends-on: T058)*
+- [x] T062 [P] [US3] Update existing T055 test to assert `forecast` c/kWh conversion (not `prices_array`): rename attribute reference and verify price conversion in `tests/test_unit_conversion.py` [Migration: forecast-solar format] *(depends-on: T059)*
+- [x] T063 [P] Update `contracts/sensor-platform.md` to replace `prices_array` attribute definition with `forecast` attribute: element shape `{period_start: ISO8601+tz, price: float in entity unit}`, include example JSON in `specs/002-price-schedules-sensor/contracts/sensor-platform.md` [Migration: forecast-solar format] *(depends-on: T060)*
+
+---
+
+## Dependencies & Execution Order (updated)
+
+### Migration Phase Dependencies
+
+- T056, T057: No dependencies — write these first (RED tests)
+- T058: Depends on T056, T057 being written
+- T059: Depends on T058 (same file, sequential)
+- T060: Depends on T059 (same file, sequential)
+- T061, T062: Depend on T058–T060 (fix tests broken by implementation change)
+- T063: Depends on T060 (document final behaviour)
+
+### Parallel Opportunities (Migration)
+
+- T056 and T057 are [P] — different test files, write concurrently
+- T061 and T062 are [P] — different test files, update concurrently after T058–T060
+- T063 is [P] with T061/T062 — spec doc, no code dependency
 
 ### Phase Dependencies
 
