@@ -6,7 +6,9 @@
 
 ## Overview
 
-This contract defines how price sensors integrate with Home Assistant's entity platform. Sensors are automatically created from SensorConfiguration list in config entry options and updated via shared DataUpdateCoordinator every 30 minutes.
+This contract defines how price sensors integrate with Home Assistant's entity platform. Sensors are automatically created from `sensor` subentries on the config entry and updated via shared DataUpdateCoordinator every 30 minutes.
+
+> **Architecture note**: This contract was originally written for an Options-list UX. The shipped implementation uses `ConfigSubentryFlow` — HA's native subentry system. Each sensor subentry produces two entities (NZD/MWh and c/kWh) that share one device context and one coordinator.
 
 ---
 
@@ -16,37 +18,42 @@ This contract defines how price sensors integrate with Home Assistant's entity p
 
 Entities created when:
 1. Integration loads (on Home Assistant startup)
-2. User adds a sensor via Options Flow
-3. Integration options are updated
+2. User adds a sensor subentry via **Settings > Devices & Services > Electricityinfo NZ > + Add sensor**
+3. Integration reloads after a subentry change (full reload, not incremental)
 
 ### Entity Lifecycle
 
 ```python
-async def async_setup_entry(hass, config_entry, async_add_entities, discovery_info=None):
-    """Setup price sensors from config entry options"""
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: AddConfigEntryEntitiesCallback,
+) -> None:
+    coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
 
-    # 1. Get sensor list from config entry options
-    sensor_configs = config_entry.options.get("sensors", [])
-
-    # 2. For each sensor config, create a SensorEntity
-    entities = []
-    for sensor_config in sensor_configs:
-        entity = PriceSensorEntity(coordinator, sensor_config)
-        entities.append(entity)
-
-    # 3. Add entities to Home Assistant
-    async_add_entities(entities)
+    for subentry in entry.subentries.values():
+        if subentry.subentry_type == "sensor":
+            entities = [
+                PriceSensorEntity(coordinator, entry, subentry, unit=unit)
+                for unit in ("NZD/MWh", "c/kWh")
+            ]
+            async_add_entities(entities, config_subentry_id=subentry.subentry_id)
 ```
 
 ### Entity ID Generation
 
+Unique ID is based on the config entry ID and subentry ID, not on node/schedule values (which change on reconfigure):
+
 ```python
-entity_id = f"sensor.electricityinfo_nz_{node}_{schedule_type}_{market_type}_{unit_suffix}"
+unit_suffix = unit.replace("/", "_").lower()
+unique_id = f"electricityinfo_nz_{entry.entry_id}_{subentry.subentry_id}_{unit_suffix}"
 ```
 
-**Example**:
-- node="NEA", schedule_type="daily_spot", market_type="energy", unit="NZD/MWh"
-- entity_id = `sensor.electricityinfo_nz_nea_daily_spot_energy_nzd_mwh`
+**Example** (two entities per subentry):
+- `electricityinfo_nz_abc123_sub001_nzd_mwh`
+- `electricityinfo_nz_abc123_sub001_c_kwh`
+
+Device identifier: `(DOMAIN, subentry.subentry_id)` — both unit entities share one device.
 
 ---
 
@@ -57,44 +64,54 @@ entity_id = f"sensor.electricityinfo_nz_{node}_{schedule_type}_{market_type}_{un
 | Property | Value | Type | Example |
 |----------|-------|------|---------|
 | `state` | Current market price | float (str in HA) | `"45.23"` |
-| `native_unit_of_measurement` | Always NZD/MWh | str | `"NZD/MWh"` |
-| `unit_of_measurement` | Display unit (may differ) | str | `"NZD/MWh"` or `"c/kWh"` |
+| `native_unit_of_measurement` | Entity's unit | str | `"NZD/MWh"` or `"c/kWh"` |
+| `device_class` | `SensorDeviceClass.MONETARY` | — | monetary |
+| `suggested_display_precision` | Decimal places | int | `2` (NZD/MWh), `3` (c/kWh) |
+
+> **Canonical storage**: `_native_value` is always stored internally in NZD/MWh regardless of entity unit. The `native_value` property applies conversion at read time. On state restore, c/kWh values are multiplied back to NZD/MWh before storing.
 
 ### Attributes (Metadata)
 
+Attributes align with **FR-006** (shipped implementation). The following are stored for every entity:
+
 | Attribute | Type | Example | Description |
 |-----------|------|---------|-------------|
-| `timestamp` | str (ISO 8601) | `"2026-05-05T17:30:00Z"` | When this price was fetched |
-| `confidence_level` | float (0-1) | `0.95` | API confidence in forecast |
-| `forecast_period` | str | `"24h"` | Time range of forecast |
-| `market_type` | str | `"energy"` | Market segment (ref) |
-| `node` | str | `"NEA"` | Market node (ref) |
-| `schedule_type` | str | `"daily_spot"` | Schedule type (ref) |
-| `prices_array` | list[float] | `[45.23, 46.10, 47.50, ...]` | All forward prices |
-| `friendly_name` | str | `"Electricityinfo NZ NEA Daily Spot Energy (NZD/MWh)"` | User-visible name |
-| `icon` | str | `"mdi:flash"` | UI icon |
+| `timestamp` | str (ISO 8601) | `"2026-05-05T17:30:00+00:00"` | Trading datetime of current period |
+| `trading_period` | int | `35` | HA trading period number |
+| `node` | str | `"HAY2201"` | Market node (from API response) |
+| `schedule` | str | `"RTD"` | Schedule type (from API response) |
+| `run_type` | str | `"RTD"` | Run type (from API response) |
+| `prices_array` | list[dict] | see below | All forward prices |
+
+`prices_array` element shape:
+```json
+{
+  "trading_date": "2026-05-05",
+  "trading_period": 35,
+  "price": 45.23
+}
+```
+For c/kWh entities, `price` in each element is converted to c/kWh. For NZD/MWh entities, `price` is in NZD/MWh.
 
 ### Example State JSON
 
 ```json
 {
-  "entity_id": "sensor.electricityinfo_nz_nea_daily_spot_energy_nzd_mwh",
+  "entity_id": "sensor.electricityinfo_nz_abc123_sub001_nzd_mwh",
   "state": "45.23",
   "attributes": {
-    "timestamp": "2026-05-05T17:30:00Z",
-    "confidence_level": 0.95,
-    "forecast_period": "24h",
-    "market_type": "energy",
-    "node": "NEA",
-    "schedule_type": "daily_spot",
-    "prices_array": [45.23, 46.10, 47.50, 46.80, 45.95],
+    "timestamp": "2026-05-05T17:30:00+00:00",
+    "trading_period": 35,
+    "node": "HAY2201",
+    "schedule": "RTD",
+    "run_type": "RTD",
+    "prices_array": [
+      {"trading_date": "2026-05-05", "trading_period": 35, "price": 45.23},
+      {"trading_date": "2026-05-05", "trading_period": 36, "price": 46.10}
+    ],
     "native_unit_of_measurement": "NZD/MWh",
-    "unit_of_measurement": "NZD/MWh",
-    "icon": "mdi:flash",
-    "friendly_name": "Electricityinfo NZ NEA Daily Spot Energy (NZD/MWh)"
-  },
-  "last_changed": "2026-05-05T17:30:00Z",
-  "last_updated": "2026-05-05T17:30:00Z"
+    "icon": "mdi:flash"
+  }
 }
 ```
 
@@ -104,71 +121,46 @@ entity_id = f"sensor.electricityinfo_nz_{node}_{schedule_type}_{market_type}_{un
 
 ### Global Update Cycle
 
-All sensors share a single `DataUpdateCoordinator` that updates every 30 minutes:
+All sensors share a single `DataUpdateCoordinator` that updates every 30 minutes. The coordinator fetches prices for each sensor subentry independently. `forward_prices_count` (hours) is multiplied by 2 before the API call to convert to 30-minute trading period count.
 
 ```python
-coordinator = DataUpdateCoordinator(
-    hass=hass,
-    logger=logging.getLogger(__name__),
-    name="Electricityinfo NZ Price Scheduler",
-    update_interval=timedelta(minutes=30),
-    update_method=_async_update_prices,
-)
-
-async def _async_update_prices():
-    """Fetch prices from Electricityinfo API for all sensors"""
-    # 1. Collect unique (node, schedule_type) combinations from all sensors
-    unique_requests = {
-        (sensor.node, sensor.schedule_type)
-        for sensor in sensors
-    }
-
-    # 2. Fetch prices for each combination (single API call per combo)
-    all_prices = {}
-    for node, schedule_type in unique_requests:
-        prices = await library.get_schedules(node, schedule_type)
-        all_prices[(node, schedule_type)] = prices
-
-    # 3. Return aggregated prices
-    return all_prices
+for subentry in entry.subentries.values():
+    if subentry.subentry_type == "sensor":
+        forward_prices = subentry.data["forward_prices_count"] * 2  # hours → periods
+        prices = await client.get_schedule_prices(
+            schedule=subentry.data["schedule_type"],
+            market_type=subentry.data["market_type"],
+            nodes=[subentry.data["node"]],
+            forward=forward_prices,
+        )
+        price_data[subentry.subentry_id] = {"prices": prices, "config": ...}
 ```
 
 ### Entity Update
 
-When coordinator updates (success or failure):
+When coordinator updates, `_handle_coordinator_update` is called on each entity:
 
 ```python
-def _handle_coordinator_update(self):
-    """Update entity state from coordinator data"""
-
-    if not self.coordinator.last_update_success:
-        # API call failed
-        self.set_available(False)  # Mark unavailable
+def _handle_coordinator_update(self) -> None:
+    if not self.coordinator.data or self._sensor_id not in self.coordinator.data:
+        self._native_value = None
+        self._attributes = {}
+        self.async_write_ha_state()
         return
 
-    # Get prices matching this sensor's (node, schedule_type)
-    prices = self.coordinator.data.get(
-        (self.node, self.schedule_type)
-    )
-
-    if not prices:
-        self.set_available(False)
+    sensor_data = self.coordinator.data[self._sensor_id]
+    if "error" in sensor_data:
+        self._native_value = None
+        self._attributes = {}
+        self.async_write_ha_state()
         return
 
-    # Update state and attributes
-    self.set_available(True)
-    self._attr_native_value = prices[0]["price_value"]  # Current price
-    self._attr_extra_state_attributes = {
-        "timestamp": prices[0]["timestamp"],
-        "confidence_level": prices.get("confidence_level"),
-        "forecast_period": prices.get("forecast_period"),
-        "market_type": self.market_type,
-        "node": self.node,
-        "schedule_type": self.schedule_type,
-        "prices_array": [p["price_value"] for p in prices],
-    }
-    self.async_write_state()
+    # Update _native_value (always NZD/MWh) and _attributes
+    # native_value property converts to c/kWh at read time
+    self.async_write_ha_state()
 ```
+
+Startup note: `async_request_refresh()` is called once per entity in `async_added_to_hass`. With two entities per subentry, two calls fire — the coordinator deduplicates in-flight requests.
 
 ---
 
@@ -204,36 +196,35 @@ This is intentional—allows automations to gracefully handle temporary API outa
 
 ## Unit Conversion
 
-### Display Unit
+### Canonical Internal Storage
 
-Entity's `unit_of_measurement` determined by SensorConfiguration `unit_preference`:
+`_native_value` is **always stored in NZD/MWh** regardless of the entity's display unit. Conversion is applied at read time:
 
 ```python
 @property
-def unit_of_measurement(self) -> str:
-    """Return display unit (may differ from native unit)"""
-    if self.sensor_config["unit_preference"] == "c/kWh":
-        return "c/kWh"
-    return "NZD/MWh"
+def native_value(self) -> float | None:
+    if self._native_value is None:
+        return None
+    if self._unit == "c/kWh":
+        return round(self._native_value * 0.1, 3)  # NZD/MWh × 0.1 = c/kWh
+    return round(self._native_value, 3)
 ```
 
-### State Conversion
+On state restore, c/kWh values from storage are divided by 0.1 (multiplied by 10) to recover the NZD/MWh canonical value before storing in `_native_value`.
 
-When Home Assistant displays state in UI, it automatically converts:
+### prices_array Conversion
+
+The c/kWh entity's `extra_state_attributes` converts each price in `prices_array`:
 
 ```python
-display_value = convert_price_unit(
-    native_value=45.23,
-    from_unit="NZD/MWh",
-    to_unit=entity.unit_of_measurement  # "c/kWh" or "NZD/MWh"
-)
+if self._unit == "c/kWh" and "prices_array" in attrs:
+    attrs["prices_array"] = [
+        {**p, "price": round(p["price"] * 0.1, 3)}
+        for p in attrs["prices_array"]
+    ]
 ```
 
-**Conversion formula**:
-- NZD/MWh → c/kWh: divide by 10
-- c/kWh → NZD/MWh: multiply by 10
-
-**Accuracy**: ±0.01 c/kWh (conversion error < 0.01)
+**Accuracy**: ±0.001 c/kWh (3 decimal places retained).
 
 ---
 
@@ -241,64 +232,51 @@ display_value = convert_price_unit(
 
 ### Automatic Persistence
 
-Using `RestoreEntity` mixin, Home Assistant automatically saves state:
+`PriceSensorEntity` extends `RestoreEntity`. HA saves state to `/.storage/core.restore_state` after each write.
 
 ```python
-class PriceSensorEntity(SensorEntity, RestoreEntity, CoordinatorEntity):
-    """Electricity price sensor with state persistence"""
+async def async_added_to_hass(self) -> None:
+    await super().async_added_to_hass()
 
-    async def async_added_to_hass(self) -> None:
-        """Restore state when entity is added"""
-        await super().async_added_to_hass()
+    if (last_state := await self.async_get_last_state()) is not None:
+        raw_value = float(last_state.state) if last_state.state not in ("unknown", "unavailable") else None
+        # c/kWh state is converted back to canonical NZD/MWh
+        if raw_value is not None and self._unit == "c/kWh":
+            raw_value = raw_value * 10.0  # c/kWh → NZD/MWh
+        self._native_value = raw_value
+        self._attributes = dict(last_state.attributes)
 
-        # Restore from storage
-        restored_data = await self.async_get_last_state()
-        if restored_data:
-            # Restore state and attributes
-            self._attr_native_value = float(restored_data.state)
-            self._attr_extra_state_attributes = restored_data.attributes
+    await self.coordinator.async_request_refresh()
 ```
 
 ### Saved Data
 
-In `/.storage/core.restore_state`:
-- Current price (state)
-- Forecast array (attributes)
-- Timestamp
-- Confidence level
-- All other attributes
+Persisted in `/.storage/core.restore_state`:
+- Current price (state) in display unit
+- `prices_array`, `timestamp`, `trading_period`, `node`, `schedule`, `run_type` (attributes)
 
 ### On Home Assistant Restart
 
-1. RestoreEntity loads previous state from storage
-2. Entity immediately available in Home Assistant
-3. Users see last known prices without waiting for next 30-min update
-4. Coordinator update triggered normally (within 30 minutes)
+1. `async_added_to_hass` restores `_native_value` and `_attributes` from storage
+2. `async_request_refresh()` is triggered to fetch fresh data
+3. **Known limitation (T049)**: The `available` property returns `False` while `coordinator.data` is `None`, even though `_native_value` has been restored. The entity will show as unavailable until the first successful coordinator fetch. This conflicts with SC-008. Fix: `available` should return `True` when `_native_value` is set and `coordinator.data` is `None` (i.e., treat pre-fetch as "restored, pending refresh").
 
 ---
 
 ## Configuration Changes
 
-### When SensorConfiguration Updated
+### When Subentry Updated or Added
 
-If user edits sensor via Options Flow:
-
-1. Config entry options updated
-2. Coordinator listeners notified
-3. Integration async reload triggered (if entity still matches config)
-4. Entity attributes updated without re-creating entity
-
-### When Sensor Added
-
-1. Config entry options updated
-2. New SensorEntity created and added to Home Assistant
-3. Entity immediately joins coordinator for next update cycle
+1. Subentry data updated in HA config entry store
+2. `add_update_listener` callback fires in `__init__.py`
+3. **Full integration reload** triggered (`async_reload`) — all sensors briefly reinitialise, coordinator restarts
+4. New/updated entities appear within 2 minutes (SC-007)
 
 ### When Sensor Deleted
 
-1. Config entry options updated
-2. Entity removed from Home Assistant platform
-3. Entity state deleted from storage
+1. User deletes subentry via HA UI
+2. Full integration reload triggered (same mechanism)
+3. Entities associated with that subentry are removed from HA
 
 ---
 
@@ -363,4 +341,7 @@ def mock_market_prices():
 
 ## Summary
 
-Price sensors integrate with Home Assistant using standard SensorEntity, RestoreEntity, and DataUpdateCoordinator patterns. Each sensor represents a single user configuration (node + schedule type + market type). All sensors share a 30-minute global update cycle with automatic error recovery. State persists across restarts via RestoreEntity. Unit conversion is applied at display time. Changes to configuration immediately update corresponding entities.
+Price sensors integrate with Home Assistant using `SensorEntity`, `RestoreEntity`, and `CoordinatorEntity` patterns with `ConfigSubentryFlow` for configuration. Each sensor subentry produces two entities (NZD/MWh and c/kWh) sharing one device and one coordinator. All sensors share a 30-minute global update cycle with exponential-backoff error recovery. Internal state is always in NZD/MWh; c/kWh conversion applied at display time. `prices_array` is a `list[dict]` with `{trading_date, trading_period, price}` per element. Known issue: restored state is not surfaced until first coordinator fetch (T049).
+
+### Revision: Gap Report Sync 2026-05-09
+- Reason: Rewrote entity lifecycle (subentry model), entity ID scheme, attribute table (aligned to FR-006), prices_array dict shape, update mechanism (hours×2 multiplier, async_request_refresh per entity), unit conversion (canonical NZD/MWh storage), state persistence (availability bug documented), configuration changes (full reload mechanism), and Summary. Removed all pre-subentry Options-list references.

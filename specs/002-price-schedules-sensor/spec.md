@@ -2,16 +2,16 @@
 
 **Feature Branch**: `002-price-schedules-sensor`
 **Created**: 2026-05-05
-**Status**: Draft
+**Status**: Reconciled to Current Implementation
 **Input**: User description: "Implement a Home Assistant sensor platform that retrieves and displays electricity price schedules from the Electricityinfo API using authenticated OAuth credentials. Support multiple sensor configurations with user-customizable parameters."
 
 ## Clarifications
 
 ### Session 2026-05-05
 
-- Q1: Config flow UX for adding/editing/removing multiple sensors → A: Options Flow (users access via Settings > Devices & Services > Electricity Info NZ > Options; single list of sensors per integration instance)
+- Q1: Config flow UX for adding/editing/removing multiple sensors → A: Config Subentry Flow via integration options (users add/reconfigure sensor subentries under one integration entry)
 - Q2: Per-sensor vs global update interval → A: Global interval (all sensors share the 30-minute update cycle; not individually configurable per sensor in v1)
-- Q3: Handling partial API responses → A: Accept partial data as valid (sensor displays available data; missing attributes show as empty/null; no error state triggered)
+- Q3: Handling partial API responses → A: Missing or incomplete schedule payload for a configured sensor marks that sensor unavailable until valid data returns
 - Q4: State persistence & history storage → A: Latest + full forecast array (sensor state stores current price and all forward prices from last successful update; restored on Home Assistant restart)
 - Q5: Test scope & API integration → A: Both mocked (unit/integration tests) and live API tests (optional/manual); mocked responses used in CI; live tests can be run manually with valid credentials for verification
 
@@ -27,10 +27,10 @@ As a New Zealand Home Assistant user concerned about energy costs, I want to add
 
 **Acceptance Scenarios**:
 
-1. **Given** I have Home Assistant running with Electricity Info NZ integration configured with OAuth credentials, **When** I open the integration options/settings, **Then** I can add a new price sensor and specify: schedule type, market node, and forward price count
-2. **Given** I have configured a price sensor, **When** I check Home Assistant after 5 minutes, **Then** the sensor displays a current price in my chosen unit (NZD/MWh or c/kWh)
+1. **Given** I have Home Assistant running with Electricity Info NZ integration configured with OAuth credentials, **When** I open integration options and create a sensor subentry, **Then** I can specify: optional display name, schedule type, market type, market node, and forward hours
+2. **Given** I have configured a sensor subentry, **When** I check Home Assistant after setup, **Then** two entities are created for that subentry: one in NZD/MWh and one in c/kWh
 3. **Given** a price sensor is configured, **When** 30 minutes pass, **Then** the sensor automatically updates with the latest price data without manual intervention
-4. **Given** a sensor is displaying a price, **When** I inspect the entity attributes in Home Assistant, **Then** I see timestamp, market type, node, and schedule type populated
+4. **Given** a sensor is displaying a price, **When** I inspect the entity attributes in Home Assistant, **Then** I see timestamp, trading period, node, schedule, run type, and forecast prices array
 
 ---
 
@@ -50,19 +50,19 @@ As a Home Assistant user managing multiple properties or monitoring different ma
 
 ---
 
-### User Story 3 - Switch Price Units (Priority: P2)
+### User Story 3 - View Dual Unit Sensors (Priority: P2)
 
-As a Home Assistant user, I want to view electricity prices in either NZD/MWh or cents/kWh, so that I can see prices in the unit most meaningful for my energy management decisions.
+As a Home Assistant user, I want both NZD/MWh and cents/kWh entities for each configured sensor, so that I can use either unit in dashboards and automations without reconfiguration.
 
 **Why this priority**: P2 - Supports different user workflows (wholesale vs retail tracking). Important for user experience but can be added post-MVP if needed.
 
-**Independent Test**: Can be fully tested by creating sensors with different unit configurations and verifying prices display correctly in each unit.
+**Independent Test**: Can be fully tested by creating one sensor subentry and verifying both unit entities are created and updated from the same underlying data.
 
 **Acceptance Scenarios**:
 
-1. **Given** I configure a price sensor, **When** I select "NZD/MWh" as the unit, **Then** the sensor displays prices in that unit
-2. **Given** I configure a price sensor, **When** I select "c/kWh" as the unit, **Then** the sensor displays prices converted to cents per kilowatt-hour
-3. **Given** a sensor displays prices in one unit, **When** I reconfigure it to use a different unit, **Then** the display updates and reflects prices in the new unit
+1. **Given** I configure a price sensor subentry, **When** entities are created, **Then** one entity displays prices in NZD/MWh
+2. **Given** I configure a price sensor subentry, **When** entities are created, **Then** one entity displays converted prices in c/kWh
+3. **Given** both unit entities exist for one subentry, **When** coordinator data updates, **Then** both entities update consistently for the same market data point
 
 ---
 
@@ -85,8 +85,8 @@ As a Home Assistant user, I want the integration to handle API failures and netw
 ### Edge Cases
 
 - What happens when OAuth token expires during a price update? (Should trigger token refresh from stored credentials and retry)
-- How does the system handle API returning partial data (e.g., missing forecast prices for some nodes)? (Sensor accepts and displays available data; missing attributes render as empty/null; no error state triggered)
-- What happens if a user misconfigures a sensor with an invalid node/market type? (Config validation should catch before save)
+- How does the system handle API returning partial data (e.g., missing forecast prices for some nodes)? (The affected sensor becomes unavailable until a valid schedule payload is returned; other sensors continue updating)
+- What happens if a user misconfigures a sensor with an invalid node/market type? (Selector/schema validation should reject before save)
 - How does the system behave if the configured number of forward prices is reduced after initial setup? (Data should simply be truncated in attributes)
 - What if multiple sensors are added rapidly in succession? (Should queue and process sequentially without race conditions)
 
@@ -95,24 +95,25 @@ As a Home Assistant user, I want the integration to handle API failures and netw
 ### Functional Requirements
 
 - **FR-001**: System MUST retrieve price schedules from the Electricityinfo API using OAuth 2.0 Client Credentials flow authenticated credentials
-- **FR-002**: System MUST support adding, editing, and removing multiple price sensor configurations via Home Assistant Options Flow (accessed via Settings > Devices & Services > Electricity Info NZ > Options); all sensors stored as a list within the single config entry
-- **FR-003**: Each sensor configuration MUST be customizable with: schedule type, market type, electricity market node, number of forward prices, and price unit preference (NZD/MWh or c/kWh)
+- **FR-002**: System MUST support adding and reconfiguring multiple price sensor configurations via Home Assistant config subentry flow (sensor subentries under a single integration entry)
+- **FR-003**: Each sensor configuration MUST be customizable with: optional display name, schedule type, market type, electricity market node, and number of forward hours
 - **FR-004**: System MUST automatically update all configured sensors every 30 minutes on a shared global schedule (not individually configurable per sensor); users can customize the global interval in future versions
-- **FR-005**: System MUST display the current price as the sensor state in the user's selected unit (NZD/MWh or c/kWh)
-- **FR-006**: System MUST expose price metadata as sensor attributes: timestamp, confidence level, forecast period, market type, node, schedule type
+- **FR-005**: System MUST create two entities per configured sensor subentry, one with NZD/MWh state and one with c/kWh state
+- **FR-006**: System MUST expose price metadata as sensor attributes: timestamp, trading_period, node, schedule, run_type, and prices_array. The prices_array attribute is a `list[dict]`, where each element contains `trading_date` (ISO date string), `trading_period` (int), and `price` (float). For NZD/MWh entities the price is in NZD/MWh; for c/kWh entities each price is converted to c/kWh at display time.
 - **FR-007**: System MUST persist price data across Home Assistant restarts (using Home Assistant's state storage)
-- **FR-008**: System MUST gracefully handle OAuth token expiration by requesting a new token from stored credentials before retrying the API call
-- **FR-009**: System MUST implement exponential backoff retry logic: after first failure, retry after 1 minute; after second failure, mark sensor unavailable
+- **FR-008**: System MUST gracefully handle authentication failures through the library/client auth path; auth failures MUST not crash setup and MUST surface unavailable/auth-failed behavior through Home Assistant coordinator handling
+- **FR-009**: System MUST implement exponential backoff retry logic for coordinator-level update failures: after first failure, retry after 1 minute; after second failure, mark sensors unavailable through failed coordinator state. Note: the HA DataUpdateCoordinator continues retrying indefinitely (no ceiling); sensors are marked unavailable (via `last_update_success=False`) after `MAX_RETRIES=2` failures, but the coordinator does not stop scheduling update attempts.
 - **FR-010**: System MUST mark sensors as unavailable (not error state) when updates cannot be retrieved, allowing automations to continue functioning
 - **FR-011**: System MUST automatically transition sensors from unavailable back to normal state once data retrieval succeeds
-- **FR-012**: System MUST validate all sensor configuration parameters before persisting to Home Assistant config entry
+- **FR-012**: System MUST validate all sensor configuration parameters before persisting subentry data (valid schedule/market/node selections; forward hours constrained to 1-84)
 - **FR-013**: System MUST convert between NZD/MWh and c/kWh price units accurately (1 NZD/MWh = 0.1 c/kWh)
 
 ### Key Entities
 
-- **PriceSensor**: Represents a configured sensor instance with parameters (schedule_type, market_type, node, forward_prices_count, unit_preference), state (current_price), and metadata (timestamp, confidence, forecast_period)
+- **PriceSensorSubentry**: Represents one configured sensor subentry with parameters (optional name, schedule_type, market_type, node, forward_prices_count)
+- **PriceSensorEntity**: Represents one unit-specific sensor entity derived from a subentry (two entities per subentry: NZD/MWh and c/kWh), with state (current_price) and metadata (timestamp, trading_period, node, schedule, run_type, prices_array)
 - **PriceSchedule**: Represents a price schedule response from Electricityinfo API, containing price data, forecast periods, node information, and confidence levels
-- **SensorConfiguration**: User-provided configuration stored in Home Assistant config entry (list of sensor definitions with their parameters)
+- **SensorConfiguration**: User-provided configuration stored in Home Assistant sensor subentry data
 
 ## Success Criteria *(mandatory)*
 
@@ -124,7 +125,7 @@ As a Home Assistant user, I want the integration to handle API failures and netw
 - **SC-004**: Temporary API or network failures do not trigger error states or user-facing alerts; sensors recover automatically within 2 minutes of service restoration
 - **SC-005**: Users can successfully configure and display multiple sensors (minimum 5) simultaneously without performance degradation
 - **SC-006**: Price unit conversion displays prices within ±0.01 c/kWh or ±0.1 NZD/MWh of accurate conversion
-- **SC-007**: 90% of sensor configuration changes take effect within 2 minutes without requiring Home Assistant restart
+- **SC-007**: 90% of sensor subentry configuration changes take effect within 2 minutes without requiring Home Assistant restart
 - **SC-008**: Price data persists through Home Assistant restarts; users see current price and full forecast array (all forward prices) restored from last successful update
 
 ## Assumptions
@@ -133,7 +134,7 @@ As a Home Assistant user, I want the integration to handle API failures and netw
 - **30-Minute Update Default**: The 30-minute update interval is a sensible default for most users; users can customize this via configuration if needed in future updates
 - **API Stability**: The Electricityinfo API response structure remains stable and continues to return price_value, timestamp, and confidence_level fields
 - **Price Unit Conversion**: Simple linear conversion (1 NZD/MWh = 0.1 c/kWh) is sufficient for user needs; no complex regional tariff calculations are required
-- **Single Config Entry Scope**: All sensor configurations are stored as a list within the single OAuth config entry (not separate config entries per sensor)
+- **Single Config Entry Scope**: All sensor configurations are represented as sensor subentries within one integration config entry (not separate integration entries per sensor)
 - **Network Connectivity**: Home Assistant has stable internet connectivity for regular API calls; temporary network failures are recoverable and expected
 - **Token Refresh**: OAuth token refresh is already implemented by the prior OAuth Config Flow and can be reused by this sensor platform
 - **Home Assistant Version**: Running on Home Assistant 2026.3.1 or later with full async/await support for EntityPlatform
@@ -143,4 +144,10 @@ As a Home Assistant user, I want the integration to handle API failures and netw
 
 - **Primary Test Harness**: Unit and integration tests use mocked Electricityinfo API responses (pytest fixtures); tests run in CI without external dependencies
 - **Live API Tests**: Optional manual tests with valid OAuth credentials to verify real API integration; can be skipped in automated CI
-- **Test Coverage Scope**: Covers all user stories (single sensor, multiple sensors, unit conversion, failure recovery), edge cases, and state persistence scenarios
+- **Implemented Coverage Scope**: Covers OAuth config flow validation and retry paths, subentry create/reconfigure, sensor platform setup, multi-sensor uniqueness/isolation basics, and unit conversion behavior
+
+### Revision: Implementation Sync 2026-05-07
+- Reason: Reconciled config model (subentries), dual-unit entity behavior, attribute set, validation limits, and known runtime behavior to match the shipped implementation.
+
+### Revision: Gap Report Sync 2026-05-09
+- Reason: Updated FR-006 to document prices_array as list[dict] with {trading_date, trading_period, price} (not list[float] as originally specified). The richer dict structure ships in the implementation and is the authoritative shape. SC-008 availability-on-restore requires a code fix to the `available` property (tracked in T049).

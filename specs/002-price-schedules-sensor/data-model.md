@@ -15,40 +15,38 @@ This document defines the core data entities, their attributes, relationships, a
 
 **Purpose**: User-provided configuration for a single price sensor. Stored in Home Assistant config entry options.
 
-**Storage**: `config_entry.options["sensors"]` = list of SensorConfiguration dicts
+**Storage**: Home Assistant config subentry data (`config_subentry_id`-keyed; one subentry per sensor configuration)
 
 **Fields**:
 
 | Field | Type | Required | Default | Validation | Description |
 |-------|------|----------|---------|-----------|-------------|
-| `id` | str | Yes | — | Unique per config entry; alphanumeric + underscore | Unique sensor identifier (e.g., "sensor_1", "auckland_daily", "wellington_node") |
+| `name` | str | No | — | Optional free text | User-facing display name for this subentry (e.g., "Auckland Daily") |
 | `schedule_type` | str | Yes | — | Must be in Electricityinfo API allowed values | Type of price schedule (e.g., "daily_spot", "forward_market", "generation_forecast") |
 | `market_type` | str | Yes | — | Must be in Electricityinfo API allowed values | Electricity market segment (e.g., "energy", "ancillary", "reserve") |
 | `node` | str | Yes | — | Must be in Electricityinfo API allowed nodes (e.g., "NEA", "MID", "SOU") | Market node/region (e.g., "NEA" = North East Auckland) |
-| `forward_prices_count` | int | Yes | 24 | Must be > 0 and reasonable (e.g., <= 168 for 7 days) | Number of forward prices to retrieve and store (e.g., 24 = next 24 hours) |
-| `unit_preference` | str | Yes | "NZD/MWh" | Must be "NZD/MWh" or "c/kWh" | Display unit for prices in Home Assistant UI |
+| `forward_prices_count` | int | Yes | 24 | Must be between 1 and 84 (FR-012) | Number of forward prices to retrieve and store (e.g., 24 = next 24 hours) |
 
 **Example**:
 ```python
 {
-    "id": "auckland_daily_nzd",
+    "name": "Auckland Daily",      # optional
     "schedule_type": "daily_spot",
     "market_type": "energy",
     "node": "NEA",
     "forward_prices_count": 24,
-    "unit_preference": "NZD/MWh"
 }
 ```
 
 **Lifecycle**:
-1. Created: User adds sensor via Options Flow (Settings > Devices & Services > Electricity Info NZ > Options)
-2. Updated: User edits sensor config (schedule_type, market_type, node, forward_prices_count, unit_preference)
-3. Deleted: User removes sensor from list via Options Flow
-4. Persisted: Config entry options automatically saved to Home Assistant storage
+1. Created: User adds a sensor subentry via Config Subentry Flow (Settings > Devices & Services > Electricity Info NZ > Add entry)
+2. Updated: User reconfigures the subentry (name, schedule_type, market_type, node, forward_prices_count)
+3. Deleted: User removes the subentry via the integration device page
+4. Persisted: Config subentry data automatically saved by Home Assistant
 
 **Relationships**:
 - Multiple SensorConfiguration objects can exist in a single config entry (one list)
-- Each SensorConfiguration drives creation of one SensorEntity (1:1 mapping)
+- Each SensorConfiguration drives creation of **two** PriceSensorEntity instances (one NZD/MWh, one c/kWh) — FR-005
 - Config entry's OAuth credentials (client_id, client_secret, access_token) shared by all sensors
 
 ---
