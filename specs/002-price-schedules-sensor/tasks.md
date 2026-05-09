@@ -54,7 +54,7 @@
 - [ ] T011 [P] [US1] Add subentry create path test coverage in `tests/test_options_flow.py`
 - [ ] T012 [P] [US1] Add subentry reconfigure path test coverage in `tests/test_options_flow.py`
 - [ ] T013 [P] [US1] Add single-subentry platform setup test coverage in `tests/test_sensor.py`
-- [ ] T014 [P] [US1] Add restore-state regression coverage in `tests/test_sensor.py`
+- ~~[ ] T014 [P] [US1] Add restore-state regression coverage in `tests/test_sensor.py`~~ *(superseded by T050)*
 
 ### Implementation for User Story 1
 
@@ -77,8 +77,8 @@
 
 ### Tests for User Story 4
 
-- [ ] T021 [P] [US4] Add coordinator retry/backoff unit coverage in `tests/test_integration.py`
-- [ ] T022 [P] [US4] Add unavailable-to-recovery lifecycle integration test in `tests/integration/test_sensor_lifecycle.py`
+- ~~[ ] T021 [P] [US4] Add coordinator retry/backoff unit coverage in `tests/test_integration.py`~~ *(superseded by T051)*
+- ~~[ ] T022 [P] [US4] Add unavailable-to-recovery lifecycle integration test in `tests/integration/test_sensor_lifecycle.py`~~ *(superseded by T052)*
 - [ ] T023 [P] [US4] Add partial/missing payload isolation behavior test in `tests/test_sensor_multiple.py`
 
 ### Implementation for User Story 4
@@ -123,7 +123,7 @@
 
 - [ ] T033 [P] [US3] Add dual-unit entity creation and unit metadata tests in `tests/test_unit_conversion.py`
 - [ ] T034 [P] [US3] Add NZD-to-c conversion and rounding behavior tests in `tests/test_unit_conversion.py`
-- [ ] T035 [P] [US3] Add dual-unit update synchronization tests in `tests/test_sensor.py`
+- ~~[ ] T035 [P] [US3] Add dual-unit update synchronization tests in `tests/test_sensor.py`~~ *(superseded by T053)*
 
 ### Implementation for User Story 3
 
@@ -139,8 +139,8 @@
 
 **Purpose**: Complete artifact reconciliation, quality gates, and release readiness.
 
-- [ ] T039 Reconcile subentry-based UX contract in `specs/002-price-schedules-sensor/contracts/config-flow.md`
-- [ ] T040 Reconcile dual-entity lifecycle contract in `specs/002-price-schedules-sensor/contracts/sensor-platform.md`
+- [x] T039 Reconcile subentry-based UX contract in `specs/002-price-schedules-sensor/contracts/config-flow.md`
+- [x] T040 Reconcile dual-entity lifecycle contract in `specs/002-price-schedules-sensor/contracts/sensor-platform.md`
 - [ ] T041 Reconcile subentry storage/entity definitions in `specs/002-price-schedules-sensor/data-model.md`
 - [ ] T042 Reconcile quickstart paths and workflows in `specs/002-price-schedules-sensor/quickstart.md`
 - [ ] T043 Reconcile task completion claims and stale references in `specs/002-price-schedules-sensor/tasks.md`
@@ -148,7 +148,7 @@
 - [ ] T045 [P] Run type checking for integration modules in `custom_components/electricityinfo/` using `mypy custom_components/`
 - [ ] T046 [P] Run full test suite in `tests/` using `pytest tests/ -v`
 - [ ] T047 Update release notes for reconciled behavior in `CHANGELOG.md`
-- [ ] T048 Run cross-artifact consistency check and capture outcomes in `specs/002-price-schedules-sensor/`
+- [x] T048 Run cross-artifact consistency check and capture outcomes in `specs/002-price-schedules-sensor/`
 
 ---
 
@@ -156,8 +156,8 @@
 
 **Source**: Gap report 2026-05-09 — implementation vs spec-kit artifact audit.
 
-- [ ] T049 [P] Fix `available` property to return `True` when `_native_value` is set but `coordinator.data` is `None` (pre-fetch restored state) in `custom_components/electricityinfo/sensor.py` [Sync: Gap Report]
 - [ ] T050 [P] [US1] Write restore-state regression test: verify `_native_value` populated and `native_value` returns restored value post-`async_added_to_hass`; verify c/kWh back-conversion; verify SC-008 availability behavior in `tests/test_sensor.py` [Sync: Gap Report]
+- [ ] T049 [P] Fix `available` property to return `True` when `_native_value` is set but `coordinator.data` is `None` (pre-fetch restored state) in `custom_components/electricityinfo/sensor.py` [Sync: Gap Report] *(depends-on: T050 — write failing test first)*
 - [ ] T051 [P] [US4] Write coordinator retry/backoff unit tests: assert `_retry_count` increments and `update_interval` grows after each `UpdateFailed`; assert `last_update_success` False after `MAX_RETRIES` in `tests/test_integration.py` [Sync: Gap Report]
 - [ ] T052 [US4] Create unavailable-to-recovery lifecycle integration test: coordinator fails twice → entities unavailable → coordinator succeeds → entities available in `tests/integration/test_sensor_lifecycle.py` [Sync: Gap Report]
 - [ ] T053 [P] [US3] Write dual-unit update synchronisation test: assert NZD/MWh and c/kWh entities reflect same underlying data after `_handle_coordinator_update` in `tests/test_sensor.py` [Sync: Gap Report]
