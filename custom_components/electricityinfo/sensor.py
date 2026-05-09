@@ -116,7 +116,8 @@ class PriceSensorEntity(CoordinatorEntity, RestoreEntity, SensorEntity):
             return False
 
         if not self.coordinator.data:
-            return False
+            # Fall back to restored state when coordinator hasn't fetched yet
+            return self._native_value is not None
 
         return (
             self._sensor_id in self.coordinator.data

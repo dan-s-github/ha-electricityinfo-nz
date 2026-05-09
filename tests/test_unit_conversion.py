@@ -115,3 +115,40 @@ async def test_unit_conversion_rounding(hass):
     for nzd_price, expected_c_per_kwh in test_cases:
         converted = nzd_price * NZD_PER_MWH_TO_C_PER_KWH
         assert abs(converted - expected_c_per_kwh) < 0.01
+
+
+# ---------------------------------------------------------------------------
+# T055 - c/kWh prices_array price field conversion
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_ckwh_entity_prices_array_converts_price_field(hass, mock_entry):
+    """c/kWh prices_array multiplies NZD/MWh prices by conversion factor (T055)."""
+    subentry = create_mock_subentry()
+    nzd_price = 452.3  # NZD/MWh
+
+    with patch("custom_components.electricityinfo.AsyncMarketPricesClient"):
+        coordinator = ElectricityInfoCoordinator(hass, mock_entry)
+        entity = PriceSensorEntity(coordinator, mock_entry, subentry, unit="c/kWh")
+
+    # Set attributes directly — _attributes always stores prices in NZD/MWh
+    entity._attributes = {
+        "prices_array": [
+            {
+                "trading_date": "2026-05-09",
+                "trading_period": 35,
+                "price": nzd_price,  # canonical NZD/MWh value
+            }
+        ]
+    }
+    entity._native_value = nzd_price
+
+    attrs = entity.extra_state_attributes
+    prices = attrs["prices_array"]
+    assert len(prices) == 1
+    assert prices[0]["price"] == pytest.approx(
+        nzd_price * NZD_PER_MWH_TO_C_PER_KWH, rel=1e-4
+    )
+    assert prices[0]["trading_date"] == "2026-05-09"
+    assert prices[0]["trading_period"] == 35
