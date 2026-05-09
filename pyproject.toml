@@ -25,7 +25,7 @@ classifiers = [
     "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
-    "electricityinfo-nz",
+    "electricityinfo-nz==1.0.0rc2",
 ]
 
 [dependency-groups]
@@ -81,9 +81,16 @@ lint.mccabe.max-complexity = 25
 
 lint.per-file-ignores."tests/**/*.py" = [
     "ANN001", # Allow untyped helper args in tests
+    "ANN002", # Allow untyped *args in tests
+    "ANN003", # Allow untyped **kwargs in tests
+    "ANN201", # Test/fixture functions don't need return annotations
+    "ARG001", # hass and other HA fixtures may appear unused
+    "FBT001", # Boolean positional args are fine in test helpers
+    "FBT002", # Boolean default positional args are fine in test helpers
     "PLR0913", # Test fixtures/helpers may need multiple explicit fields
     "PLR2004", # Literal values in test assertions are intentional
     "S101", # Pytest uses assert statements
+    "SLF001", # Intentional private member access in tests
 ]
 
 [tool.commitizen]

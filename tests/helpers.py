@@ -1,0 +1,85 @@
+"""Helper utilities for sensor platform tests."""
+
+from __future__ import annotations
+
+from types import MappingProxyType
+from typing import Any
+from unittest.mock import AsyncMock
+
+from homeassistant.config_entries import ConfigSubentry
+
+
+def create_mock_subentry(
+    subentry_id: str = "test_subentry_01",
+    title: str = "Test Sensor",
+    schedule_type: str = "RTD",
+    market_type: str = "E",
+    node: str = "HAY2201",
+    forward_prices_count: int = 24,
+    name: str | None = None,
+) -> ConfigSubentry:
+    """Create a mock ConfigSubentry for a price sensor."""
+    data: dict[str, Any] = {
+        "schedule_type": schedule_type,
+        "market_type": market_type,
+        "node": node,
+        "forward_prices_count": forward_prices_count,
+    }
+    if name:
+        data["name"] = name
+    return ConfigSubentry(
+        data=MappingProxyType(data),
+        subentry_id=subentry_id,
+        subentry_type="sensor",
+        title=title,
+        unique_id=None,
+    )
+
+
+def create_mock_price_response(
+    node: str = "HAY2201",
+    schedule_type: str = "RTD",
+    market_type: str = "energy",
+    current_price: float = 45.23,
+    prices_count: int = 24,
+) -> dict[str, Any]:
+    """Create a mock API price response."""
+    prices = [current_price + (i * 0.5) for i in range(prices_count)]
+    return {
+        "timestamp": "2026-05-05T17:30:00Z",
+        "confidence_level": 0.95,
+        "forecast_period": "24h" if prices_count == 24 else "7d",
+        "market_type": market_type,
+        "node": node,
+        "schedule_type": schedule_type,
+        "price_value": current_price,
+        "prices": prices,
+    }
+
+
+def create_mock_coordinator(
+    data: dict[str, Any] | None = None,
+    last_update_success: bool = True,
+    error: str | None = None,
+) -> AsyncMock:
+    """Create a mock DataUpdateCoordinator."""
+    coordinator = AsyncMock()
+    coordinator.data = data or {}
+    coordinator.last_update_success = last_update_success
+    coordinator.error = error
+    coordinator.async_request_refresh = AsyncMock()
+    return coordinator
+
+
+def create_mock_entity_id(
+    node: str = "HAY2201",
+    schedule_type: str = "RTD",
+    market_type: str = "E",
+    unit: str = "NZD/MWh",
+) -> str:
+    """Create expected entity ID for a sensor."""
+    unit_suffix = unit.replace("/", "_").lower()
+    return (
+        f"sensor.electricityinfo_nz_{node.lower()}"
+        f"_{schedule_type.lower()}_{market_type.lower()}_{unit_suffix}"
+    )
