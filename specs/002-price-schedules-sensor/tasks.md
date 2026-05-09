@@ -152,6 +152,20 @@
 
 ---
 
+## Remediation: Gaps
+
+**Source**: Gap report 2026-05-09 — implementation vs spec-kit artifact audit.
+
+- [ ] T049 [P] Fix `available` property to return `True` when `_native_value` is set but `coordinator.data` is `None` (pre-fetch restored state) in `custom_components/electricityinfo/sensor.py` [Sync: Gap Report]
+- [ ] T050 [P] [US1] Write restore-state regression test: verify `_native_value` populated and `native_value` returns restored value post-`async_added_to_hass`; verify c/kWh back-conversion; verify SC-008 availability behavior in `tests/test_sensor.py` [Sync: Gap Report]
+- [ ] T051 [P] [US4] Write coordinator retry/backoff unit tests: assert `_retry_count` increments and `update_interval` grows after each `UpdateFailed`; assert `last_update_success` False after `MAX_RETRIES` in `tests/test_integration.py` [Sync: Gap Report]
+- [ ] T052 [US4] Create unavailable-to-recovery lifecycle integration test: coordinator fails twice → entities unavailable → coordinator succeeds → entities available in `tests/integration/test_sensor_lifecycle.py` [Sync: Gap Report]
+- [ ] T053 [P] [US3] Write dual-unit update synchronisation test: assert NZD/MWh and c/kWh entities reflect same underlying data after `_handle_coordinator_update` in `tests/test_sensor.py` [Sync: Gap Report]
+- [ ] T054 [P] [US1] Write `prices_array` dict structure shape test: assert each element contains keys `trading_date`, `trading_period`, `price`; assert c/kWh entity converts `price` × 0.1 in `tests/test_sensor.py` [Sync: Gap Report]
+- [ ] T055 [P] [US3] Write c/kWh `prices_array` conversion test: assert `extra_state_attributes["prices_array"]` prices are multiplied by `NZD_PER_MWH_TO_C_PER_KWH` for c/kWh entity in `tests/test_unit_conversion.py` [Sync: Gap Report]
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies

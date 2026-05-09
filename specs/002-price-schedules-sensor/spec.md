@@ -99,7 +99,7 @@ As a Home Assistant user, I want the integration to handle API failures and netw
 - **FR-003**: Each sensor configuration MUST be customizable with: optional display name, schedule type, market type, electricity market node, and number of forward hours
 - **FR-004**: System MUST automatically update all configured sensors every 30 minutes on a shared global schedule (not individually configurable per sensor); users can customize the global interval in future versions
 - **FR-005**: System MUST create two entities per configured sensor subentry, one with NZD/MWh state and one with c/kWh state
-- **FR-006**: System MUST expose price metadata as sensor attributes: timestamp, trading_period, node, schedule, run_type, and prices_array
+- **FR-006**: System MUST expose price metadata as sensor attributes: timestamp, trading_period, node, schedule, run_type, and prices_array. The prices_array attribute is a `list[dict]`, where each element contains `trading_date` (ISO date string), `trading_period` (int), and `price` (float). For NZD/MWh entities the price is in NZD/MWh; for c/kWh entities each price is converted to c/kWh at display time.
 - **FR-007**: System MUST persist price data across Home Assistant restarts (using Home Assistant's state storage)
 - **FR-008**: System MUST gracefully handle authentication failures through the library/client auth path; auth failures MUST not crash setup and MUST surface unavailable/auth-failed behavior through Home Assistant coordinator handling
 - **FR-009**: System MUST implement exponential backoff retry logic for coordinator-level update failures: after first failure, retry after 1 minute; after second failure, mark sensors unavailable through failed coordinator state
@@ -148,3 +148,6 @@ As a Home Assistant user, I want the integration to handle API failures and netw
 
 ### Revision: Implementation Sync 2026-05-07
 - Reason: Reconciled config model (subentries), dual-unit entity behavior, attribute set, validation limits, and known runtime behavior to match the shipped implementation.
+
+### Revision: Gap Report Sync 2026-05-09
+- Reason: Updated FR-006 to document prices_array as list[dict] with {trading_date, trading_period, price} (not list[float] as originally specified). The richer dict structure ships in the implementation and is the authoritative shape. SC-008 availability-on-restore requires a code fix to the `available` property (tracked in T049).

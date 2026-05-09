@@ -28,6 +28,11 @@ Implement a Home Assistant sensor platform that retrieves electricity price sche
 - No direct HTTP code (all API calls via library wrapper)
 - Price unit conversion: 1 NZD/MWh = 0.1 c/kWh (simple linear)
 - Exponential backoff: 1-minute retry after first failure, unavailable after second failure
+- `forward_prices_count` is stored in hours; coordinator multiplies × 2 to convert to 30-minute trading period count before calling the API (`forward_prices = forward_hours * 2`)
+- Internal canonical value is always stored as NZD/MWh; c/kWh conversion applied at display time via `native_value` property and reversed on state restore
+- `SensorDeviceClass.MONETARY` used for all price sensor entities
+- Full integration reload is triggered on any subentry change via `add_update_listener` (not a targeted entity update — all sensors briefly reinitialise)
+- `async_request_refresh()` is called once per entity in `async_added_to_hass`; with two entities per subentry, two refresh calls fire at startup (benign — the coordinator deduplicates in-flight requests)
 
 **Scale/Scope**:
 - Support minimum 5 simultaneous sensors
@@ -117,3 +122,6 @@ No Constitution violations. All requirements align with established principles:
 
 ### Revision: Implementation Sync 2026-05-07
 - Reason: Reconciled implementation plan with shipped architecture (config subentries, coordinator module split, dual-entity-per-subentry model, current test topology, and translation/manifest layout).
+
+### Revision: Gap Report Sync 2026-05-09
+- Reason: Added six technical constraints discovered during gap analysis: hours×2 trading-period conversion, canonical NZD/MWh internal storage with display-time conversion, SensorDeviceClass.MONETARY choice, full-reload-on-subentry-change mechanism, and async_request_refresh-per-entity-add behavior.
