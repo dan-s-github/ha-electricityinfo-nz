@@ -183,7 +183,27 @@
 
 ---
 
+## Staleness Guard: SC-008 Restore Threshold
+
+**Source**: Spec clarification 2026-05-09 — FR-007 and SC-008 updated to discard restored state older than one update interval (30 minutes). If the restored `timestamp` attribute is older than 30 minutes, `async_added_to_hass` must NOT populate `_native_value`; entity remains unavailable until the first coordinator fetch succeeds.
+
+**TDD ordering**: T064–T065 (write RED tests) → T066 (implement staleness check, makes T064 GREEN) → T067 (boundary regression).
+
+- [ ] T064 [P] [US1] Write failing test: assert entity `available` is `False` and `native_value` is `None` when restored `timestamp` attribute is >30 minutes old; mock `dt_util.utcnow()` to simulate stale state in `tests/test_sensor.py` [Staleness: SC-008]
+- [ ] T065 [P] [US1] Write passing test: assert entity `available` is `True` and `native_value` is restored when `timestamp` is within 30 minutes and `coordinator.data` is `None` (fresh-restore, pre-fetch window) in `tests/test_sensor.py` [Staleness: SC-008]
+- [ ] T066 [US1] Implement staleness check in `async_added_to_hass`: parse `last_state.attributes["timestamp"]` as ISO 8601 datetime via `dt_util.parse_datetime`, compare age to `UPDATE_INTERVAL` (30 min) via `dt_util.utcnow()`; skip restore (leave `_native_value = None`) when stale in `custom_components/electricityinfo/sensor.py` [Staleness: SC-008] *(depends-on: T064, T065)*
+- [ ] T067 [P] [US1] Add boundary regression: assert entity restores at exactly 30 min old (boundary is available) and discards at 30 min + 1 second old (boundary is unavailable) in `tests/test_sensor.py` [Staleness: SC-008] *(depends-on: T066)*
+
+---
+
 ## Dependencies & Execution Order (updated)
+
+### Staleness Guard Phase Dependencies
+
+- T064, T065: No dependencies — write RED tests first
+- T066: Depends on T064, T065 written (TDD: implement after tests)
+- T067: Depends on T066 (boundary regression after implementation)
+- T064 and T065 are [P] — same file but non-overlapping test functions
 
 ### Migration Phase Dependencies
 

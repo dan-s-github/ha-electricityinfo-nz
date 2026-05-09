@@ -84,6 +84,7 @@ As a Home Assistant user, I want the integration to handle API failures and netw
 
 ### Edge Cases
 
+- What if a user deletes a sensor subentry while entities are active? (Integration reloads automatically; HA removes the associated entities as part of the standard ConfigSubentryFlow lifecycle — no stale entities remain)
 - What happens when OAuth token expires during a price update? (Should trigger token refresh from stored credentials and retry)
 - How does the system handle API returning partial data (e.g., missing forecast prices for some nodes)? (The affected sensor becomes unavailable until a valid schedule payload is returned; other sensors continue updating)
 - What happens if a user misconfigures a sensor with an invalid node/market type? (Selector/schema validation should reject before save)
@@ -95,12 +96,12 @@ As a Home Assistant user, I want the integration to handle API failures and netw
 ### Functional Requirements
 
 - **FR-001**: System MUST retrieve price schedules from the Electricityinfo API using OAuth 2.0 Client Credentials flow authenticated credentials
-- **FR-002**: System MUST support adding and reconfiguring multiple price sensor configurations via Home Assistant config subentry flow (sensor subentries under a single integration entry)
+- **FR-002**: System MUST support adding and reconfiguring multiple price sensor configurations via Home Assistant config subentry flow (sensor subentries under a single integration entry); deleting a sensor subentry triggers an integration reload, after which the associated entities are automatically removed by Home Assistant (no custom cleanup logic required)
 - **FR-003**: Each sensor configuration MUST be customizable with: optional display name, schedule type, market type, electricity market node, and number of forward hours
 - **FR-004**: System MUST automatically update all configured sensors every 30 minutes on a shared global schedule (not individually configurable per sensor); users can customize the global interval in future versions
-- **FR-005**: System MUST create two entities per configured sensor subentry, one with NZD/MWh state and one with c/kWh state
+- **FR-005**: System MUST create two entities per configured sensor subentry, one with NZD/MWh state and one with c/kWh state; both entities MUST declare `state_class = SensorStateClass.MEASUREMENT` to enable Home Assistant long-term statistics (historical price tracking)
 - **FR-006**: System MUST expose price metadata as sensor attributes: timestamp, trading_period, node, schedule, run_type, and forecast. The `forecast` attribute is a time-series list compatible with the `forecast_solar` integration format. Each element contains `period_start` (ISO 8601 datetime string with NZ timezone offset, e.g. `"2026-05-09T12:00:00+12:00"`) and `price` (float in the entity's display unit: NZD/MWh for the NZD/MWh entity, c/kWh for the c/kWh entity). One entry is produced per 30-minute NZ electricity trading period in the configured forward horizon.
-- **FR-007**: System MUST persist price data across Home Assistant restarts (using Home Assistant's state storage)
+- **FR-007**: System MUST persist price data across Home Assistant restarts (using Home Assistant's state storage). Restored state is only used if its `timestamp` attribute is no older than 30 minutes (one update interval); stale restored state is discarded and the entity remains unavailable until the first coordinator fetch succeeds.
 - **FR-008**: System MUST gracefully handle authentication failures through the library/client auth path; auth failures MUST not crash setup and MUST surface unavailable/auth-failed behavior through Home Assistant coordinator handling
 - **FR-009**: System MUST implement exponential backoff retry logic for coordinator-level update failures: after first failure, retry after 1 minute; after second failure, mark sensors unavailable through failed coordinator state. Note: the HA DataUpdateCoordinator continues retrying indefinitely (no ceiling); sensors are marked unavailable (via `last_update_success=False`) after `MAX_RETRIES=2` failures, but the coordinator does not stop scheduling update attempts.
 - **FR-010**: System MUST mark sensors as unavailable (not error state) when updates cannot be retrieved, allowing automations to continue functioning
@@ -111,7 +112,7 @@ As a Home Assistant user, I want the integration to handle API failures and netw
 ### Key Entities
 
 - **PriceSensorSubentry**: Represents one configured sensor subentry with parameters (optional name, schedule_type, market_type, node, forward_prices_count)
-- **PriceSensorEntity**: Represents one unit-specific sensor entity derived from a subentry (two entities per subentry: NZD/MWh and c/kWh), with state (current_price) and metadata (timestamp, trading_period, node, schedule, run_type, forecast). The `forecast` attribute is a `forecast_solar`-compatible time series: `[{"period_start": "<ISO8601+tz>", "price": <float>}, …]`, with prices in the entity's display unit.
+- **PriceSensorEntity**: Represents one unit-specific sensor entity derived from a subentry (two entities per subentry: NZD/MWh and c/kWh), with state (current_price), `device_class = SensorDeviceClass.MONETARY`, `state_class = SensorStateClass.MEASUREMENT` (enables HA long-term statistics), and metadata (timestamp, trading_period, node, schedule, run_type, forecast). The `forecast` attribute is a `forecast_solar`-compatible time series: `[{"period_start": "<ISO8601+tz>", "price": <float>}, …]`, with prices in the entity's display unit.
 - **PriceSchedule**: Represents a price schedule response from Electricityinfo API, containing price data, forecast periods, node information, and confidence levels
 - **SensorConfiguration**: User-provided configuration stored in Home Assistant sensor subentry data
 
@@ -126,7 +127,7 @@ As a Home Assistant user, I want the integration to handle API failures and netw
 - **SC-005**: Users can successfully configure and display multiple sensors (minimum 5) simultaneously without performance degradation
 - **SC-006**: Price unit conversion displays prices within ±0.01 c/kWh or ±0.1 NZD/MWh of accurate conversion
 - **SC-007**: 90% of sensor subentry configuration changes take effect within 2 minutes without requiring Home Assistant restart
-- **SC-008**: Price data persists through Home Assistant restarts; users see current price and full forecast (all forward periods in `forecast` attribute) restored from last successful update
+- **SC-008**: Price data persists through Home Assistant restarts; users see current price and full forecast restored from last successful update, provided the restored `timestamp` is no older than 30 minutes. If the restored state is stale (> 30 minutes old), the entity remains unavailable until the first coordinator fetch.
 
 ## Assumptions
 
@@ -151,3 +152,11 @@ As a Home Assistant user, I want the integration to handle API failures and netw
 
 ### Revision: Forecast Attribute Format 2026-05-09
 - Reason: Changed forecast representation from `prices_array` (list of dicts with `trading_date`, `trading_period`, `price`) to `forecast` attribute using `forecast_solar`-compatible format. Each element is `{"period_start": "<ISO 8601 datetime with NZ timezone>", "price": <float in entity unit>}`. One entry per 30-minute NZ trading period. Current price remains the sensor state value. This aligns the integration with the Home Assistant `forecast_solar` ecosystem pattern for time-series price/energy attributes.
+
+## Clarifications
+
+### Session 2026-05-09
+
+- Q: Should price sensors declare `state_class` for HA long-term statistics? → A: `SensorStateClass.MEASUREMENT` — enables historical price tracking in HA statistics database
+- Q: When a sensor subentry is deleted, what happens to its entities? → A: Entities are removed automatically when the integration reloads after subentry deletion (standard HA ConfigSubentryFlow behaviour; no custom cleanup logic required)
+- Q: Should restored state have a staleness threshold? → A: Yes — discard restored state older than one update interval (30 minutes); entity shows unavailable until first coordinator fetch if restored `timestamp` is older than 30 minutes
