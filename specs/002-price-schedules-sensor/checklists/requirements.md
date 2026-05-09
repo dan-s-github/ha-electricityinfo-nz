@@ -31,34 +31,28 @@
 
 ## Validation Notes
 
-**Specification Status**: CLARIFIED & READY FOR PLANNING ✅
+**Specification Status**: UPDATED & READY ✅
 
-**Clarification Session Results**:
-- **5 questions asked & answered** (Q1-Q5, max quota reached)
-- **All critical ambiguities resolved** with user input
-- **Sections updated**:
-  - FR-002: Clarified Options Flow pattern for sensor management
-  - FR-004: Clarified global (not per-sensor) update interval
-  - Edge Cases: Detailed partial data handling approach
-  - SC-008: Clarified state persistence includes forecast array
-  - NEW: Testing Strategy section added to document mocked + optional live API tests
+**Revision History**:
+- **2026-05-05**: Initial specification — 5 questions asked & answered (Q1-Q5)
+- **2026-05-07**: Implementation sync — reconciled config model, dual-unit entities, attribute set, validation limits
+- **2026-05-09 (Gap Report)**: Updated FR-006 to document prices_array as list[dict]; SC-008 availability bug tracked in T049
+- **2026-05-09 (Forecast Format)**: Changed forecast representation from `prices_array` to `forecast` attribute in `forecast_solar`-compatible format. Each element: `{"period_start": "<ISO8601+tz>", "price": <float in entity unit>}`. One entry per 30-minute NZ trading period.
 
-**Specification Coverage**:
-- **4 user stories** with clear priorities (P1, P2): core MVP (stories 1 & 4) plus valuable extensions (stories 2 & 3)
-- **13 functional requirements** (FR-001 through FR-013): Options Flow UI, global 30-min scheduler, partial data acceptance, graceful degradation, token refresh, exponential backoff, state persistence
-- **3 key entities**: PriceSensor, PriceSchedule, SensorConfiguration
-- **8 measurable success criteria**: 99% uptime, 5-minute visibility, 30-min refresh, 2-min recovery, 5+ simultaneous sensors, ±0.01 conversion accuracy, 2-min config propagation, state restoration
-- **5 edge cases**: token expiration, partial API responses, invalid config, data reduction, rapid config additions
-- **10 assumptions** + testing strategy documented
+**Current Specification Coverage**:
+- **4 user stories** with clear priorities (P1, P2)
+- **13 functional requirements** (FR-001 through FR-013)
+- **3 key entities**: PriceSensorEntity, PriceSchedule, SensorConfiguration
+- **8 measurable success criteria**
+- **5 edge cases** and **10 assumptions**
 
 **Quality Assessment**:
 ✅ No implementation details (languages, frameworks, specific HA APIs)
 ✅ User-focused (not system-centric)
 ✅ All acceptance scenarios testable and specific
 ✅ Success criteria measurable and technology-agnostic
-✅ Edge cases identified and handled
-✅ Dependencies on prior OAuth feature explicitly stated
-✅ Testing strategy clear (mocked + optional live)
+✅ `forecast` attribute format specified with example (forecast_solar-compatible)
+✅ Period granularity (30-minute NZ trading periods) documented in FR-006
 
 **Next Steps**:
-Proceed to `/speckit-plan` to generate implementation planning artifacts (plan.md, research.md, tasks.md, contracts).
+Proceed to `/speckit-plan` or `/speckit-tasks` to generate updated implementation tasks for the forecast format migration.

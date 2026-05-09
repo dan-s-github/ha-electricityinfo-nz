@@ -30,7 +30,7 @@ As a New Zealand Home Assistant user concerned about energy costs, I want to add
 1. **Given** I have Home Assistant running with Electricity Info NZ integration configured with OAuth credentials, **When** I open integration options and create a sensor subentry, **Then** I can specify: optional display name, schedule type, market type, market node, and forward hours
 2. **Given** I have configured a sensor subentry, **When** I check Home Assistant after setup, **Then** two entities are created for that subentry: one in NZD/MWh and one in c/kWh
 3. **Given** a price sensor is configured, **When** 30 minutes pass, **Then** the sensor automatically updates with the latest price data without manual intervention
-4. **Given** a sensor is displaying a price, **When** I inspect the entity attributes in Home Assistant, **Then** I see timestamp, trading period, node, schedule, run type, and forecast prices array
+4. **Given** a sensor is displaying a price, **When** I inspect the entity attributes in Home Assistant, **Then** I see timestamp, trading period, node, schedule, run type, and a `forecast` attribute containing a time-ordered list of `{period_start, price}` entries (one per 30-minute trading period) in the entity's display unit — compatible with the `forecast_solar` attribute format
 
 ---
 
@@ -99,7 +99,7 @@ As a Home Assistant user, I want the integration to handle API failures and netw
 - **FR-003**: Each sensor configuration MUST be customizable with: optional display name, schedule type, market type, electricity market node, and number of forward hours
 - **FR-004**: System MUST automatically update all configured sensors every 30 minutes on a shared global schedule (not individually configurable per sensor); users can customize the global interval in future versions
 - **FR-005**: System MUST create two entities per configured sensor subentry, one with NZD/MWh state and one with c/kWh state
-- **FR-006**: System MUST expose price metadata as sensor attributes: timestamp, trading_period, node, schedule, run_type, and prices_array. The prices_array attribute is a `list[dict]`, where each element contains `trading_date` (ISO date string), `trading_period` (int), and `price` (float). For NZD/MWh entities the price is in NZD/MWh; for c/kWh entities each price is converted to c/kWh at display time.
+- **FR-006**: System MUST expose price metadata as sensor attributes: timestamp, trading_period, node, schedule, run_type, and forecast. The `forecast` attribute is a time-series list compatible with the `forecast_solar` integration format. Each element contains `period_start` (ISO 8601 datetime string with NZ timezone offset, e.g. `"2026-05-09T12:00:00+12:00"`) and `price` (float in the entity's display unit: NZD/MWh for the NZD/MWh entity, c/kWh for the c/kWh entity). One entry is produced per 30-minute NZ electricity trading period in the configured forward horizon.
 - **FR-007**: System MUST persist price data across Home Assistant restarts (using Home Assistant's state storage)
 - **FR-008**: System MUST gracefully handle authentication failures through the library/client auth path; auth failures MUST not crash setup and MUST surface unavailable/auth-failed behavior through Home Assistant coordinator handling
 - **FR-009**: System MUST implement exponential backoff retry logic for coordinator-level update failures: after first failure, retry after 1 minute; after second failure, mark sensors unavailable through failed coordinator state. Note: the HA DataUpdateCoordinator continues retrying indefinitely (no ceiling); sensors are marked unavailable (via `last_update_success=False`) after `MAX_RETRIES=2` failures, but the coordinator does not stop scheduling update attempts.
@@ -111,7 +111,7 @@ As a Home Assistant user, I want the integration to handle API failures and netw
 ### Key Entities
 
 - **PriceSensorSubentry**: Represents one configured sensor subentry with parameters (optional name, schedule_type, market_type, node, forward_prices_count)
-- **PriceSensorEntity**: Represents one unit-specific sensor entity derived from a subentry (two entities per subentry: NZD/MWh and c/kWh), with state (current_price) and metadata (timestamp, trading_period, node, schedule, run_type, prices_array)
+- **PriceSensorEntity**: Represents one unit-specific sensor entity derived from a subentry (two entities per subentry: NZD/MWh and c/kWh), with state (current_price) and metadata (timestamp, trading_period, node, schedule, run_type, forecast). The `forecast` attribute is a `forecast_solar`-compatible time series: `[{"period_start": "<ISO8601+tz>", "price": <float>}, …]`, with prices in the entity's display unit.
 - **PriceSchedule**: Represents a price schedule response from Electricityinfo API, containing price data, forecast periods, node information, and confidence levels
 - **SensorConfiguration**: User-provided configuration stored in Home Assistant sensor subentry data
 
@@ -126,7 +126,7 @@ As a Home Assistant user, I want the integration to handle API failures and netw
 - **SC-005**: Users can successfully configure and display multiple sensors (minimum 5) simultaneously without performance degradation
 - **SC-006**: Price unit conversion displays prices within ±0.01 c/kWh or ±0.1 NZD/MWh of accurate conversion
 - **SC-007**: 90% of sensor subentry configuration changes take effect within 2 minutes without requiring Home Assistant restart
-- **SC-008**: Price data persists through Home Assistant restarts; users see current price and full forecast array (all forward prices) restored from last successful update
+- **SC-008**: Price data persists through Home Assistant restarts; users see current price and full forecast (all forward periods in `forecast` attribute) restored from last successful update
 
 ## Assumptions
 
@@ -149,5 +149,5 @@ As a Home Assistant user, I want the integration to handle API failures and netw
 ### Revision: Implementation Sync 2026-05-07
 - Reason: Reconciled config model (subentries), dual-unit entity behavior, attribute set, validation limits, and known runtime behavior to match the shipped implementation.
 
-### Revision: Gap Report Sync 2026-05-09
-- Reason: Updated FR-006 to document prices_array as list[dict] with {trading_date, trading_period, price} (not list[float] as originally specified). The richer dict structure ships in the implementation and is the authoritative shape. SC-008 availability-on-restore requires a code fix to the `available` property (tracked in T049).
+### Revision: Forecast Attribute Format 2026-05-09
+- Reason: Changed forecast representation from `prices_array` (list of dicts with `trading_date`, `trading_period`, `price`) to `forecast` attribute using `forecast_solar`-compatible format. Each element is `{"period_start": "<ISO 8601 datetime with NZ timezone>", "price": <float in entity unit>}`. One entry per 30-minute NZ trading period. Current price remains the sensor state value. This aligns the integration with the Home Assistant `forecast_solar` ecosystem pattern for time-series price/energy attributes.

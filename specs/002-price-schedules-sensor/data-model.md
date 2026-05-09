@@ -75,12 +75,11 @@ This document defines the core data entities, their attributes, relationships, a
 | **native_unit_of_measurement** | str | `"NZD/MWh"` | Unit of raw state; always NZD/MWh internally |
 | **unit_of_measurement** | str | `"NZD/MWh"` or `"c/kWh"` | Display unit (based on `unit_preference`); Home Assistant will convert state for UI |
 | **timestamp** | str (ISO 8601) | `"2026-05-05T17:30:00Z"` | When this price was last successfully fetched from API |
-| **confidence_level** | float (0-1) | `0.95` | API's confidence in this forecast (1.0 = certain, 0.0 = very uncertain) |
-| **forecast_period** | str | `"24h"` | Time range covered by forecast prices (e.g., "24h", "7d") |
-| **market_type** | str | `"energy"` | The market segment (for reference; matches SensorConfiguration) |
+| **trading_period** | int | `35` | NZ trading period number (1–48) for the current price |
 | **node** | str | `"NEA"` | The market node (for reference; matches SensorConfiguration) |
-| **schedule_type** | str | `"daily_spot"` | The schedule type (for reference; matches SensorConfiguration) |
-| **prices_array** | list[float] | `[45.23, 46.10, 47.50, 46.80, 45.95]` | All forward prices in the forecast (length = `forward_prices_count`) |
+| **schedule** | str | `"daily_spot"` | The schedule type (for reference; matches SensorConfiguration) |
+| **run_type** | str | `"actual"` | Price run type returned by the API |
+| **forecast** | list[dict] | `[{"period_start": "2026-05-09T12:00:00+12:00", "price": 45.23}, …]` | Time-series forecast in `forecast_solar` format. Each entry: `period_start` (ISO 8601 datetime with NZ timezone) and `price` (float in entity display unit). One entry per 30-min trading period up to `forward_prices_count`. |
 | **available** | bool | `true` or `false` | Entity availability; set to False when data retrieval fails (FR-010) |
 
 **State JSON Example**:
@@ -90,12 +89,15 @@ This document defines the core data entities, their attributes, relationships, a
   "state": "45.23",
   "attributes": {
     "timestamp": "2026-05-05T17:30:00Z",
-    "confidence_level": 0.95,
-    "forecast_period": "24h",
-    "market_type": "energy",
+    "trading_period": 35,
     "node": "NEA",
-    "schedule_type": "daily_spot",
-    "prices_array": [45.23, 46.10, 47.50, 46.80, 45.95],
+    "schedule": "daily_spot",
+    "run_type": "actual",
+    "forecast": [
+      {"period_start": "2026-05-09T12:00:00+12:00", "price": 45.23},
+      {"period_start": "2026-05-09T12:30:00+12:00", "price": 46.10},
+      {"period_start": "2026-05-09T13:00:00+12:00", "price": 47.50}
+    ],
     "native_unit_of_measurement": "NZD/MWh",
     "unit_of_measurement": "NZD/MWh",
     "icon": "mdi:flash",
