@@ -75,7 +75,7 @@ class PriceSensorEntity(CoordinatorEntity, RestoreEntity, SensorEntity):
         self._unit = unit
         self._attr_icon = "mdi:flash"
         self._attr_name = unit
-        self._attr_suggested_display_precision = 2
+        self._attr_suggested_display_precision = 3 if unit == "c/kWh" else 2
 
         # Unique ID: one per unit
         unit_suffix = unit.replace("/", "_").lower()
