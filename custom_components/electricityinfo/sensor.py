@@ -101,8 +101,8 @@ class PriceSensorEntity(CoordinatorEntity, RestoreEntity, SensorEntity):
         if self._native_value is None:
             return None
         if self._unit == "c/kWh":
-            return self._native_value * NZD_PER_MWH_TO_C_PER_KWH
-        return self._native_value
+            return round(self._native_value * NZD_PER_MWH_TO_C_PER_KWH, 3)
+        return round(self._native_value, 3)
 
     @property
     def native_unit_of_measurement(self) -> str:
@@ -130,7 +130,7 @@ class PriceSensorEntity(CoordinatorEntity, RestoreEntity, SensorEntity):
 
         if self._unit == "c/kWh" and "prices_array" in attrs:
             attrs["prices_array"] = [
-                {**p, "price": p["price"] * NZD_PER_MWH_TO_C_PER_KWH}
+                {**p, "price": round(p["price"] * NZD_PER_MWH_TO_C_PER_KWH, 3)}
                 for p in attrs["prices_array"]
             ]
 
@@ -229,7 +229,7 @@ class PriceSensorEntity(CoordinatorEntity, RestoreEntity, SensorEntity):
                 {
                     "trading_date": p.trading_datetime.date().isoformat(),
                     "trading_period": p.trading_period,
-                    "price": p.price,
+                    "price": round(p.price, 3),
                 }
                 for p in sorted_prices
                 if p.price is not None
