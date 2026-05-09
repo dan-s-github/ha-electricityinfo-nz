@@ -39,11 +39,9 @@ You need API credentials from [developer.electricityinfo.co.nz](https://develope
 
 ### HACS (recommended)
 
-1. Open HACS in Home Assistant
-2. Go to **Integrations → ⋮ → Custom repositories**
-3. Add `https://github.com/dan-s-github/ha-electricityinfo-nz` as an **Integration**
-4. Search for **Electricityinfo NZ** and install it
-5. Restart Home Assistant
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=dan-s-github&repository=ha-electricityinfo-nz&category=Integration)
+
+Click **Download** in HACS, then restart Home Assistant.
 
 ### Manual
 
