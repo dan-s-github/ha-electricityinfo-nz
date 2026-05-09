@@ -75,6 +75,7 @@ class PriceSensorEntity(CoordinatorEntity, RestoreEntity, SensorEntity):
         self._unit = unit
         self._attr_icon = "mdi:flash"
         self._attr_name = unit
+        self._attr_suggested_display_precision = 2
 
         # Unique ID: one per unit
         unit_suffix = unit.replace("/", "_").lower()
@@ -100,7 +101,7 @@ class PriceSensorEntity(CoordinatorEntity, RestoreEntity, SensorEntity):
         if self._native_value is None:
             return None
         if self._unit == "c/kWh":
-            return round(self._native_value * NZD_PER_MWH_TO_C_PER_KWH, 2)
+            return self._native_value * NZD_PER_MWH_TO_C_PER_KWH
         return self._native_value
 
     @property
@@ -129,7 +130,8 @@ class PriceSensorEntity(CoordinatorEntity, RestoreEntity, SensorEntity):
 
         if self._unit == "c/kWh" and "prices_array" in attrs:
             attrs["prices_array"] = [
-                round(p * NZD_PER_MWH_TO_C_PER_KWH, 2) for p in attrs["prices_array"]
+                {**p, "price": p["price"] * NZD_PER_MWH_TO_C_PER_KWH}
+                for p in attrs["prices_array"]
             ]
 
         return attrs
@@ -152,7 +154,8 @@ class PriceSensorEntity(CoordinatorEntity, RestoreEntity, SensorEntity):
             attrs = dict(last_state.attributes)
             if self._unit == "c/kWh" and "prices_array" in attrs:
                 attrs["prices_array"] = [
-                    p * C_PER_KWH_TO_NZD_PER_MWH for p in attrs["prices_array"]
+                    {**p, "price": p["price"] * C_PER_KWH_TO_NZD_PER_MWH}
+                    for p in attrs["prices_array"]
                 ]
             self._attributes = attrs
             _LOGGER.debug(
@@ -193,8 +196,10 @@ class PriceSensorEntity(CoordinatorEntity, RestoreEntity, SensorEntity):
             self.async_write_ha_state()
             return
 
-        prices = schedule_details.prices
-        if not prices:
+        sorted_prices = sorted(
+            schedule_details.prices, key=lambda p: p.trading_datetime
+        )
+        if not sorted_prices:
             _LOGGER.warning(
                 "No prices in schedule details for sensor %s", self._sensor_id
             )
@@ -203,7 +208,7 @@ class PriceSensorEntity(CoordinatorEntity, RestoreEntity, SensorEntity):
             self.async_write_ha_state()
             return
 
-        price_info = prices[0]
+        price_info = sorted_prices[0]
         current_price = price_info.price or 0.0
 
         # Store value in NZD/MWh internally; conversion happens in property getter
@@ -219,9 +224,15 @@ class PriceSensorEntity(CoordinatorEntity, RestoreEntity, SensorEntity):
             "run_type": price_info.run_type,
         }
 
-        if prices:
+        if sorted_prices:
             self._attributes["prices_array"] = [
-                p.price for p in prices if p.price is not None
+                {
+                    "trading_date": p.trading_datetime.date().isoformat(),
+                    "trading_period": p.trading_period,
+                    "price": p.price,
+                }
+                for p in sorted_prices
+                if p.price is not None
             ]
 
         _LOGGER.debug(
