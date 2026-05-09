@@ -1,9 +1,9 @@
 <!-- SYNC IMPACT REPORT
-Version Change: 0.0.0 → 1.0.0 (MAJOR - Initial constitution with OAuth security requirements)
-Modified Principles: N/A (new)
-Added Sections: Core Principles (5), Security & Authentication, Technology Stack, Development Workflow, Configuration Management
-Removed Sections: N/A
-Templates Updated: ✅ spec-template (authentication flow), ✅ plan-template (OAuth scope), ✅ tasks-template (credential tests)
+Version Change: 1.0.0 → 1.1.0 (MINOR - Removed YAML configuration mandate from Principle III; clarified Config Subentry Flow)
+Modified Principles: III. Configurable Sensor Architecture (removed YAML requirement; config flow only; "(Options Flow)" → "(Config Subentry Flow)")
+Added Sections: None
+Removed Sections: None
+Templates Updated: ✅ No template changes required (templates are generic; YAML mandate was constitution-only)
 Templates Pending: None
 Follow-up TODOs: None
 -->
@@ -25,9 +25,9 @@ All integration connections require OAuth API token authentication. Tokens are o
 **Rationale**: OAuth provides secure delegated access without exposing user credentials. Home Assistant's credential encryption protects sensitive tokens. Token expiration handling prevents authentication failures breaking automations. Config flow validation ensures tokens work before saving.
 
 ### III. Configurable Sensor Architecture
-All sensors MUST be configurable via YAML and the Home Assistant config flow. Configuration drives sensor instantiation, data collection intervals, and display logic. Hard-coded sensors are prohibited.
+All sensors MUST be configurable via the Home Assistant config flow (Config Subentry Flow). Configuration drives sensor instantiation, data collection intervals, and display logic. Hard-coded sensors are prohibited.
 
-**Rationale**: End users have varying electricity data needs. Configuration flexibility enables different regions/retailers to use one integration without forking. Config flow MUST validate OAuth token availability at setup time.
+**Rationale**: End users have varying electricity data needs. The Config Subentry Flow provides a guided, validated configuration experience without requiring manual YAML editing. Configuration flexibility enables different regions/retailers to use one integration without forking. Config flow MUST validate OAuth token availability at setup time.
 
 ### IV. Test-First Methodology (NON-NEGOTIABLE)
 TDD is mandatory: test cases written and approved by stakeholders → red failing tests → implementation → green passing tests → refactor. Red-Green-Refactor cycle strictly enforced. Unit tests cover library wrapper usage with mocked OAuth tokens; integration tests cover config flow, OAuth token validation, and sensor platform lifecycle.
@@ -99,4 +99,4 @@ This constitution supersedes all other development practices and guides all amen
 
 All code contributions MUST verify compliance with these principles. Exceptions require explicit justification in commit messages and PR discussions. OAuth security requirements are non-negotiable.
 
-**Version**: 1.0.0 | **Ratified**: 2026-05-03 | **Last Amended**: 2026-05-03
+**Version**: 1.1.0 | **Ratified**: 2026-05-03 | **Last Amended**: 2026-05-09

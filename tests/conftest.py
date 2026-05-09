@@ -5,10 +5,17 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from typing import TYPE_CHECKING
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from electricityinfo_nz.exceptions import AuthenticationError
+from homeassistant.config_entries import ConfigEntry
+
+from custom_components.electricityinfo.const import (
+    CONF_CLIENT_ID,
+    CONF_CLIENT_SECRET,
+    DOMAIN,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -62,6 +69,20 @@ def mock_coordinator() -> AsyncMock:
     coordinator.last_update_success = True
     coordinator.error = None
     return coordinator
+
+
+@pytest.fixture
+def mock_entry() -> MagicMock:
+    """Create a minimal mock config entry for unit tests."""
+    entry = MagicMock(spec=ConfigEntry)
+    entry.entry_id = "test_entry_id"
+    entry.domain = DOMAIN
+    entry.data = {
+        CONF_CLIENT_ID: "test_client_id",
+        CONF_CLIENT_SECRET: "test_client_secret",
+    }
+    entry.subentries = {}
+    return entry
 
 
 @pytest.fixture

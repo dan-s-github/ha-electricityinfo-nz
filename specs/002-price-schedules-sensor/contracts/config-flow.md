@@ -6,206 +6,122 @@
 
 ## Overview
 
-This contract defines the user interface and user experience for the Options Flow that allows users to add, edit, and remove price sensors. Users access this via:
+This contract defines the user interface for managing electricity price sensors via Home Assistant's **Config Subentry Flow** — HA's native mechanism for adding child items to a config entry.
 
-**Settings > Devices & Services > Electricity Info NZ > Options**
+> **Architecture note**: This contract was originally written for a multi-step Options Flow (`configure_sensors` → `add_sensor`). The shipped implementation uses `ConfigSubentryFlow` instead. HA natively manages the sensor list and handles deletion; the flow only provides `user` (add) and `reconfigure` (edit) steps. The `unit_preference` field was never built — both units are always created as separate entities.
+
+Users access sensor management via:
+
+**Settings > Devices & Services > Electricityinfo NZ > + Add sensor** (to add)
+**Settings > Devices & Services > Electricityinfo NZ > [sensor] > ⋮ > Reconfigure** (to edit)
+**Settings > Devices & Services > Electricityinfo NZ > [sensor] > ⋮ > Delete** (to remove)
 
 ---
 
 ## User Flows
 
-### Flow 1: Add New Sensor
+### Flow 1: Add New Sensor (`async_step_user`)
 
-**Entry**: User clicks "Options" button on Electricity Info NZ device card
+**Entry**: User clicks **+ Add sensor** on the Electricityinfo NZ integration card.
 
-**Steps**:
+**Step: `user`**
 
-1. **Step: `configure_sensors`** (List existing sensors)
-   - Display heading: "Electricity Price Sensors"
-   - Display list of currently configured sensors (if any):
-     ```
-     ✓ auckland_daily (NEA, daily_spot, energy, NZD/MWh)
-     ✓ wellington_forward (MID, forward_market, energy, c/kWh)
-     ```
-   - Display two action buttons:
-     - `+ Add Sensor` (link to `add_sensor` step)
-     - `Done` (exit and save)
-   - If no sensors exist: display "No sensors configured yet. Click 'Add Sensor' to create one."
+Displays a form with these fields:
 
-2. **Step: `add_sensor`** (Add new sensor)
-   - Display form with fields:
-     ```
-     Sensor ID* [text input, e.g., "auckland_daily"]
-     Schedule Type* [dropdown: "daily_spot", "forward_market", "generation_forecast"]
-     Market Type* [dropdown: "energy", "ancillary", "reserve"]
-     Market Node* [dropdown: "NEA", "MID", "SOU", "West"]
-     Forward Prices Count* [number input, default=24, range 1-168]
-     Price Unit* [radio: "NZD/MWh" | "c/kWh", default="NZD/MWh"]
-     ```
-   - Display validation errors inline if user enters invalid values:
-     ```
-     ⚠ Sensor ID: Required and must be unique
-     ⚠ Forward Prices Count: Must be between 1 and 168
-     ⚠ Market Node: Invalid node selected
-     ```
-   - Display two action buttons:
-     - `Create` (save and return to configure_sensors)
-     - `Cancel` (discard and return to configure_sensors)
+| Field | Type | Required | Default | Validation |
+|-------|------|----------|---------|------------|
+| Display Name | text | No | — | any string, stripped |
+| Schedule Type | select | Yes | — | must be in `SCHEDULE_TYPES` |
+| Market Type | select | Yes | — | must be in `MARKET_TYPES` |
+| Market Node | select | Yes | — | must be in `MARKET_NODES` |
+| Forward Hours | slider (1–84) | Yes | 24 | 1 ≤ n ≤ 84 |
 
-3. **Step: `configure_sensors`** (Return to list)
-   - New sensor added to list
-   - Display confirmation: "Sensor 'auckland_daily' created successfully"
-   - User can add more or click `Done` to exit
+On valid submit: subentry created, title derived as `"{name} · {node} {schedule} ({market})"` (or `"{node} {schedule} ({market})"` if no name). Two entities are automatically created — one NZD/MWh, one c/kWh.
 
-### Flow 2: Edit Existing Sensor
+On invalid submit: form re-shown with inline error messages.
 
-**Entry**: User clicks on a sensor in the list (or an `Edit` button next to it)
+---
 
-**Steps**:
+### Flow 2: Edit Existing Sensor (`async_step_reconfigure`)
 
-1. **Step: `configure_sensors`** (List existing sensors)
-   - Same as Add Flow step 1
-   - Each sensor has `Edit` link (e.g., "✎ auckland_daily")
+**Entry**: User selects **Reconfigure** on an existing sensor subentry.
 
-2. **Step: `edit_sensor`** (Edit sensor properties)
-   - Display same form as `add_sensor`, but pre-populated with current values
-   - Display form fields:
-     ```
-     Sensor ID: auckland_daily [readonly - cannot change ID]
-     Schedule Type: daily_spot [dropdown]
-     Market Type: energy [dropdown]
-     Market Node: NEA [dropdown]
-     Forward Prices Count: 24 [number input]
-     Price Unit: NZD/MWh [radio]
-     ```
-   - Display two action buttons:
-     - `Update` (save and return to configure_sensors)
-     - `Cancel` (discard and return to configure_sensors)
+**Step: `reconfigure`**
 
-3. **Step: `configure_sensors`** (Return to list)
-   - Sensor updated in list
-   - Display confirmation: "Sensor 'auckland_daily' updated successfully"
+Same form as `user`, pre-populated with the current subentry values. On valid submit, `async_update_and_abort` persists the updated data and aborts the flow with reason `reconfigure_successful`.
+
+---
 
 ### Flow 3: Delete Sensor
 
-**Entry**: User clicks `Delete` button next to a sensor
-
-**Steps**:
-
-1. **Confirmation Dialog**:
-   - Display warning: "Are you sure you want to delete sensor 'auckland_daily'?"
-   - Display two action buttons:
-     - `Delete` (confirm deletion)
-     - `Cancel` (discard, stay in list)
-
-2. **Step: `configure_sensors`** (Return to list)
-   - Sensor removed from list
-   - Display confirmation: "Sensor 'auckland_daily' deleted successfully"
+Handled entirely by HA's built-in subentry deletion UI. No custom flow step required. Full integration reload is triggered after deletion.
 
 ---
 
 ## Validation Rules
 
-### Sensor ID
-- Required
-- Must be unique within this config entry (no duplicates)
-- Alphanumeric characters + underscore only
-- Max 64 characters
-- Suggested pattern: `{node}_{schedule_type}` (e.g., "nea_daily_spot")
+Validation is two-layered: HA's `SelectSelector` rejects values not in the option list at the schema level; `_validate_sensor_fields()` provides an explicit Python check with user-facing error keys.
 
-**Error messages**:
-- "Sensor ID is required"
-- "Sensor ID must be unique (already have a sensor with this name)"
-- "Sensor ID must contain only letters, numbers, and underscores"
-- "Sensor ID must be 64 characters or fewer"
+### Display Name
+- Optional
+- Stripped of leading/trailing whitespace before storage
+- Omitted from subentry data if empty
 
 ### Schedule Type
 - Required
-- Must be in Electricityinfo API allowed values
-- Options: "daily_spot", "forward_market", "generation_forecast" (or as returned by API)
+- Must be one of the values in `SCHEDULE_TYPES` (e.g., "Final", "Interim", "RTD", "WDS", …)
 
-**Error messages**:
-- "Schedule type is required"
-- "Invalid schedule type selected"
+**Error key**: `schedule_type_invalid`
 
 ### Market Type
 - Required
-- Must be in Electricityinfo API allowed values
-- Options: "energy", "ancillary", "reserve" (or as returned by API)
+- Must be one of the values in `MARKET_TYPES` (currently `"E"` or `"R"`)
 
-**Error messages**:
-- "Market type is required"
-- "Invalid market type selected"
+**Error key**: `market_type_invalid`
 
 ### Market Node
 - Required
-- Must be in Electricityinfo API allowed nodes
-- Options: "NEA", "MID", "SOU", "West" (or as returned by API)
+- Must be one of the values in `MARKET_NODES` (e.g., "HAY2201", "BEN2201", …)
 
-**Error messages**:
-- "Market node is required"
-- "Invalid node selected"
+**Error key**: `node_invalid`
 
-### Forward Prices Count
-- Required
-- Must be positive integer
-- Must be <= 168 (7 days * 24 hours)
-- Typically 24 (1 day) or 168 (1 week)
-
-**Error messages**:
-- "Forward prices count is required"
-- "Must be a positive number"
-- "Cannot exceed 168 (7 days of hourly prices)"
-
-### Price Unit
-- Required
-- Must be exactly "NZD/MWh" or "c/kWh"
-
-**Error messages**:
-- "Price unit is required"
-- "Invalid price unit selected"
+### Forward Hours (`forward_prices_count`)
+- Optional (defaults to 24)
+- Must be between 1 and 84 (enforced by `NumberSelector` slider)
+- Stored as int; coordinator multiplies × 2 for 30-min trading periods
 
 ---
 
 ## Data Contract
 
-### Input (User provides)
+### Input (User provides via form)
 
 ```python
 {
-    "id": "auckland_daily",           # str, unique within entry
-    "schedule_type": "daily_spot",    # str, from API-allowed values
-    "market_type": "energy",          # str, from API-allowed values
-    "node": "NEA",                    # str, from API-allowed nodes
-    "forward_prices_count": 24,       # int, 1-168
-    "unit_preference": "NZD/MWh"      # str, "NZD/MWh" or "c/kWh"
+    "name": "Auckland RTD Prices",  # str, optional — omitted if empty
+    "schedule_type": "RTD",         # str, from SCHEDULE_TYPES
+    "market_type": "E",             # str, from MARKET_TYPES
+    "node": "HAY2201",              # str, from MARKET_NODES
+    "forward_prices_count": 24,     # int, 1–84
 }
 ```
 
-### Output (Saved to config entry)
+### Output (Saved to config subentry)
 
 ```python
-config_entry.options = {
-    "sensors": [
-        {
-            "id": "auckland_daily",
-            "schedule_type": "daily_spot",
-            "market_type": "energy",
-            "node": "NEA",
-            "forward_prices_count": 24,
-            "unit_preference": "NZD/MWh"
-        },
-        {
-            "id": "wellington_forward",
-            "schedule_type": "forward_market",
-            "market_type": "energy",
-            "node": "MID",
-            "forward_prices_count": 168,
-            "unit_preference": "c/kWh"
-        }
-    ]
+subentry.data = {
+    "schedule_type": "RTD",
+    "market_type": "E",
+    "node": "HAY2201",
+    "forward_prices_count": 24,
+    "name": "Auckland RTD Prices",  # only present if non-empty
 }
+subentry.title = "Auckland RTD Prices · HAY2201 RTD (E)"
+# or without name:
+subentry.title = "HAY2201 RTD (E)"
 ```
+
+Two entities are created automatically from each subentry — one NZD/MWh, one c/kWh. There is no `unit_preference` field.
 
 ---
 
@@ -270,10 +186,10 @@ Required: Yes
 ### Number Input (Forward Prices Count)
 ```
 Label: "Forward Prices Count*"
-Hint: "Number of hourly prices to retrieve (1-168, typically 24 for daily or 168 for weekly)"
+Hint: "Number of hourly prices to retrieve (1-84, typically 24 for daily or 84 for extended)"
 Input: Number field
 Min: 1
-Max: 168
+Max: 84
 Default: 24
 Required: Yes
 ```
@@ -282,15 +198,18 @@ Required: Yes
 
 ## Post-Save Behavior
 
-After user clicks `Done` and Options Flow closes:
+After a subentry is created or reconfigured:
 
-1. **Config entry updated**: `config_entry.options["sensors"]` contains the new/updated list
-2. **Coordinator notified**: Integration async update listeners triggered
-3. **Sensor platform reloaded**: All price sensors recreated from updated SensorConfiguration list
-4. **New entities appear**: Home Assistant UI refreshes; new sensors visible in device card
+1. **Subentry stored**: HA persists the subentry data in config entry storage
+2. **`add_update_listener` callback fires** in `__init__.py`
+3. **Full integration reload** triggered (`async_reload`) — coordinator and all entities reinitialise
+4. **Two entities appear**: NZD/MWh and c/kWh entities for the subentry become visible in the device card within ~2 minutes (SC-007)
 
 ---
 
 ## Summary
 
-The Options Flow provides a user-friendly interface for managing electricity price sensors without requiring manual YAML editing. Validation ensures only valid configurations are saved. Clear error messages guide users through the process. Changes take effect immediately after saving.
+The config flow uses HA's `ConfigSubentryFlow` system. Each sensor subentry stores `schedule_type`, `market_type`, `node`, `forward_prices_count`, and optionally `name`. Validation is two-layered (SelectSelector schema + explicit Python checks). Two entities are always created per subentry — one per price unit. `unit_preference` does not exist as a user-configurable field.
+
+### Revision: Gap Report Sync 2026-05-09
+- Reason: Replaced pre-subentry Options-list UX description (configure_sensors/add_sensor multi-step flow, unit_preference field, Sensor ID uniqueness) with the shipped ConfigSubentryFlow architecture. Removed obsolete validation rules for Sensor ID and Price Unit. Updated Data Contract to remove unit_preference and the sensors[] options list.

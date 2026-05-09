@@ -15,40 +15,38 @@ This document defines the core data entities, their attributes, relationships, a
 
 **Purpose**: User-provided configuration for a single price sensor. Stored in Home Assistant config entry options.
 
-**Storage**: `config_entry.options["sensors"]` = list of SensorConfiguration dicts
+**Storage**: Home Assistant config subentry data (`config_subentry_id`-keyed; one subentry per sensor configuration)
 
 **Fields**:
 
 | Field | Type | Required | Default | Validation | Description |
 |-------|------|----------|---------|-----------|-------------|
-| `id` | str | Yes | — | Unique per config entry; alphanumeric + underscore | Unique sensor identifier (e.g., "sensor_1", "auckland_daily", "wellington_node") |
+| `name` | str | No | — | Optional free text | User-facing display name for this subentry (e.g., "Auckland Daily") |
 | `schedule_type` | str | Yes | — | Must be in Electricityinfo API allowed values | Type of price schedule (e.g., "daily_spot", "forward_market", "generation_forecast") |
 | `market_type` | str | Yes | — | Must be in Electricityinfo API allowed values | Electricity market segment (e.g., "energy", "ancillary", "reserve") |
 | `node` | str | Yes | — | Must be in Electricityinfo API allowed nodes (e.g., "NEA", "MID", "SOU") | Market node/region (e.g., "NEA" = North East Auckland) |
-| `forward_prices_count` | int | Yes | 24 | Must be > 0 and reasonable (e.g., <= 168 for 7 days) | Number of forward prices to retrieve and store (e.g., 24 = next 24 hours) |
-| `unit_preference` | str | Yes | "NZD/MWh" | Must be "NZD/MWh" or "c/kWh" | Display unit for prices in Home Assistant UI |
+| `forward_prices_count` | int | Yes | 24 | Must be between 1 and 84 (FR-012) | Number of forward prices to retrieve and store (e.g., 24 = next 24 hours) |
 
 **Example**:
 ```python
 {
-    "id": "auckland_daily_nzd",
+    "name": "Auckland Daily",      # optional
     "schedule_type": "daily_spot",
     "market_type": "energy",
     "node": "NEA",
     "forward_prices_count": 24,
-    "unit_preference": "NZD/MWh"
 }
 ```
 
 **Lifecycle**:
-1. Created: User adds sensor via Options Flow (Settings > Devices & Services > Electricity Info NZ > Options)
-2. Updated: User edits sensor config (schedule_type, market_type, node, forward_prices_count, unit_preference)
-3. Deleted: User removes sensor from list via Options Flow
-4. Persisted: Config entry options automatically saved to Home Assistant storage
+1. Created: User adds a sensor subentry via Config Subentry Flow (Settings > Devices & Services > Electricity Info NZ > Add entry)
+2. Updated: User reconfigures the subentry (name, schedule_type, market_type, node, forward_prices_count)
+3. Deleted: User removes the subentry via the integration device page
+4. Persisted: Config subentry data automatically saved by Home Assistant
 
 **Relationships**:
 - Multiple SensorConfiguration objects can exist in a single config entry (one list)
-- Each SensorConfiguration drives creation of one SensorEntity (1:1 mapping)
+- Each SensorConfiguration drives creation of **two** PriceSensorEntity instances (one NZD/MWh, one c/kWh) — FR-005
 - Config entry's OAuth credentials (client_id, client_secret, access_token) shared by all sensors
 
 ---
@@ -77,27 +75,29 @@ This document defines the core data entities, their attributes, relationships, a
 | **native_unit_of_measurement** | str | `"NZD/MWh"` | Unit of raw state; always NZD/MWh internally |
 | **unit_of_measurement** | str | `"NZD/MWh"` or `"c/kWh"` | Display unit (based on `unit_preference`); Home Assistant will convert state for UI |
 | **timestamp** | str (ISO 8601) | `"2026-05-05T17:30:00Z"` | When this price was last successfully fetched from API |
-| **confidence_level** | float (0-1) | `0.95` | API's confidence in this forecast (1.0 = certain, 0.0 = very uncertain) |
-| **forecast_period** | str | `"24h"` | Time range covered by forecast prices (e.g., "24h", "7d") |
-| **market_type** | str | `"energy"` | The market segment (for reference; matches SensorConfiguration) |
+| **trading_period** | int | `35` | NZ trading period number (1–48) for the current price |
 | **node** | str | `"NEA"` | The market node (for reference; matches SensorConfiguration) |
-| **schedule_type** | str | `"daily_spot"` | The schedule type (for reference; matches SensorConfiguration) |
-| **prices_array** | list[float] | `[45.23, 46.10, 47.50, 46.80, 45.95]` | All forward prices in the forecast (length = `forward_prices_count`) |
+| **schedule** | str | `"daily_spot"` | The schedule type (for reference; matches SensorConfiguration) |
+| **run_type** | str | `"actual"` | Price run type returned by the API |
+| **forecast** | list[dict] | `[{"period_start": "2026-05-09T12:30:00+12:00", "price": 46.10}, …]` | Time-series forecast in `forecast_solar` format. Contains **future periods only** — the current period (whose price is the sensor state) is excluded. Each entry: `period_start` (ISO 8601 datetime with NZ timezone) and `price` (float in entity display unit). Entries start from the period immediately after the current one, up to `forward_prices_count`. |
 | **available** | bool | `true` or `false` | Entity availability; set to False when data retrieval fails (FR-010) |
 
 **State JSON Example**:
+> Note: `state` is the current period price (45.23 NZD/MWh). `forecast` begins at the **next** period (12:30) — the current period (12:00, 45.23) is intentionally excluded.
 ```json
 {
   "entity_id": "sensor.electricityinfo_nz_nea_daily_spot_energy_nzd_mwh",
   "state": "45.23",
   "attributes": {
     "timestamp": "2026-05-05T17:30:00Z",
-    "confidence_level": 0.95,
-    "forecast_period": "24h",
-    "market_type": "energy",
+    "trading_period": 35,
     "node": "NEA",
-    "schedule_type": "daily_spot",
-    "prices_array": [45.23, 46.10, 47.50, 46.80, 45.95],
+    "schedule": "daily_spot",
+    "run_type": "actual",
+    "forecast": [
+      {"period_start": "2026-05-09T12:30:00+12:00", "price": 46.10},
+      {"period_start": "2026-05-09T13:00:00+12:00", "price": 47.50}
+    ],
     "native_unit_of_measurement": "NZD/MWh",
     "unit_of_measurement": "NZD/MWh",
     "icon": "mdi:flash",

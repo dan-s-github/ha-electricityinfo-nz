@@ -69,3 +69,4 @@ logs/
 *.tmp
 *.temp
 Thumbs.db
+todo/

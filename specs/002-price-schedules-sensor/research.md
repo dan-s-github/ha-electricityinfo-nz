@@ -36,39 +36,46 @@ This document captures technology decisions, design patterns, and best practices
 
 ---
 
-## 2. Configuration Flow: Options Flow Extension
+## 2. Configuration Flow: Config Subentry Flow
 
-### Decision: Extend existing OAuth config entry with Options Flow for sensor management
+> ⚠️ **Superseded**: This section was originally drafted for an Options Flow (`OptionsFlowHandler` +
+> `options["sensors"]` list) design. The shipped implementation uses `ConfigSubentryFlowHandler` instead.
+> The list-in-options model was replaced by discrete config subentries for cleaner entity lifecycle
+> management and native HA subentry support. See spec.md clarification Q1.
 
-**What was chosen**: Add an `async_step_options()` method to existing `electricityinfo_nz_OptionsFlowHandler` to manage sensor list (add/edit/remove). Users access via Settings > Devices & Services > Electricity Info NZ > Options.
+### Decision: Extend existing OAuth config entry with Config Subentry Flow for sensor management
+
+**What was chosen**: Implement `ConfigSubentryFlowHandler` on the existing config entry to manage sensor
+subentries. Each sensor is a discrete subentry identified by `config_subentry_id`. Users access via
+Settings > Devices & Services > Electricity Info NZ > Add entry / Reconfigure entry.
 
 **Rationale**:
-- **Simplicity**: Single config entry avoids UI clutter (e.g., 5 sensors = 5 separate config entries if using that pattern)
-- **Credential scope**: All sensors share the same OAuth credentials (already stored in config entry), so Options Flow is the natural fit
-- **Home Assistant convention**: Options Flow is the recommended pattern for managing per-entry configuration after initial setup
-- **Data storage**: Sensor list stored as `options["sensors"]` = list of dicts (sensor_id, schedule_type, market_type, node, forward_prices_count, unit_preference)
-- **UX**: Users see single integration entry in Settings; they can open Options to add/edit/remove sensors
+- **Simplicity**: Single config entry avoids UI clutter (e.g., 5 sensors = 5 separate config entries)
+- **Credential scope**: All sensors share the same OAuth credentials already stored in the parent config entry
+- **Home Assistant convention**: ConfigSubentryFlow is the recommended HA pattern for managing typed
+  sub-entities (sensors, devices) within a single integration entry
+- **Data storage**: Each sensor's config is stored as a config subentry dict keyed by `config_subentry_id`;
+  no sensor list to manage manually
+- **UX**: Users see a single integration entry; they use "Add entry" / "Reconfigure" to manage sensors
 
-**Config entry schema**:
+**Subentry schema** (per subentry):
 ```python
 {
-  "sensors": [
-    {
-      "id": "sensor_1",
-      "schedule_type": "daily_spot",
-      "market_type": "energy",
-      "node": "NEA",  # or other market nodes
-      "forward_prices_count": 24,
-      "unit_preference": "NZD/MWh"  # or "c/kWh"
-    }
-  ]
+    "name": "Auckland Daily",      # optional display name
+    "schedule_type": "daily_spot",
+    "market_type": "energy",
+    "node": "NEA",
+    "forward_prices_count": 24,
 }
 ```
 
 **Alternatives considered**:
-1. **Separate config entries per sensor** - Cleaner isolation but creates UI clutter (5 sensors = 5 entries); requires duplicating OAuth credentials or complex entry linking
-2. **YAML-only configuration** - Fits project pattern but users prefer UI; YAML + UI hybrid adds complexity
-3. **Custom UI card/helper** - Maximum flexibility but requires custom frontend component and home-automation/custom-cards ecosystem; out of scope for v1
+1. **Separate config entries per sensor** - Cleaner isolation but creates UI clutter; requires duplicating
+   OAuth credentials or complex entry linking
+2. **Options Flow + sensor list** - Original design; replaced by ConfigSubentryFlow for better entity
+   lifecycle management and native HA subentry support
+3. **YAML-only configuration** - Users prefer UI; YAML adds complexity without benefit
+4. **Custom UI card/helper** - Out of scope for v1
 
 **Implementation location**: `custom_components/electricityinfo/config_flow.py` (extend existing class)
 
