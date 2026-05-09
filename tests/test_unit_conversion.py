@@ -162,20 +162,29 @@ async def test_ckwh_entity_forecast_converts_price_field_direct(hass, mock_entry
 
 @pytest.mark.asyncio
 async def test_ckwh_entity_forecast_converts_price_field(hass, mock_entry):
-    """c/kWh forecast attribute prices are in c/kWh (not NZD/MWh) (T057)."""
+    """c/kWh forecast attribute prices are in c/kWh (not NZD/MWh) (T057, T070)."""
     subentry = create_mock_subentry()
-    nzd_price = 452.3  # NZD/MWh
+    nzd_current = 452.3  # NZD/MWh — current period → state, not in forecast
+    nzd_future = 480.0  # NZD/MWh — future period → forecast[0]
 
-    mock_price = MagicMock()
-    mock_price.trading_datetime = datetime(2026, 5, 9, 17, 30, tzinfo=UTC)
-    mock_price.trading_period = 35
-    mock_price.node = "HAY2201"
-    mock_price.schedule = "RTD"
-    mock_price.run_type = "actual"
-    mock_price.price = nzd_price
+    mock_price0 = MagicMock()
+    mock_price0.trading_datetime = datetime(2026, 5, 9, 17, 30, tzinfo=UTC)
+    mock_price0.trading_period = 35
+    mock_price0.node = "HAY2201"
+    mock_price0.schedule = "RTD"
+    mock_price0.run_type = "actual"
+    mock_price0.price = nzd_current
+
+    mock_price1 = MagicMock()
+    mock_price1.trading_datetime = datetime(2026, 5, 9, 18, 0, tzinfo=UTC)
+    mock_price1.trading_period = 36
+    mock_price1.node = "HAY2201"
+    mock_price1.schedule = "RTD"
+    mock_price1.run_type = "actual"
+    mock_price1.price = nzd_future
 
     mock_schedule = MagicMock()
-    mock_schedule.prices = [mock_price]
+    mock_schedule.prices = [mock_price0, mock_price1]
 
     with patch("custom_components.electricityinfo.AsyncMarketPricesClient"):
         coordinator = ElectricityInfoCoordinator(hass, mock_entry)
@@ -199,7 +208,8 @@ async def test_ckwh_entity_forecast_converts_price_field(hass, mock_entry):
         assert "prices_array" not in attrs
 
         forecast = attrs["forecast"]
+        # Only the future period (nzd_future) appears in forecast; nzd_current is state
         assert len(forecast) == 1
-        expected_c_per_kwh = nzd_price * NZD_PER_MWH_TO_C_PER_KWH
+        expected_c_per_kwh = nzd_future * NZD_PER_MWH_TO_C_PER_KWH
         assert forecast[0]["price"] == pytest.approx(expected_c_per_kwh, rel=1e-4)
         assert "period_start" in forecast[0]

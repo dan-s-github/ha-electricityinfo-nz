@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -273,7 +273,7 @@ async def test_forecast_contains_period_start_and_price_keys(hass, mock_entry) -
         assert "prices_array" not in attrs
 
         forecast = attrs["forecast"]
-        assert len(forecast) == 2
+        assert len(forecast) == 1  # only the future period (price2); price1 is state
 
         for item in forecast:
             assert "period_start" in item
@@ -282,14 +282,33 @@ async def test_forecast_contains_period_start_and_price_keys(hass, mock_entry) -
             assert "T" in item["period_start"]
             assert isinstance(item["price"], float)
 
-        assert forecast[0]["price"] == pytest.approx(45.23, abs=0.001)
-        assert forecast[1]["price"] == pytest.approx(47.11, abs=0.001)
+        # price1 (45.23) is the current period → state value, not in forecast
+        assert forecast[0]["price"] == pytest.approx(47.11, abs=0.001)
 
 
 async def test_ckwh_forecast_converts_price_field(hass, mock_entry) -> None:
-    """c/kWh entity forecast prices are NZD/MWh x 0.1 (T054, updated by T061)."""
+    """c/kWh entity forecast prices are NZD/MWh x 0.1 (T054, updated by T061, T070)."""
     subentry = create_mock_subentry()
-    mock_schedule = _make_mock_schedule(45.23)
+
+    # Need 2 prices: index 0 = state (current), index 1 = forecast[0] (future)
+    mock_price0 = MagicMock()
+    mock_price0.trading_datetime = datetime(2026, 5, 9, 17, 30, tzinfo=UTC)
+    mock_price0.trading_period = 35
+    mock_price0.node = "HAY2201"
+    mock_price0.schedule = "RTD"
+    mock_price0.run_type = "actual"
+    mock_price0.price = 45.23  # current period → state
+
+    mock_price1 = MagicMock()
+    mock_price1.trading_datetime = datetime(2026, 5, 9, 18, 0, tzinfo=UTC)
+    mock_price1.trading_period = 36
+    mock_price1.node = "HAY2201"
+    mock_price1.schedule = "RTD"
+    mock_price1.run_type = "actual"
+    mock_price1.price = 48.50  # future period → forecast[0]
+
+    mock_schedule = MagicMock()
+    mock_schedule.prices = [mock_price0, mock_price1]
 
     with patch("custom_components.electricityinfo.AsyncMarketPricesClient"):
         coordinator = ElectricityInfoCoordinator(hass, mock_entry)
@@ -307,8 +326,9 @@ async def test_ckwh_forecast_converts_price_field(hass, mock_entry) -> None:
 
         attrs = entity.extra_state_attributes
         forecast = attrs["forecast"]
+        assert len(forecast) == 1  # only the future period
         assert forecast[0]["price"] == pytest.approx(
-            45.23 * NZD_PER_MWH_TO_C_PER_KWH, abs=0.001
+            48.50 * NZD_PER_MWH_TO_C_PER_KWH, abs=0.001
         )
 
 
@@ -367,7 +387,7 @@ async def test_forecast_attribute_has_period_start_and_price_keys(
         assert "prices_array" not in attrs, "prices_array should not be present"
 
         forecast = attrs["forecast"]
-        assert len(forecast) == 2
+        assert len(forecast) == 1  # only the future period (price2); price1 is state
 
         for item in forecast:
             assert "period_start" in item, f"period_start missing from: {item}"
@@ -378,5 +398,221 @@ async def test_forecast_attribute_has_period_start_and_price_keys(
             assert "T" in ps, f"period_start not ISO8601: {ps}"
             assert "+" in ps or ps.endswith("Z"), f"period_start has no timezone: {ps}"
 
-        assert forecast[0]["price"] == pytest.approx(45.23, abs=0.001)
-        assert forecast[1]["price"] == pytest.approx(47.11, abs=0.001)
+        # price1 (45.23) is the current period → state, not in forecast
+        assert forecast[0]["price"] == pytest.approx(47.11, abs=0.001)
+
+
+# ---------------------------------------------------------------------------
+# T068 - forecast excludes current period (RED before T069)
+# ---------------------------------------------------------------------------
+
+
+async def test_forecast_starts_after_current_period(hass, mock_entry) -> None:
+    """
+    Forecast must NOT include the current period — only future periods (T068).
+
+    This test is RED before T069: the current implementation includes all
+    sorted_prices (including index 0) in the forecast.
+    After T069 (slice to sorted_prices[1:]) it goes GREEN.
+    """
+    subentry = create_mock_subentry()
+    t0 = datetime(2026, 5, 9, 12, 0, tzinfo=UTC)  # current period → state
+    t1 = datetime(2026, 5, 9, 12, 30, tzinfo=UTC)  # future period 1 → forecast[0]
+    t2 = datetime(2026, 5, 9, 13, 0, tzinfo=UTC)  # future period 2 → forecast[1]
+
+    def _make_price(dt, period, price) -> MagicMock:
+        p = MagicMock()
+        p.trading_datetime = dt
+        p.trading_period = period
+        p.node = "HAY2201"
+        p.schedule = "RTD"
+        p.run_type = "actual"
+        p.price = price
+        return p
+
+    mock_schedule = MagicMock()
+    mock_schedule.prices = [
+        _make_price(t0, 24, 45.23),
+        _make_price(t1, 25, 47.11),
+        _make_price(t2, 26, 48.50),
+    ]
+
+    with patch("custom_components.electricityinfo.AsyncMarketPricesClient"):
+        coordinator = ElectricityInfoCoordinator(hass, mock_entry)
+        coordinator.last_update_success = True
+        coordinator.data = {
+            subentry.subentry_id: {
+                "prices": mock_schedule,
+                "config": dict(subentry.data),
+            }
+        }
+
+        entity = PriceSensorEntity(coordinator, mock_entry, subentry, unit="NZD/MWh")
+        with patch.object(entity, "async_write_ha_state", MagicMock()):
+            entity._handle_coordinator_update()
+
+    # State = current period
+    assert entity.native_value == pytest.approx(45.23, abs=0.001)
+
+    attrs = entity.extra_state_attributes
+    forecast = attrs["forecast"]
+
+    # Forecast must NOT include the current period (t0)
+    current_ts = t0.isoformat()
+    forecast_starts = [item["period_start"] for item in forecast]
+    assert current_ts not in forecast_starts, (
+        f"Current period {current_ts} should not be in forecast: {forecast_starts}"
+    )
+
+    # Forecast has exactly the future periods
+    assert len(forecast) == 2
+    assert forecast[0]["period_start"] == t1.isoformat()
+    assert forecast[0]["price"] == pytest.approx(47.11, abs=0.001)
+    assert forecast[1]["period_start"] == t2.isoformat()
+    assert forecast[1]["price"] == pytest.approx(48.50, abs=0.001)
+
+
+# ---------------------------------------------------------------------------
+# T064 / T065 / T067 - Staleness guard for restored state
+# ---------------------------------------------------------------------------
+
+
+async def test_stale_restored_state_is_discarded(hass, mock_entry) -> None:
+    """
+    Entity discards restored state when timestamp is >30 min old (T064).
+
+    This test is RED before T066: no staleness check exists yet.
+    After T066 it goes GREEN.
+    """
+    subentry = create_mock_subentry()
+    stale_ts = datetime(2026, 5, 9, 11, 0, tzinfo=UTC)  # 35 min before fake_now
+
+    with patch("custom_components.electricityinfo.AsyncMarketPricesClient"):
+        coordinator = ElectricityInfoCoordinator(hass, mock_entry)
+        coordinator.data = None
+        coordinator.last_update_success = True
+        coordinator.async_request_refresh = AsyncMock()
+        entity = PriceSensorEntity(coordinator, mock_entry, subentry, unit="NZD/MWh")
+
+        mock_state = MagicMock()
+        mock_state.state = "45.23"
+        mock_state.attributes = {"timestamp": stale_ts.isoformat()}
+
+        fake_now = datetime(2026, 5, 9, 11, 35, tzinfo=UTC)  # 35 min after stale_ts
+
+        with (
+            patch.object(CoordinatorEntity, "async_added_to_hass", AsyncMock()),
+            patch.object(
+                entity, "async_get_last_state", AsyncMock(return_value=mock_state)
+            ),
+            patch("homeassistant.util.dt.utcnow", return_value=fake_now),
+        ):
+            await entity.async_added_to_hass()
+
+    # Stale state must be discarded — entity is unavailable until coordinator fetches
+    assert entity._native_value is None
+    assert not entity.available
+
+
+async def test_fresh_restored_state_is_kept(hass, mock_entry) -> None:
+    """
+    Entity restores state when timestamp is ≤30 min old (T065).
+
+    Even with coordinator.data=None the entity should be available and show
+    the restored price.
+    """
+    subentry = create_mock_subentry()
+    fresh_ts = datetime(2026, 5, 9, 11, 10, tzinfo=UTC)  # 25 min before fake_now
+
+    with patch("custom_components.electricityinfo.AsyncMarketPricesClient"):
+        coordinator = ElectricityInfoCoordinator(hass, mock_entry)
+        coordinator.data = None
+        coordinator.last_update_success = True
+        coordinator.async_request_refresh = AsyncMock()
+        entity = PriceSensorEntity(coordinator, mock_entry, subentry, unit="NZD/MWh")
+
+        mock_state = MagicMock()
+        mock_state.state = "45.23"
+        mock_state.attributes = {"timestamp": fresh_ts.isoformat()}
+
+        fake_now = datetime(2026, 5, 9, 11, 35, tzinfo=UTC)  # 25 min after fresh_ts
+
+        with (
+            patch.object(CoordinatorEntity, "async_added_to_hass", AsyncMock()),
+            patch.object(
+                entity, "async_get_last_state", AsyncMock(return_value=mock_state)
+            ),
+            patch("homeassistant.util.dt.utcnow", return_value=fake_now),
+        ):
+            await entity.async_added_to_hass()
+
+    assert entity._native_value == pytest.approx(45.23, abs=0.001)
+    assert entity.available  # coordinator.data=None but restored value present
+
+
+async def test_restore_boundary_exactly_30_minutes_is_available(
+    hass, mock_entry
+) -> None:
+    """Timestamp exactly 30 min old is still fresh — entity restores (T067)."""
+    subentry = create_mock_subentry()
+    boundary_ts = datetime(2026, 5, 9, 11, 5, tzinfo=UTC)
+
+    with patch("custom_components.electricityinfo.AsyncMarketPricesClient"):
+        coordinator = ElectricityInfoCoordinator(hass, mock_entry)
+        coordinator.data = None
+        coordinator.last_update_success = True
+        coordinator.async_request_refresh = AsyncMock()
+        entity = PriceSensorEntity(coordinator, mock_entry, subentry, unit="NZD/MWh")
+
+        mock_state = MagicMock()
+        mock_state.state = "45.23"
+        mock_state.attributes = {"timestamp": boundary_ts.isoformat()}
+
+        fake_now = boundary_ts + timedelta(minutes=30)
+
+        with (
+            patch.object(CoordinatorEntity, "async_added_to_hass", AsyncMock()),
+            patch.object(
+                entity, "async_get_last_state", AsyncMock(return_value=mock_state)
+            ),
+            patch("homeassistant.util.dt.utcnow", return_value=fake_now),
+        ):
+            await entity.async_added_to_hass()
+
+    # Exactly 30 min → should restore (boundary is fresh/inclusive)
+    assert entity._native_value == pytest.approx(45.23, abs=0.001)
+    assert entity.available
+
+
+async def test_restore_boundary_30_minutes_1_second_is_discarded(
+    hass, mock_entry
+) -> None:
+    """Timestamp 30 min + 1 sec old is stale — entity discards restored state (T067)."""
+    subentry = create_mock_subentry()
+    boundary_ts = datetime(2026, 5, 9, 11, 5, tzinfo=UTC)
+
+    with patch("custom_components.electricityinfo.AsyncMarketPricesClient"):
+        coordinator = ElectricityInfoCoordinator(hass, mock_entry)
+        coordinator.data = None
+        coordinator.last_update_success = True
+        coordinator.async_request_refresh = AsyncMock()
+        entity = PriceSensorEntity(coordinator, mock_entry, subentry, unit="NZD/MWh")
+
+        mock_state = MagicMock()
+        mock_state.state = "45.23"
+        mock_state.attributes = {"timestamp": boundary_ts.isoformat()}
+
+        fake_now = boundary_ts + timedelta(minutes=30, seconds=1)
+
+        with (
+            patch.object(CoordinatorEntity, "async_added_to_hass", AsyncMock()),
+            patch.object(
+                entity, "async_get_last_state", AsyncMock(return_value=mock_state)
+            ),
+            patch("homeassistant.util.dt.utcnow", return_value=fake_now),
+        ):
+            await entity.async_added_to_hass()
+
+    # 30 min + 1 sec → stale, must discard
+    assert entity._native_value is None
+    assert not entity.available

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import timedelta
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.sensor import (
@@ -16,11 +17,13 @@ from homeassistant.helpers.entity_platform import (
     AddConfigEntryEntitiesCallback,  # noqa: TC002
 )
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.util import dt as dt_util
 
 from .const import (
     C_PER_KWH_TO_NZD_PER_MWH,
     DOMAIN,
     NZD_PER_MWH_TO_C_PER_KWH,
+    UPDATE_INTERVAL_MINUTES,
 )
 
 if TYPE_CHECKING:
@@ -142,6 +145,21 @@ class PriceSensorEntity(CoordinatorEntity, RestoreEntity, SensorEntity):
         await super().async_added_to_hass()
 
         if (last_state := await self.async_get_last_state()) is not None:
+            # Staleness guard: discard restored state older than one update interval
+            timestamp_str = last_state.attributes.get("timestamp")
+            if timestamp_str:
+                restored_time = dt_util.parse_datetime(timestamp_str)
+                if restored_time is not None:
+                    age = dt_util.utcnow() - restored_time
+                    if age > timedelta(minutes=UPDATE_INTERVAL_MINUTES):
+                        _LOGGER.debug(
+                            "Restored state for %s is stale (%s old), discarding",
+                            self._sensor_id,
+                            age,
+                        )
+                        await self.coordinator.async_request_refresh()
+                        return
+
             raw_value = (
                 float(last_state.state)
                 if last_state.state not in ("unknown", "unavailable")
@@ -225,15 +243,17 @@ class PriceSensorEntity(CoordinatorEntity, RestoreEntity, SensorEntity):
             "run_type": price_info.run_type,
         }
 
-        if sorted_prices:
+        if len(sorted_prices) > 1:
             self._attributes["forecast"] = [
                 {
                     "period_start": p.trading_datetime.isoformat(),
                     "price": round(p.price, 3),
                 }
-                for p in sorted_prices
+                for p in sorted_prices[1:]
                 if p.price is not None
             ]
+        else:
+            self._attributes["forecast"] = []
 
         _LOGGER.debug(
             "Updated sensor %s: price=%s %s",

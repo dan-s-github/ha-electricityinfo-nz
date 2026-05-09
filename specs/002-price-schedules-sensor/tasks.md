@@ -189,9 +189,9 @@
 
 **TDD ordering**: T068 (RED test) → T069 (implement slice) → T070 (update existing forecast tests).
 
-- [ ] T068 [P] [US1] Write failing test: assert `extra_state_attributes["forecast"][0]["period_start"]` is strictly after the current period's `timestamp`; assert `forecast` does not contain an entry matching the current state's price/period in `tests/test_sensor.py` [Forecast: exclude-current]
-- [ ] T069 [US1] Update `_handle_coordinator_update` to slice the API price list from index 1 onwards when building `forecast` (index 0 = current period = sensor state, not included in forecast list) in `custom_components/electricityinfo/sensor.py` [Forecast: exclude-current] *(depends-on: T068)*
-- [ ] T070 [P] Update existing forecast shape tests (T056/T061) to assert `forecast[0]` is the **second** API price period, not the first; verify `len(forecast) == forward_prices_count - 1` in `tests/test_sensor.py` [Forecast: exclude-current] *(depends-on: T069)*
+- [x] T068 [P] [US1] Write failing test: assert `extra_state_attributes["forecast"][0]["period_start"]` is strictly after the current period's `timestamp`; assert `forecast` does not contain an entry matching the current state's price/period in `tests/test_sensor.py` [Forecast: exclude-current]
+- [x] T069 [US1] Update `_handle_coordinator_update` to slice the API price list from index 1 onwards when building `forecast` (index 0 = current period = sensor state, not included in forecast list) in `custom_components/electricityinfo/sensor.py` [Forecast: exclude-current] *(depends-on: T068)*
+- [x] T070 [P] Update existing forecast shape tests (T056/T061) to assert `forecast[0]` is the **second** API price period, not the first; verify `len(forecast) == forward_prices_count - 1` in `tests/test_sensor.py` [Forecast: exclude-current] *(depends-on: T069)*
 
 ---
 
@@ -201,10 +201,10 @@
 
 **TDD ordering**: T064–T065 (write RED tests) → T066 (implement staleness check, makes T064 GREEN) → T067 (boundary regression).
 
-- [ ] T064 [P] [US1] Write failing test: assert entity `available` is `False` and `native_value` is `None` when restored `timestamp` attribute is >30 minutes old; mock `dt_util.utcnow()` to simulate stale state in `tests/test_sensor.py` [Staleness: SC-008]
-- [ ] T065 [P] [US1] Write passing test: assert entity `available` is `True` and `native_value` is restored when `timestamp` is within 30 minutes and `coordinator.data` is `None` (fresh-restore, pre-fetch window) in `tests/test_sensor.py` [Staleness: SC-008]
-- [ ] T066 [US1] Implement staleness check in `async_added_to_hass`: parse `last_state.attributes["timestamp"]` as ISO 8601 datetime via `dt_util.parse_datetime`, compare age to `UPDATE_INTERVAL` (30 min) via `dt_util.utcnow()`; skip restore (leave `_native_value = None`) when stale in `custom_components/electricityinfo/sensor.py` [Staleness: SC-008] *(depends-on: T064, T065)*
-- [ ] T067 [P] [US1] Add boundary regression: assert entity restores at exactly 30 min old (boundary is available) and discards at 30 min + 1 second old (boundary is unavailable) in `tests/test_sensor.py` [Staleness: SC-008] *(depends-on: T066)*
+- [x] T064 [P] [US1] Write failing test: assert entity `available` is `False` and `native_value` is `None` when restored `timestamp` attribute is >30 minutes old; mock `dt_util.utcnow()` to simulate stale state in `tests/test_sensor.py` [Staleness: SC-008]
+- [x] T065 [P] [US1] Write passing test: assert entity `available` is `True` and `native_value` is restored when `timestamp` is within 30 minutes and `coordinator.data` is `None` (fresh-restore, pre-fetch window) in `tests/test_sensor.py` [Staleness: SC-008]
+- [x] T066 [US1] Implement staleness check in `async_added_to_hass`: parse `last_state.attributes["timestamp"]` as ISO 8601 datetime via `dt_util.parse_datetime`, compare age to `UPDATE_INTERVAL` (30 min) via `dt_util.utcnow()`; skip restore (leave `_native_value = None`) when stale in `custom_components/electricityinfo/sensor.py` [Staleness: SC-008] *(depends-on: T064, T065)*
+- [x] T067 [P] [US1] Add boundary regression: assert entity restores at exactly 30 min old (boundary is available) and discards at 30 min + 1 second old (boundary is unavailable) in `tests/test_sensor.py` [Staleness: SC-008] *(depends-on: T066)*
 
 ---
 
