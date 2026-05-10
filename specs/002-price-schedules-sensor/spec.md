@@ -111,7 +111,7 @@ As a Home Assistant user, I want the integration to handle API failures and netw
 
 ### Key Entities
 
-- **PriceSensorSubentry**: Represents one configured sensor subentry with parameters (optional name, schedule_type, market_type, node, forward_prices_count)
+- **PriceSensorSubentry**: Represents one configured sensor subentry with parameters (optional name, schedule_type, market_type, node, forward_prices_count). Supported schedule types MUST support Electricityinfo API `forward` parameter for forecast retrieval (e.g., "daily_spot", "forward_market"). Schedules requiring date range parameters (e.g., "Final", "Interim") are not supported in this version.
 - **PriceSensorEntity**: Represents one unit-specific sensor entity derived from a subentry (two entities per subentry: NZD/MWh and c/kWh), with state (current_price), `device_class = SensorDeviceClass.MONETARY`, `state_class = SensorStateClass.MEASUREMENT` (enables HA long-term statistics), and metadata (timestamp, trading_period, node, schedule, run_type, forecast). The `forecast` attribute is a `forecast_solar`-compatible time series of **future** periods only: `[{"period_start": "<ISO8601+tz>", "price": <float>}, …]`, with prices in the entity's display unit. The current period's price is the sensor state and is **not** included in `forecast`.
 - **PriceSchedule**: Represents a price schedule response from Electricityinfo API, containing price data, forecast periods, node information, and confidence levels
 - **SensorConfiguration**: User-provided configuration stored in Home Assistant sensor subentry data

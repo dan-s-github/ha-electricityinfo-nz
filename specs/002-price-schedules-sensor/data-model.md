@@ -22,7 +22,7 @@ This document defines the core data entities, their attributes, relationships, a
 | Field | Type | Required | Default | Validation | Description |
 |-------|------|----------|---------|-----------|-------------|
 | `name` | str | No | — | Optional free text | User-facing display name for this subentry (e.g., "Auckland Daily") |
-| `schedule_type` | str | Yes | — | Must be in Electricityinfo API allowed values | Type of price schedule (e.g., "daily_spot", "forward_market", "generation_forecast") |
+| `schedule_type` | str | Yes | — | Must be in Electricityinfo API allowed values that support `forward` parameter for forecast retrieval (e.g., "daily_spot", "forward_market"); exclude schedules requiring date range parameters (e.g., "Final", "Interim") | Type of price schedule supporting forward-only pricing queries |
 | `market_type` | str | Yes | — | Must be in Electricityinfo API allowed values | Electricity market segment (e.g., "energy", "ancillary", "reserve") |
 | `node` | str | Yes | — | Must be in Electricityinfo API allowed nodes (e.g., "NEA", "MID", "SOU") | Market node/region (e.g., "NEA" = North East Auckland) |
 | `forward_prices_count` | int | Yes | 24 | Must be between 1 and 84 (FR-012) | Number of forward prices to retrieve and store (e.g., 24 = next 24 hours) |
@@ -301,7 +301,7 @@ Applied in Options Flow before save:
 | Field | Validation |
 |-------|-----------|
 | `id` | Required; unique within config entry; alphanumeric + underscore only; max 64 chars |
-| `schedule_type` | Required; must be in allowed Electricityinfo API values (e.g., "daily_spot", "forward_market") |
+| `schedule_type` | Required; must be in allowed Electricityinfo API values that support `forward` parameter for forecast retrieval (e.g., "daily_spot", "forward_market"); exclude date-range-only schedules ("Final", "Interim") |
 | `market_type` | Required; must be in allowed Electricityinfo API values (e.g., "energy", "ancillary") |
 | `node` | Required; must be in allowed Electricityinfo API nodes (e.g., "NEA", "MID", "SOU") |
 | `forward_prices_count` | Required; must be integer > 0 and <= 84 (max 84 periods per API spec, FR-012) |
