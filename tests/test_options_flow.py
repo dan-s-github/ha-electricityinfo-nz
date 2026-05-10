@@ -247,7 +247,7 @@ async def test_reconfigure_sensor_updates_subentry(
         result["flow_id"],
         user_input={
             CONF_SENSOR_NAME: "Updated Name",
-            CONF_SCHEDULE_TYPE: "Final",
+            CONF_SCHEDULE_TYPE: "RTD",
             CONF_MARKET_TYPE: "E",
             CONF_NODE: "BEN2201",
             CONF_FORWARD_PRICES_COUNT: 48,
@@ -258,9 +258,9 @@ async def test_reconfigure_sensor_updates_subentry(
 
     updated = config_entry_one_sensor.subentries[subentry_id]
     assert updated.data[CONF_NODE] == "BEN2201"
-    assert updated.data[CONF_SCHEDULE_TYPE] == "Final"
+    assert updated.data[CONF_SCHEDULE_TYPE] == "RTD"
     assert updated.data[CONF_FORWARD_PRICES_COUNT] == 48
-    assert updated.title == "Updated Name · BEN2201 Final (E)"
+    assert updated.title == "Updated Name · BEN2201 RTD (E)"
 
 
 async def test_multiple_subentries_added_via_flow(
