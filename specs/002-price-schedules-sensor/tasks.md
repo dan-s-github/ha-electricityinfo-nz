@@ -51,19 +51,19 @@
 
 ### Tests for User Story 1
 
-- [ ] T011 [P] [US1] Add subentry create path test coverage in `tests/test_options_flow.py`
-- [ ] T012 [P] [US1] Add subentry reconfigure path test coverage in `tests/test_options_flow.py`
-- [ ] T013 [P] [US1] Add single-subentry platform setup test coverage in `tests/test_sensor.py`
+- [x] T011 [P] [US1] Add subentry create path test coverage in `tests/test_options_flow.py`
+- [x] T012 [P] [US1] Add subentry reconfigure path test coverage in `tests/test_options_flow.py`
+- [x] T013 [P] [US1] Add single-subentry platform setup test coverage in `tests/test_sensor.py`
 - ~~[ ] T014 [P] [US1] Add restore-state regression coverage in `tests/test_sensor.py`~~ *(superseded by T050)*
 
 ### Implementation for User Story 1
 
-- [ ] T015 [US1] Implement sensor title derivation for subentry labels in `custom_components/electricityinfo/config_flow.py`
-- [ ] T016 [US1] Implement subentry form schema (name, schedule, market, node, forward hours) in `custom_components/electricityinfo/config_flow.py`
-- [ ] T017 [US1] Implement create/reconfigure subentry handlers in `custom_components/electricityinfo/config_flow.py`
-- [ ] T018 [US1] Implement sensor entity base properties and IDs in `custom_components/electricityinfo/sensor.py`
-- [ ] T019 [US1] Implement entity setup per subentry with `config_subentry_id` linkage in `custom_components/electricityinfo/sensor.py`
-- [ ] T020 [US1] Implement restore and coordinator update handling for entity state/attributes in `custom_components/electricityinfo/sensor.py`
+- [x] T015 [US1] Implement sensor title derivation for subentry labels in `custom_components/electricityinfo/config_flow.py`
+- [x] T016 [US1] Implement subentry form schema (name, schedule, market, node, forward hours) in `custom_components/electricityinfo/config_flow.py`
+- [x] T017 [US1] Implement create/reconfigure subentry handlers in `custom_components/electricityinfo/config_flow.py`
+- [x] T018 [US1] Implement sensor entity base properties and IDs in `custom_components/electricityinfo/sensor.py`
+- [x] T019 [US1] Implement entity setup per subentry with `config_subentry_id` linkage in `custom_components/electricityinfo/sensor.py`
+- [x] T020 [US1] Implement restore and coordinator update handling for entity state/attributes in `custom_components/electricityinfo/sensor.py`
 
 **Checkpoint**: User Story 1 is functional and independently testable.
 
@@ -79,13 +79,13 @@
 
 - ~~[ ] T021 [P] [US4] Add coordinator retry/backoff unit coverage in `tests/test_integration.py`~~ *(superseded by T051)*
 - ~~[ ] T022 [P] [US4] Add unavailable-to-recovery lifecycle integration test in `tests/integration/test_sensor_lifecycle.py`~~ *(superseded by T052)*
-- [ ] T023 [P] [US4] Add partial/missing payload isolation behavior test in `tests/test_sensor_multiple.py`
+- [x] T023 [P] [US4] Add partial/missing payload isolation behavior test in `tests/test_sensor_multiple.py`
 
 ### Implementation for User Story 4
 
-- [ ] T024 [US4] Implement per-sensor error capture during API fetch in `custom_components/electricityinfo/coordinator.py`
-- [ ] T025 [US4] Implement coordinator-level auth/update failure propagation in `custom_components/electricityinfo/coordinator.py`
-- [ ] T026 [US4] Implement entity availability logic from coordinator and sensor-level error state in `custom_components/electricityinfo/sensor.py`
+- [x] T024 [US4] Implement per-sensor error capture during API fetch in `custom_components/electricityinfo/coordinator.py`
+- [x] T025 [US4] Implement coordinator-level auth/update failure propagation in `custom_components/electricityinfo/coordinator.py`
+- [x] T026 [US4] Implement entity availability logic from coordinator and sensor-level error state in `custom_components/electricityinfo/sensor.py`
 
 **Checkpoint**: User Story 4 is functional and independently testable.
 
@@ -99,15 +99,15 @@
 
 ### Tests for User Story 2
 
-- [ ] T027 [P] [US2] Add multi-subentry options-flow behavior tests in `tests/test_options_flow.py`
-- [ ] T028 [P] [US2] Add unique entity ID and multi-sensor setup tests in `tests/test_sensor_multiple.py`
-- [ ] T029 [P] [US2] Add coordinator multi-subentry update isolation tests in `tests/test_sensor_multiple.py`
+- [x] T027 [P] [US2] Add multi-subentry options-flow behavior tests in `tests/test_options_flow.py`
+- [x] T028 [P] [US2] Add unique entity ID and multi-sensor setup tests in `tests/test_sensor_multiple.py`
+- [x] T029 [P] [US2] Add coordinator multi-subentry update isolation tests in `tests/test_sensor_multiple.py`
 
 ### Implementation for User Story 2
 
-- [ ] T030 [US2] Ensure coordinator iterates all sensor subentries and persists per-subentry payloads in `custom_components/electricityinfo/coordinator.py`
-- [ ] T031 [US2] Ensure entity identifiers and device identifiers are collision-safe per subentry in `custom_components/electricityinfo/sensor.py`
-- [ ] T032 [US2] Ensure subentry UX labels remain distinguishable across multiple configured sensors in `custom_components/electricityinfo/config_flow.py`
+- [x] T030 [US2] Ensure coordinator iterates all sensor subentries and persists per-subentry payloads in `custom_components/electricityinfo/coordinator.py`
+- [x] T031 [US2] Ensure entity identifiers and device identifiers are collision-safe per subentry in `custom_components/electricityinfo/sensor.py`
+- [x] T032 [US2] Ensure subentry UX labels remain distinguishable across multiple configured sensors in `custom_components/electricityinfo/config_flow.py`
 
 **Checkpoint**: User Story 2 is functional and independently testable.
 
@@ -121,15 +121,15 @@
 
 ### Tests for User Story 3
 
-- [ ] T033 [P] [US3] Add dual-unit entity creation and unit metadata tests in `tests/test_unit_conversion.py`
-- [ ] T034 [P] [US3] Add NZD-to-c conversion and rounding behavior tests in `tests/test_unit_conversion.py`
+- [x] T033 [P] [US3] Add dual-unit entity creation and unit metadata tests in `tests/test_unit_conversion.py`
+- [x] T034 [P] [US3] Add NZD-to-c conversion and rounding behavior tests in `tests/test_unit_conversion.py`
 - ~~[ ] T035 [P] [US3] Add dual-unit update synchronization tests in `tests/test_sensor.py`~~ *(superseded by T053)*
 
 ### Implementation for User Story 3
 
-- [ ] T036 [US3] Ensure dual-entity creation per subentry (NZD/MWh and c/kWh) in `custom_components/electricityinfo/sensor.py`
-- [ ] T037 [US3] Ensure c/kWh state and prices_array conversion logic is applied consistently in `custom_components/electricityinfo/sensor.py`
-- [ ] T038 [US3] Ensure entity naming and device presentation match subentry/unit model in `custom_components/electricityinfo/sensor.py`
+- [x] T036 [US3] Ensure dual-entity creation per subentry (NZD/MWh and c/kWh) in `custom_components/electricityinfo/sensor.py`
+- [x] T037 [US3] Ensure c/kWh state and forecast attribute conversion logic is applied consistently in `custom_components/electricityinfo/sensor.py`
+- [x] T038 [US3] Ensure entity naming and device presentation match subentry/unit model in `custom_components/electricityinfo/sensor.py`
 
 **Checkpoint**: User Story 3 is functional and independently testable.
 
@@ -141,9 +141,9 @@
 
 - [x] T039 Reconcile subentry-based UX contract in `specs/002-price-schedules-sensor/contracts/config-flow.md`
 - [x] T040 Reconcile dual-entity lifecycle contract in `specs/002-price-schedules-sensor/contracts/sensor-platform.md`
-- [ ] T041 Reconcile subentry storage/entity definitions in `specs/002-price-schedules-sensor/data-model.md`
-- [ ] T042 Reconcile quickstart paths and workflows in `specs/002-price-schedules-sensor/quickstart.md`
-- [ ] T043 Reconcile task completion claims and stale references in `specs/002-price-schedules-sensor/tasks.md`
+- [x] T041 Reconcile subentry storage/entity definitions in `specs/002-price-schedules-sensor/data-model.md`
+- [x] T042 Reconcile quickstart paths and workflows in `specs/002-price-schedules-sensor/quickstart.md`
+- [x] T043 Reconcile task completion claims and stale references in `specs/002-price-schedules-sensor/tasks.md`
 - [ ] T044 [P] Run linting in `custom_components/electricityinfo/` and `tests/` using `ruff check --fix`
 - [ ] T045 [P] Run type checking for integration modules in `custom_components/electricityinfo/` using `mypy custom_components/`
 - [ ] T046 [P] Run full test suite in `tests/` using `pytest tests/ -v`
@@ -273,7 +273,7 @@
 
 ### User Story 4
 
-- Parallel tests: T021, T022, T023
+- Parallel tests: T023 (T021 and T022 superseded by T051, T052)
 - Parallel-safe implementation split: T024 and T026 can run concurrently once retry policy in T025 is established
 
 ### User Story 2
@@ -283,7 +283,7 @@
 
 ### User Story 3
 
-- Parallel tests: T033, T034, T035
+- Parallel tests: T033, T034 (T035 superseded by T053)
 - Parallel-safe implementation split: T037 and T038 can run concurrently after T036
 
 ---

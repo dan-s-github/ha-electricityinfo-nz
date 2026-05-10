@@ -22,7 +22,7 @@ This document defines the core data entities, their attributes, relationships, a
 | Field | Type | Required | Default | Validation | Description |
 |-------|------|----------|---------|-----------|-------------|
 | `name` | str | No | — | Optional free text | User-facing display name for this subentry (e.g., "Auckland Daily") |
-| `schedule_type` | str | Yes | — | Must be in Electricityinfo API allowed values | Type of price schedule (e.g., "daily_spot", "forward_market", "generation_forecast") |
+| `schedule_type` | str | Yes | — | Must be in Electricityinfo API allowed values that support `forward` parameter for forecast retrieval (e.g., "daily_spot", "forward_market"); exclude schedules requiring date range parameters (e.g., "Final", "Interim") | Type of price schedule supporting forward-only pricing queries |
 | `market_type` | str | Yes | — | Must be in Electricityinfo API allowed values | Electricity market segment (e.g., "energy", "ancillary", "reserve") |
 | `node` | str | Yes | — | Must be in Electricityinfo API allowed nodes (e.g., "NEA", "MID", "SOU") | Market node/region (e.g., "NEA" = North East Auckland) |
 | `forward_prices_count` | int | Yes | 24 | Must be between 1 and 84 (FR-012) | Number of forward prices to retrieve and store (e.g., 24 = next 24 hours) |
@@ -189,7 +189,7 @@ This document defines the core data entities, their attributes, relationships, a
 - Multiple MarketPriceSchedule objects returned per API call (one per node/schedule_type)
 - Each schedule matches one or more SensorConfiguration objects (by node, schedule_type, market_type)
 - Current price (first element of prices array) mapped to PriceSensorEntity.state
-- Full prices array mapped to PriceSensorEntity.prices_array attribute
+- Full prices array (excluding current) mapped to PriceSensorEntity.forecast attribute
 
 ---
 
@@ -268,12 +268,15 @@ def generate_entity_id(node: str, schedule_type: str, market_type: str, unit_pre
         "state": "45.23",
         "attributes": {
           "timestamp": "2026-05-05T17:30:00Z",
-          "confidence_level": 0.95,
-          "forecast_period": "24h",
+          "run_type": "actual",
+          "forecast": [
+            {"period_start": "2026-05-09T12:30:00+12:00", "price": 46.10},
+            {"period_start": "2026-05-09T13:00:00+12:00", "price": 47.50}
+          ],
+          "trading_period": 35,
           "market_type": "energy",
           "node": "NEA",
           "schedule_type": "daily_spot",
-          "prices_array": [45.23, 46.10, 47.50, 46.80, 45.95],
           "native_unit_of_measurement": "NZD/MWh",
           "unit_of_measurement": "NZD/MWh"
         },
@@ -298,10 +301,10 @@ Applied in Options Flow before save:
 | Field | Validation |
 |-------|-----------|
 | `id` | Required; unique within config entry; alphanumeric + underscore only; max 64 chars |
-| `schedule_type` | Required; must be in allowed Electricityinfo API values (e.g., "daily_spot", "forward_market") |
+| `schedule_type` | Required; must be in allowed Electricityinfo API values that support `forward` parameter for forecast retrieval (e.g., "daily_spot", "forward_market"); exclude date-range-only schedules ("Final", "Interim") |
 | `market_type` | Required; must be in allowed Electricityinfo API values (e.g., "energy", "ancillary") |
 | `node` | Required; must be in allowed Electricityinfo API nodes (e.g., "NEA", "MID", "SOU") |
-| `forward_prices_count` | Required; must be integer > 0 and <= 168 (max 7 days) |
+| `forward_prices_count` | Required; must be integer > 0 and <= 84 (max 84 periods per API spec, FR-012) |
 | `unit_preference` | Required; must be exactly "NZD/MWh" or "c/kWh" |
 
 ### MarketPriceSchedule Validation

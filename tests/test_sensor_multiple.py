@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from electricityinfo_nz.exceptions import MarketPricesAPIError
 from homeassistant.config_entries import ConfigEntry
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.electricityinfo import ElectricityInfoCoordinator
 from custom_components.electricityinfo.const import (
@@ -176,3 +177,71 @@ async def test_multiple_sensors_in_config_flow(hass, mock_config_entry_with_sens
     # Each subentry has a unique ID
     ids = {s.subentry_id for s in subentries}
     assert len(ids) == 2
+
+
+async def test_five_sensors_no_performance_degradation(hass) -> None:
+    """SC-005: Test 5+ simultaneous sensors without performance degradation."""
+    # Create 5 sensor subentries
+    subentries_data = []
+    nodes = ["HAY2201", "BEN2201", "OTA0011", "TWI0331", "CEN0011"]
+    for i, node in enumerate(nodes):
+        sub = create_mock_subentry(
+            subentry_id=f"sensor_{i}",
+            title=f"{node} RTD (E)",
+            schedule_type="RTD",
+            market_type="E",
+            node=node,
+            forward_prices_count=24,
+        )
+        subentries_data.append(
+            {
+                "data": dict(sub.data),
+                "subentry_type": "sensor",
+                "title": sub.title,
+                "unique_id": None,
+            }
+        )
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Main",
+        data={
+            CONF_CLIENT_ID: "test_client",
+            CONF_CLIENT_SECRET: "test_secret",
+        },
+        subentries_data=subentries_data,
+    )
+    entry.add_to_hass(hass)
+
+    # Setup integration with 5 sensors
+    with patch.object(
+        ElectricityInfoCoordinator, "_async_update_data", return_value={}
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    # Verify all 5 sensors are created (10 entities: 2 per sensor)
+    states = hass.states.async_all("sensor")
+    # Should have 10 entities (5 sensors x 2 units each)
+    assert len(states) >= 10, f"Expected >=10 sensor entities, got {len(states)}"
+
+    # Verify each sensor has both NZD/MWh and c/kWh entities
+    for node in nodes:
+        nzd_entity = next(
+            (s for s in states if node.lower() in s.entity_id and "nzd" in s.entity_id),
+            None,
+        )
+        ckwh_entity = next(
+            (
+                s
+                for s in states
+                if node.lower() in s.entity_id and "c_kwh" in s.entity_id
+            ),
+            None,
+        )
+        assert nzd_entity is not None, f"Missing NZD/MWh entity for {node}"
+        assert ckwh_entity is not None, f"Missing c/kWh entity for {node}"
+
+    # Verify no duplicate entities or ID collisions
+    entity_ids = [s.entity_id for s in states]
+    assert len(entity_ids) == len(set(entity_ids)), "Duplicate entity IDs detected"

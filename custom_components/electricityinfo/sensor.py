@@ -60,6 +60,7 @@ class PriceSensorEntity(CoordinatorEntity, RestoreEntity, SensorEntity):
     """Representation of an electricity price sensor entity."""
 
     _attr_device_class = SensorDeviceClass.MONETARY
+    _attr_state_class = None
     _attr_has_entity_name = True
 
     def __init__(

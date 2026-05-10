@@ -52,9 +52,8 @@ SCHEDULE_TYPES = [
 ]
 
 # UI label/value pairs for schedule type selector
+# Note: Final and Interim schedule types are not yet supported
 SCHEDULE_TYPE_OPTIONS: list[SelectOptionDict] = [
-    {"value": "Final", "label": "Final (Final settled prices)"},
-    {"value": "Interim", "label": "Interim (Interim prices)"},
     {"value": "NRSL", "label": "NRSL (Non-responsive long)"},
     {"value": "NRSS", "label": "NRSS (Non-responsive short)"},
     {"value": "PRSL", "label": "PRSL (Price-responsive long)"},
