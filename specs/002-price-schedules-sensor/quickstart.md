@@ -156,7 +156,7 @@ class PriceSensorEntity(SensorEntity, RestoreEntity, CoordinatorEntity):
     """Electricity price sensor"""
 
     _attr_device_class = SensorDeviceClass.MONETARY
-    _attr_state_class = SensorStateClass.MEASUREMENT  # Enables long-term statistics
+    _attr_state_class = None  # Enables long-term statistics with mean aggregation
 
     def __init__(self, coordinator, sensor_config):
         # Initialize from SensorConfiguration
