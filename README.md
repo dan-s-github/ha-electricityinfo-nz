@@ -23,6 +23,8 @@ Home Assistant custom integration for [Electricityinfo NZ](https://electricityin
 - **30-minute refresh cycle** — prices update every half-hour; state is restored on restart
 - **HACS installable**
 
+> **Note:** Price schedules update at `:00` and `:30` each hour. After a Home Assistant restart, this integration continues refreshing every 30 minutes from startup time. To realign refreshes with schedule boundaries, reload the integration at `:02` or `:32` (or use the automation example below).
+
 ---
 
 ## Prerequisites
@@ -126,7 +128,7 @@ forecast:
 
 | Code | Name | Description |
 |---|---|---|
-| `RTD` | Real-time dispatch | Live 5-minute dispatch prices (most current) |
+| `RTD` | Real-time dispatch | 5-minute dispatch prices from the current hour |
 | `Final` | Final | Final settled prices (after settlement) |
 | `Interim` | Interim | Interim prices before final settlement |
 | `PRSL` | Price-responsive long | Long-run price-responsive schedule — best for market price forecasts |
@@ -134,6 +136,10 @@ forecast:
 | `NRSL` | Non-responsive long | Long-run non-responsive schedule |
 | `NRSS` | Non-responsive short | Short-run non-responsive schedule |
 | `WDS` | Weekly dispatch | Weekly dispatch schedule |
+
+> **Note:** Only schedules that support forward prices are currently implemented. `Final` and `Interim` are not supported.
+>
+> `NRSS` and `PRSS` schedules only return 8 trading periods (current + 7 forward).
 
 For most users, **RTD** (real-time dispatch) gives the most up-to-date prices.
 
@@ -167,7 +173,7 @@ Nodes are the grid injection/offtake points used by the WITS market. Choose the 
 
 ```yaml
 type: entity
-entity: sensor.haywards_energy_nzd_mwh
+entity: sensor.ota2201_prsl_e_nzd_mwh
 name: Spot Price
 icon: mdi:flash
 ```
@@ -178,45 +184,78 @@ With [ApexCharts Card](https://github.com/RomRider/apexcharts-card):
 
 ```yaml
 type: custom:apexcharts-card
-graph_span: 12h
+header:
+  show: true
+  show_states: true
+  colorize_states: true
+graph_span: 24h
+span:
+  start: hour
+now:
+  show: true
+  label: now
+  color: red
 series:
-  - entity: sensor.haywards_energy_c_kwh
-    attribute: forecast
+  - entity: sensor.ota2201_prsl_e_c_kwh
+    name: Current
+    unit: " c/kWh"
+    float_precision: 3
+    show:
+      in_chart: false
+      in_header: true
+  - entity: sensor.ota2201_prsl_e_c_kwh
+    name: Forecast
+    type: column
+    show:
+      in_chart: true
+      in_header: false
     data_generator: |
-      return entity.attributes.forecast.map(f => {
-        return [new Date(f.period_start), f.price];
-      });
+      return (entity.attributes.forecast || []).map(f => [
+        new Date(f.period_start).getTime(),
+        Number(f.price)
+      ]);
+yaxis:
+  - min: 0
+    decimals: 3
 ```
 
-### Automation — alert on high price
+### Automation - Reload Integration After HA Restart
+
+Use this automation if Home Assistant restarts just after a schedule boundary and you want to realign updates quickly:
 
 ```yaml
-alias: Alert when spot price is high
-trigger:
-  - platform: numeric_state
-    entity_id: sensor.haywards_energy_c_kwh
-    above: 20
-action:
-  - service: notify.mobile_app
-    data:
-      message: "⚡ Spot price is {{ states('sensor.haywards_energy_c_kwh') }} c/kWh"
+alias: Reload Electricityinfo After HA Start
+description: >-
+  Wait until xx:02 or xx:32 within the first hour after Home Assistant starts,
+  then reload the Electricityinfo config entry.
+triggers:
+  - trigger: homeassistant
+    event: start
+conditions: []
+actions:
+  - wait_template: "{{ now().minute == 2 or now().minute == 32 }}"
+    continue_on_timeout: true
+    timeout: "01:00:00"
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ wait.trigger is not none and wait.trigger.timeout }}"
+        sequence:
+          - action: persistent_notification.create
+            data:
+              title: Electricityinfo Reload Timeout
+              message: >-
+                Timed out waiting for xx:02 or xx:32 to reload the Electricityinfo
+                integration.
+              notification_id: electricityinfo_reload_timeout
+    default:
+      - action: homeassistant.reload_config_entry
+        data:
+          entry_id: YOUR_CONFIG_ENTRY_ID
+mode: single
 ```
 
-### Template — next cheapest period
-
-```yaml
-template:
-  - sensor:
-      - name: Next cheap period
-        state: >
-          {% set forecast = state_attr('sensor.haywards_energy_c_kwh', 'forecast') %}
-          {% if forecast %}
-            {% set cheapest = forecast | min(attribute='price') %}
-            {{ cheapest.period_start }}
-          {% else %}
-            unknown
-          {% endif %}
-```
+Find `YOUR_CONFIG_ENTRY_ID` under **Settings -> Devices & Services -> Electricityinfo NZ -> ⋮ -> System options**.
 
 ---
 
@@ -230,16 +269,19 @@ template:
 
 ## Troubleshooting
 
-**Sensors show "Unavailable"**
+### Sensors show "Unavailable"
+
 - Check your API credentials are still valid at [developer.electricityinfo.co.nz](https://developer.electricityinfo.co.nz)
 - Check Home Assistant has internet access
 - Check the integration logs: **Settings → System → Logs**, filter for `electricityinfo`
 
-**Forecast is empty**
+### Forecast is empty
+
 - The API may not have published forward prices for the selected node/schedule yet — this is normal for `Final` and `Interim` schedules which are published after settlement
 - Try switching to `RTD` for the most consistently available forecast data
 
-**Prices seem wrong**
+### Prices seem wrong
+
 - Wholesale spot prices are not retail prices — they are WITS market prices in NZD/MWh
 - Divide by 1000 to get NZD/kWh, or use the c/kWh entity (NZD/MWh × 0.1)
 
