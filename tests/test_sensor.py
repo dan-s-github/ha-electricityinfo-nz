@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -70,6 +71,12 @@ async def test_sensor_platform_sets_up(hass) -> None:
     price_sensors = [s for s in states if "hay2201" in s.entity_id]
     sensor_ids = [s.entity_id for s in states]
     assert len(price_sensors) > 0, f"No price sensors found. States: {sensor_ids}"
+
+    # FR-005: verify device_class and state_class for long-term statistics
+    for sensor in price_sensors:
+        entity = hass.data["entity_components"]["sensor"].get_entity(sensor.entity_id)
+        assert entity.device_class == SensorDeviceClass.MONETARY
+        assert entity.state_class == SensorStateClass.MEASUREMENT
 
 
 # ---------------------------------------------------------------------------
