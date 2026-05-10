@@ -127,9 +127,9 @@
 
 ### Implementation for User Story 3
 
-- [ ] T036 [US3] Ensure dual-entity creation per subentry (NZD/MWh and c/kWh) in `custom_components/electricityinfo/sensor.py`
-- [ ] T037 [US3] Ensure c/kWh state and prices_array conversion logic is applied consistently in `custom_components/electricityinfo/sensor.py`
-- [ ] T038 [US3] Ensure entity naming and device presentation match subentry/unit model in `custom_components/electricityinfo/sensor.py`
+- [x] T036 [US3] Ensure dual-entity creation per subentry (NZD/MWh and c/kWh) in `custom_components/electricityinfo/sensor.py`
+- [x] T037 [US3] Ensure c/kWh state and forecast attribute conversion logic is applied consistently in `custom_components/electricityinfo/sensor.py`
+- [x] T038 [US3] Ensure entity naming and device presentation match subentry/unit model in `custom_components/electricityinfo/sensor.py`
 
 **Checkpoint**: User Story 3 is functional and independently testable.
 
