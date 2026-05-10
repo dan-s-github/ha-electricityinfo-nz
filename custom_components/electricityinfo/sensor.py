@@ -10,7 +10,6 @@ from homeassistant.components.sensor import (
     RestoreEntity,
     SensorDeviceClass,
     SensorEntity,
-    SensorStateClass,
 )
 from homeassistant.core import HomeAssistant  # noqa: TC002
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
@@ -61,7 +60,7 @@ class PriceSensorEntity(CoordinatorEntity, RestoreEntity, SensorEntity):
     """Representation of an electricity price sensor entity."""
 
     _attr_device_class = SensorDeviceClass.MONETARY
-    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_state_class = None
     _attr_has_entity_name = True
 
     def __init__(
