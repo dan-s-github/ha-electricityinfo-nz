@@ -141,8 +141,8 @@
 
 - [x] T039 Reconcile subentry-based UX contract in `specs/002-price-schedules-sensor/contracts/config-flow.md`
 - [x] T040 Reconcile dual-entity lifecycle contract in `specs/002-price-schedules-sensor/contracts/sensor-platform.md`
-- [ ] T041 Reconcile subentry storage/entity definitions in `specs/002-price-schedules-sensor/data-model.md`
-- [ ] T042 Reconcile quickstart paths and workflows in `specs/002-price-schedules-sensor/quickstart.md`
+- [x] T041 Reconcile subentry storage/entity definitions in `specs/002-price-schedules-sensor/data-model.md`
+- [x] T042 Reconcile quickstart paths and workflows in `specs/002-price-schedules-sensor/quickstart.md`
 - [x] T043 Reconcile task completion claims and stale references in `specs/002-price-schedules-sensor/tasks.md`
 - [ ] T044 [P] Run linting in `custom_components/electricityinfo/` and `tests/` using `ruff check --fix`
 - [ ] T045 [P] Run type checking for integration modules in `custom_components/electricityinfo/` using `mypy custom_components/`
