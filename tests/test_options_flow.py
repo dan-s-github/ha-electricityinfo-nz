@@ -261,3 +261,45 @@ async def test_reconfigure_sensor_updates_subentry(
     assert updated.data[CONF_SCHEDULE_TYPE] == "Final"
     assert updated.data[CONF_FORWARD_PRICES_COUNT] == 48
     assert updated.title == "Updated Name · BEN2201 Final (E)"
+
+
+async def test_multiple_subentries_added_via_flow(
+    hass: HomeAssistant, config_entry_one_sensor: MockConfigEntry
+) -> None:
+    """Test adding a second sensor subentry via flow (T027 multi-subentry coverage)."""
+    entry = config_entry_one_sensor
+
+    # Add first sensor via flow (already exists in fixture)
+    assert len(entry.subentries) == 1
+
+    # Add a second sensor via flow
+    result = await hass.config_entries.subentries.async_init(
+        (entry.entry_id, "sensor"),
+        context={"source": config_entries.SOURCE_USER},
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "user"
+
+    result = await hass.config_entries.subentries.async_configure(
+        result["flow_id"],
+        user_input={
+            CONF_SENSOR_NAME: "BEN Market",
+            CONF_SCHEDULE_TYPE: "RTD",
+            CONF_MARKET_TYPE: "E",
+            CONF_NODE: "BEN2201",
+            CONF_FORWARD_PRICES_COUNT: 24,
+        },
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+
+    # Verify the second subentry was created
+    await hass.async_block_till_done()
+    entry = hass.config_entries.async_get_entry(entry.entry_id)
+    assert len(entry.subentries) == 2
+
+    subentry_ids = {s.subentry_id for s in entry.subentries.values()}
+    assert len(subentry_ids) == 2
+
+    nodes = {s.data[CONF_NODE] for s in entry.subentries.values()}
+    assert "HAY2201" in nodes
+    assert "BEN2201" in nodes
