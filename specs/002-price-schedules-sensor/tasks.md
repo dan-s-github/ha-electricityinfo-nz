@@ -273,7 +273,7 @@
 
 ### User Story 4
 
-- Parallel tests: T021, T022, T023
+- Parallel tests: T023 (T021 and T022 superseded by T051, T052)
 - Parallel-safe implementation split: T024 and T026 can run concurrently once retry policy in T025 is established
 
 ### User Story 2
@@ -283,7 +283,7 @@
 
 ### User Story 3
 
-- Parallel tests: T033, T034, T035
+- Parallel tests: T033, T034 (T035 superseded by T053)
 - Parallel-safe implementation split: T037 and T038 can run concurrently after T036
 
 ---
