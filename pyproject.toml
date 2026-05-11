@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ha-electricityinfo-nz"
-version = "0.1.0"
+version = "1.0.0rc0"
 description = "Home Assistant custom integration for Electricityinfo NZ"
 readme = "README.md"
 license = { text = "MIT" }

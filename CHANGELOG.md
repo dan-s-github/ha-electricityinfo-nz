@@ -5,67 +5,6 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
-
-## [0.2.0] - 2026-05-05
-
-### Added - Price Schedules Sensor Platform (Phase 2)
-
-#### Core Features
-- **Price Sensors**: New sensor platform displays electricity prices from Electricityinfo NZ API
-  - Updates every 30 minutes automatically
-  - Displays current price with timestamp and forecast data
-- **Multiple Sensor Support**: Users can configure multiple price sensors with different parameters
-  - Schedule type: daily spot, forward market, generation forecast, etc.
-  - Market type and node (region) selection per sensor
-  - Configurable number of forward prices to retrieve
-- **Price Unit Preference**: Display prices in either NZD/MWh or c/kWh
-  - Automatic conversion (1 NZD/MWh = 0.1 c/kWh)
-  - Per-sensor configuration
-  - Conversion accuracy within ±0.01 c/kWh
-
-#### Configuration & Setup
-- **Options Flow UI**: Integrated into config flow for easy sensor management
-  - Add/edit/delete sensor configurations
-  - Inline validation of configuration values
-  - Live sensor list with action buttons
-- **State Persistence**: Prices persist across Home Assistant restarts
-  - Automatic state restoration on startup
-  - Users see most recent price immediately
-
-#### Error Handling & Reliability
-- **Graceful Failure Recovery**:
-  - Automatic retry with exponential backoff (1-minute first retry)
-  - Mark sensors as unavailable after 2 consecutive failures
-  - Automatic recovery when API returns to normal
-- **Partial Failure Isolation**: If API call fails for one sensor configuration, others continue to update
-- **Network Resilience**: Handles connection errors, timeouts, API errors with proper logging
-
-#### Technical Details
-- Native unit storage in NZD/MWh for consistency
-- Unit conversion applied at display time
-- Separate entity per sensor configuration with unique IDs
-- Coordinator pattern for centralized data management
-- Full type checking (mypy clean)
-- Comprehensive test coverage (31 tests)
-
-### Testing
-- Added unit tests for multiple sensors configuration and isolation
-- Added unit tests for price unit conversion accuracy
-- Added integration tests for config flow operations
-- All tests passing (31/31)
-
-### Success Criteria Met
-✓ Users can configure 1+ price sensors with custom parameters
-✓ Prices update every 30 minutes with real-time data
-✓ Multiple sensors update independently without interference
-✓ Graceful error handling with automatic recovery
-✓ State persistence across Home Assistant restarts
-✓ Price display in user-selected unit (NZD/MWh or c/kWh)
-✓ Full test coverage with proper type checking
-✓ Pre-commit hooks and linting pass
-
-## [0.1.0] - 2026-04-XX
 
 ### Added - OAuth Config Flow (Phase 1)
 
@@ -75,3 +14,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Token validation and management
 - State persistence with config entry
 - Full type checking and test coverage
+
+## v1.0.0rc0 (2026-05-11)
+
+### Feat
+
+- remove unsupported Final and Interim schedule types
+- forecast excludes current period; staleness guard on restore
+- **sensor**: migrate forecast attribute to forecast_solar convention (T056-T063)
+- consolidate price schedules sensor platform updates
+- Phase 1-6 implementation complete
+- **002-price-schedules-sensor**: Generate actionable task breakdown
+- Add implementation plan for price schedules sensor
+- Add spec and checklist for price schedules sensor (002)
+- **oauth**: Complete Phase 4 - Token Validation & Phase 7 Polish
+- **oauth**: Phase 3 - OAuth flow initialization and redirect
+- add OAuth config flow feature specification
+- scaffold electricityinfo_nz integration
+
+### Fix
+
+- remove incorrect state_class for monetary sensors
+- add state_class attribute for long-term statistics (FR-005)
+- **sensor**: SC-008 available property; add T049-T055 tests
+- round all prices to 3 decimal places
+- set display precision to 3 for c/kWh, 2 for NZD/MWh
+- sort prices ascending; prices_array includes trading_date and period
+- log native_value (converted) not raw price in sensor update
+- resolve PR review comments for price sensor platform
+- satisfy mypy typing for selectors and subentry setup
+- Update hacs.json country code and add repo topics
+- Address Copilot PR review comments on OAuth config flow
+- **oauth**: Resolve linting issues - ARG002, TC003, TC004
+
+### Refactor
+
+- implement Client Credentials OAuth flow with comprehensive fixes
+- **oauth**: Fix import statement - use correct library interface
