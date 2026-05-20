@@ -2,26 +2,26 @@
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
 
-**Active Feature**: Electricity Price Schedules Sensor Platform (002-price-schedules-sensor)
-**Plan Location**: `specs/002-price-schedules-sensor/plan.md`
+**Active Feature**: Multiple Entities for Market Node (003-multi-entity-market-node)
+**Plan Location**: `specs/003-multi-entity-market-node/plan.md`
 
 Key Design Documents:
-- **Specification**: `specs/002-price-schedules-sensor/spec.md` — User stories, requirements, success criteria
-- **Research**: `specs/002-price-schedules-sensor/research.md` — Technology decisions (DataUpdateCoordinator, Options Flow, unit conversion, error handling)
-- **Data Model**: `specs/002-price-schedules-sensor/data-model.md` — Entity definitions (SensorConfiguration, PriceSensorEntity, MarketPriceSchedule)
-- **Config Flow Contract**: `specs/002-price-schedules-sensor/contracts/config-flow.md` — Options Flow UI/UX for sensor management
-- **Sensor Platform Contract**: `specs/002-price-schedules-sensor/contracts/sensor-platform.md` — Entity lifecycle, state persistence, update mechanism
-- **Quickstart**: `specs/002-price-schedules-sensor/quickstart.md` — Developer setup, implementation phases, testing strategy
+- **Specification**: `specs/003-multi-entity-market-node/spec.md` — User stories, requirements, success criteria
+- **Research**: `specs/003-multi-entity-market-node/research.md` — Technology decisions (migration, coordinator, unit conversion, RestoreEntity, accounting)
+- **Data Model**: `specs/003-multi-entity-market-node/data-model.md` — Entity definitions (MarketNodeSubentry, CoordinatorData, 8 sensor classes, PeriodPrice)
+- **Config Flow Contract**: `specs/003-multi-entity-market-node/contracts/config-flow.md` — MarketNodeSubentryFlow schema and validation
+- **Sensor Platform Contract**: `specs/003-multi-entity-market-node/contracts/sensor-platform.md` — Entity lifecycle, update mechanism, state/attribute contracts
+- **Quickstart**: `specs/003-multi-entity-market-node/quickstart.md` — Developer setup, implementation phases, testing strategy
 
 **Constitution**: `.specify/memory/constitution.md` — 5 core principles (OAuth NON-NEGOTIABLE, Library wrapper first, TDD, Configurable sensors, Semantic versioning)
 
 **Technology Stack**:
 - Python 3.14+ with Home Assistant 2026.3.1
-- electricityinfo-nz PyPI library (OAuth Client Credentials flow)
-- Home Assistant DataUpdateCoordinator (30-minute global update cycle)
-- Home Assistant RestoreEntity (state persistence across restarts)
-- pytest + pytest-asyncio (mocked API responses in CI)
-- Home Assistant config flow framework (Options Flow for sensor configuration)
+- electricityinfo-nz==1.0.0rc2 PyPI library (OAuth Client Credentials flow)
+- Home Assistant DataUpdateCoordinator (single 30-minute coordinator for all sensor types)
+- Home Assistant RestoreEntity (LivePriceSensor + DailyImportCostSensor + DailyExportRevenueSensor; all other sensors start unavailable)
+- pytest + pytest-asyncio + pytest-homeassistant-custom-component (mocked API in CI)
+- Home Assistant Config Subentry Flow (MarketNodeSubentryFlow replaces SensorSubentryFlow)
 
 **Build Commands**:
 ```bash
@@ -30,21 +30,26 @@ pytest tests/                     # Run tests (mocked API)
 ruff check --fix                  # Lint and fix
 mypy custom_components/           # Type check
 pytest tests/integration/ -v      # Integration tests
-# pytest tests/manual_live_api_test.py -v  # Optional: live API tests with credentials
+pytest tests/live/ -v -m live_api # Optional: live API tests (requires .env)
 ```
 
 **Key Design Decisions**:
-- **Global 30-minute update cycle**: All sensors share single DataUpdateCoordinator (not per-sensor configurable in v1)
-- **Options Flow**: Users add/edit/remove sensors via Settings > Devices & Services > Options (single list in config entry)
-- **State persistence**: RestoreEntity stores current price + forecast array; restored on HA restart
-- **Partial data**: Accepted as valid (graceful degradation if API returns incomplete data)
-- **Error recovery**: Exponential backoff (1 min first retry); mark unavailable after second failure; auto-recover on success
-- **Unit conversion**: Applied at display time (native unit always NZD/MWh internally; convert to c/kWh for UI if needed)
-- **Testing**: Mocked API in CI (fast, deterministic); optional manual tests with live API credentials
+- **003 replaces 002 entirely**: `async_migrate_entry` migrates VERSION 1 → 2; entity IDs change (log warnings)
+- **Single 30-min coordinator**: All sensor types (live, forecast, accounting) share one DataUpdateCoordinator per config entry
+- **Live price from forecast**: `LivePriceSensor` state = current trade period price from PRSL/NRSL `forward=48` response
+- **Unit conversion at ingest**: Prices stored in user-selected unit (c/kWh or NZD/kWh); no runtime conversion in sensors
+- **Selective RestoreEntity**: `LivePriceSensor` (staleness guard 30 min), `DailyImportCostSensor`, `DailyExportRevenueSensor` (restore daily accumulated total + date); all other sensors start unavailable on restart
+- **Accounting via Interim back=48**: Settled price sourced from Interim schedule (back=48 = 24h history); supports daily total rebuild after restart
+- **Three-tier accounting**: Settled price always; import cost + export revenue (per-period) only if import/export meter linked; daily totals if same meter linked; bidirectional mode if import_meter_entity_id == export_meter_entity_id
+- **Two energy meter selectors**: `import_meter_entity_id` and `export_meter_entity_id` (both optional); if same entity ID → bidirectional signed delta mode
+- **Daily totals (midnight NZT reset)**: `DailyImportCostSensor` + `DailyExportRevenueSensor` accumulate since midnight NZT; coordinator detects date advance via `accounting_date_nzt` field; up to ~30 min delay accepted
+- **Energy delta computation**: Coordinator stores previous meter reading; delta = current − previous per poll; first poll after startup skips that period
+- **Poll boundary alignment**: Integration cannot enforce :00/:30 alignment; users automate HA reload at :01/:31 if needed
+- **Subentry type key**: `"market_node"` (replaced `"sensor"` from 002)
 
 **Prior Phase Dependency**:
 Phase 1 (001-oauth-config-flow) completed: OAuth 2.0 authentication, token management, config flow validation.
-Phase 2 (002-price-schedules-sensor) builds on Phase 1: reuses OAuth credentials, extends config flow with Options for sensors.
+Phase 2 (002-price-schedules-sensor) replaced by Phase 3 (003): 002 config entries automatically migrated to 003.
 
 **Pre-commit Note**: Repository has pre-commit hooks that auto-fix formatting (trailing whitespace, EOF).
 Changes made by hooks require re-staging and re-committing. This is expected behavior.
