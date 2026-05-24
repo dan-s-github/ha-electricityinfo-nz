@@ -5,7 +5,7 @@
 
 ## Summary
 
-Replace 002 single-sensor subentries with 003 `market_node` subentries that can create live, forecast, and accounting sensors per node under one 30-minute coordinator. Preserve OAuth wrapper-first architecture, migrate 002 entries automatically (dedupe by node), create only `market_node` entities at runtime post-migration, and use forecast retention as API lookback (`back`) where all returned prior periods populate forecast history.
+Replace 002 single-sensor subentries with 003 `market_node` subentries that can create live, forecast, and accounting sensors per node under one 30-minute coordinator. Preserve OAuth wrapper-first architecture, migrate 002 entries automatically (dedupe by node), create only `market_node` entities at runtime post-migration, use forecast retention as API lookback (`back`) where all returned prior periods populate forecast history, and align measurable outcomes for SC-002/SC-003/SC-005.
 
 ## Technical Context
 
@@ -15,7 +15,7 @@ Replace 002 single-sensor subentries with 003 `market_node` subentries that can 
 **Testing**: `pytest`, `pytest-asyncio`, `pytest-homeassistant-custom-component`
 **Target Platform**: Home Assistant custom integration runtime (async Python)
 **Project Type**: Integration/library-wrapper client (single project)
-**Performance Goals**: Within 5 configured market nodes, saving a node config completes <10s in 95% of attempts; selected sensors become available within 3 minutes
+**Performance Goals**: With 5 configured market nodes, save/reconfigure completes <10s in 95% of attempts; selected entities become visible within 3 minutes of save; values reflect provider data within one 30-minute coordinator cycle
 **Constraints**: OAuth-only auth; no direct HTTP in integration; single 30-minute coordinator per config entry; ingest-time unit conversion only; one migrated subentry per market node; runtime entity setup uses `market_node` only (no legacy `sensor` entity creation); forecast retention drives forecast history API lookback (`back`) and all returned prior periods are stored in history
 **Scale/Scope**: Up to 5 market node subentries per config entry; up to 8 sensors per node; accounting history 24h/48h; day-ahead forward 48 periods; intraday forward 8 periods
 
@@ -26,7 +26,7 @@ Replace 002 single-sensor subentries with 003 `market_node` subentries that can 
 - **I. Library API Wrapper First**: PASS — all external price access remains through `electricityinfo-nz`.
 - **II. OAuth Token-Based Authentication**: PASS — no auth model change; credentials remain in HA config entry storage.
 - **III. Configurable Sensor Architecture**: PASS — all behavior remains config-subentry driven (`market_node` flow).
-- **IV. Test-First Methodology**: PASS — tests exist and remain the primary verification surface for migration/coordinator/sensor behavior.
+- **IV. Test-First Methodology**: PASS — tests remain the primary verification surface for migration, coordinator, sensor lifecycle, and measurable SC checks.
 - **V. Semantic Versioning & Breaking Changes**: PASS — 003 remains a breaking schema shift with migration and warning semantics documented.
 
 Post-design constitution check: **PASS** (no justified violations).
@@ -69,7 +69,8 @@ tests/
 ├── test_options_flow.py
 └── integration/
     ├── test_sensor_lifecycle.py
-    └── test_multi_node.py
+    ├── test_multi_node.py
+    └── test_performance_config_save.py
 ```
 
 **Structure Decision**: Single-project Home Assistant integration layout (`custom_components/electricityinfo` + `tests`) is retained; feature artifacts remain under `specs/003-multi-entity-market-node`.
@@ -84,6 +85,7 @@ Research outputs are captured in `research.md` and cover:
 5. Accounting computation and meter-link/fallback rules
 6. Forecast history retention semantics (`retention` => API `back`, all returned prior periods go to `history`)
 7. Midnight NZT daily reset behavior
+8. Measurable SC alignment for SC-002/SC-003/SC-005
 
 ## Phase 1: Design & Contracts
 
@@ -98,6 +100,7 @@ Design clarifications captured:
 - Runtime entity creation path post-migration uses only `market_node` subentries.
 - Forecast history retention setting drives API lookback (`back`) and all returned prior periods are stored in history.
 - Export fallback: when export meter is unset and import meter is set, import is used as signed bidirectional source.
+- Acceptance checks explicitly validate SC-002/SC-003/SC-005 in integration tests.
 
 ## Agent Context Update
 

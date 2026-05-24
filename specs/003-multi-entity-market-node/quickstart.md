@@ -117,6 +117,7 @@ Update `translations/en.json`:
 - Accounting sensor behavior (settled/import/export/daily restore/reset) is verified in `tests/test_accounting.py`.
 - Reconfigure lifecycle and entity add/remove behavior are verified in `tests/test_options_flow.py` and `tests/integration/test_sensor_lifecycle.py`.
 - Multi-node isolation and independent updates are verified in `tests/integration/test_multi_node.py`.
+- Measurable acceptance criteria coverage is verified in `tests/integration/test_performance_config_save.py` (SC-002 visibility within 3 minutes, SC-003 p95 save latency under 10 seconds with 5 nodes, SC-005 one-cycle data freshness).
 - Final regression gate for this feature is `pytest tests/`, with lint/type checks from `ruff check custom_components/ tests/` and `mypy custom_components/`.
 
 ---

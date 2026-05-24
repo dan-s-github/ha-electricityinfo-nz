@@ -121,3 +121,16 @@
 **Rationale**:
 - Eliminates repeated conversion logic in entities.
 - Keeps sensor state/attributes internally consistent.
+
+---
+
+## 10. Measurable Success Criteria Alignment
+
+**Decision**: Treat SC-002/SC-003/SC-005 as explicit acceptance gates and validate them with dedicated integration coverage.
+
+**Rationale**:
+- Recent spec refinements made these outcomes measurable and time-bounded.
+- Keeping measurable checks in CI prevents regressions in save latency, post-save entity visibility, and update freshness.
+
+**Alternatives considered**:
+- Rely only on manual verification (rejected: not repeatable, prone to drift)
