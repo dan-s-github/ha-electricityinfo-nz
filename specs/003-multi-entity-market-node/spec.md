@@ -148,10 +148,10 @@ A user wants to change the options they chose when first setting up a market nod
 ### Measurable Outcomes
 
 - **SC-001**: A user can configure a market node and see at least one working price sensor within 3 minutes of starting the configuration flow
-- **SC-002**: All selected entity types are created and visible in Home Assistant immediately after the configuration is saved, with no manual restart required
+- **SC-002**: All selected entity types are created and visible in Home Assistant within 3 minutes after the configuration is saved, with no manual restart required.
 - **SC-003**: With 5 configured market nodes, saving a new or updated market-node configuration completes in under 10 seconds in at least 95% of attempts, and all selected sensors for that save become available within 3 minutes.
 - **SC-004**: Users can update any part of an existing market node configuration without removing and re-adding the integration entry
-- **SC-005**: Sensor values reflect the latest available data within the integration's standard data refresh cycle
+- **SC-005**: Sensor values reflect the latest available provider data within one coordinator refresh cycle (30 minutes) after that data becomes available.
 - **SC-006**: Every sensor name clearly and unambiguously identifies both its market node and its data type (live price, day-ahead forecast, intraday forecast, settled price, import cost, export revenue, daily totals).
 - **SC-007**: When a user disables a sensor type, the corresponding sensors are removed from Home Assistant within one configuration save
 
@@ -159,7 +159,7 @@ A user wants to change the options they chose when first setting up a market nod
 
 - Users have already completed OAuth authentication with the NZ electricity data provider (this feature depends on Phase 1: OAuth config flow)
 - The list of available market nodes is retrieved from the electricity data API at configuration time and presented as a searchable or paginated dropdown
-- History retention governs data stored within the sensor's state attributes; it does not affect the underlying API or provider data retention
+- Forecast history retention defines the forecast API lookback (`back`) window used by the integration and governs which prior trading periods are stored in the sensor `history` attribute; it does not alter provider-side retention.
 - The selected price unit applies uniformly to all sensor types created for a market node (live, forecast, and accounting sensors share one unit setting)
 - The integration's global data refresh cycle (approximately 30 minutes) governs when sensor values update; per-sensor refresh rates are not configurable in this version. A single coordinator is shared by all sensor types (live, forecast, accounting). The coordinator's poll timing cannot be aligned to NZ market trade period boundaries (:00/:30) by the integration itself — users who require boundary-aligned updates should create a HA automation to reload the integration at :01 or :31 after any HA restart.
 - Arbitrage analytics sensors are out of scope for this version; the accounting sensor group delivers settled price, per-period import cost/export revenue, and daily import cost/export revenue totals (when an energy meter is linked)

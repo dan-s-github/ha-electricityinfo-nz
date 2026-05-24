@@ -36,3 +36,5 @@
 - Scope boundary: per-sensor refresh rates not configurable in v1
 - Dependency: Phase 1 OAuth config flow must be complete before implementation
 - Refinement update (2026-05-24): FR wording aligned for live-source and migration behavior; SC-003 made measurable; edge-case outcomes converted from questions to explicit expected behavior.
+- Refinement update (2026-05-24): Assumptions wording aligned with FR retention semantics (retention drives forecast API lookback/back); SC-005 tightened to an explicit 30-minute coordinator-cycle target.
+- Refinement update (2026-05-24): SC-002 changed from “immediately after save” to an explicit measurable target (“within 3 minutes after save”).

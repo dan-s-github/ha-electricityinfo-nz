@@ -158,6 +158,7 @@
 - [ ] T041 [P] Update feature artifact alignment notes in `specs/003-multi-entity-market-node/quickstart.md`
 - [ ] T042 [P] Refresh plan-context summary for implemented behavior in `.github/copilot-instructions.md`
 - [ ] T043 Execute and fix full regression suite issues across `tests/` and `custom_components/electricityinfo/`
+- [ ] T044 [P] Add and run measurable acceptance checks for SC-002/SC-003/SC-005 (entity visibility within 3 minutes + 5-node save latency + one-cycle data freshness) in `tests/integration/test_performance_config_save.py`
 
 ---
 
@@ -196,7 +197,7 @@
 - **US4**: T025 and T026 parallelizable.
 - **US5**: T030 and T031 parallelizable.
 - **US3**: T035, T036, T037 parallelizable.
-- **Polish**: T041 and T042 parallelizable.
+- **Polish**: T041, T042, and T044 parallelizable.
 
 ## Parallel Example: User Story 1
 
