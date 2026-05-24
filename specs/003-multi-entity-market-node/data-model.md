@@ -58,8 +58,9 @@ Stored in `config_subentry.data`. One subentry per configured market node.
 2. If `enable_forecast = True`, `forecast_horizons` must be non-empty
 3. If `import_meter_entity_id` is provided, the referenced entity must have `device_class: energy` and unit `kWh` (FR-018)
 4. If `export_meter_entity_id` is provided, the referenced entity must have `device_class: energy` and unit `kWh` (FR-018)
-5. If `import_meter_entity_id == export_meter_entity_id` (both set, same entity), bidirectional mode applies (positive delta = import, negative delta absolute value = export)
-6. `node` must be a member of the `MARKET_NODES` constant list
+5. If `export_meter_entity_id` is unset and `import_meter_entity_id` is set, export calculations use the import meter in signed bidirectional mode (FR-018 clarification)
+6. If `import_meter_entity_id == export_meter_entity_id` (both set, same entity), bidirectional mode applies (positive delta = import, negative delta absolute value = export)
+7. `node` must be a member of the `MARKET_NODES` constant list
 
 ### Lifecycle / State Transitions
 
@@ -195,7 +196,7 @@ Only created when `import_meter_entity_id` is set.
 
 ### ExportRevenueSensor
 
-Only created when `export_meter_entity_id` is set. Same shape as `ImportCostSensor` but uses `export_revenue_delta`. Sensor name: "Export Revenue".
+Created when an effective export meter exists. Effective export meter is `export_meter_entity_id` if set; otherwise `import_meter_entity_id` (signed bidirectional fallback). Same shape as `ImportCostSensor` but uses `export_revenue_delta`. Sensor name: "Export Revenue".
 
 ---
 
@@ -226,7 +227,7 @@ if node_data.get("import_cost_delta") is not None:
 
 ### DailyExportRevenueSensor
 
-Same shape as `DailyImportCostSensor` but accumulates `export_revenue_delta`. Sensor name: "Daily Export Revenue".
+Created when an effective export meter exists (`export_meter_entity_id` or fallback to `import_meter_entity_id`). Same shape as `DailyImportCostSensor` but accumulates `export_revenue_delta`. Sensor name: "Daily Export Revenue".
 
 ---
 
@@ -256,5 +257,7 @@ See `research.md §1` for full mapping rules. Summary:
 | `RTD`, `WDS`, `Final`, `Interim` | `False` | — | `[]` |
 
 All migrated subentries: `enable_live_price=True`, `enable_accounting=False`, `price_unit="NZD/kWh"`, `forecast_retention_hours=24`, `accounting_retention_hours=24`, `import_meter_entity_id=None`, `export_meter_entity_id=None`.
+
+If multiple legacy 002 entries resolve to the same `node`, migration keeps the first and skips later duplicates with warnings (one 003 subentry per market node).
 
 Entity IDs **will change** for all sensors (002 suffix `_nzd_mwh`/`_c_kwh` → 003 suffix `_live_price` etc.). Log one warning per changed entity ID during migration.

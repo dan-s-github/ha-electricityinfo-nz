@@ -36,10 +36,11 @@ async def async_setup_entry(hass, entry, async_add_entities):
             entities.append(SettledPriceSensor(coordinator, entry, subentry))
             import_meter = config.get("import_meter_entity_id")
             export_meter = config.get("export_meter_entity_id")
+            effective_export_meter = export_meter or import_meter
             if import_meter:
                 entities.append(ImportCostSensor(coordinator, entry, subentry))
                 entities.append(DailyImportCostSensor(coordinator, entry, subentry))
-            if export_meter:
+            if effective_export_meter:
                 entities.append(ExportRevenueSensor(coordinator, entry, subentry))
                 entities.append(DailyExportRevenueSensor(coordinator, entry, subentry))
 
@@ -187,7 +188,7 @@ Same shape as DayAheadForecastSensor; up to 8 forecast entries.
 
 ### ExportRevenueSensor
 
-Same shape as ImportCostSensor; uses `export_kwh_delta` and `export_meter_entity_id`.
+Same shape as ImportCostSensor; uses `export_kwh_delta` and effective export meter (`export_meter_entity_id` if set, else `import_meter_entity_id` fallback).
 
 ### DailyImportCostSensor
 
@@ -212,7 +213,7 @@ self._native_value = self._accumulated_total
 
 ### DailyExportRevenueSensor
 
-Same shape as DailyImportCostSensor; accumulates `export_revenue_delta` and uses `export_meter_entity_id`.
+Same shape as DailyImportCostSensor; accumulates `export_revenue_delta` and uses effective export meter (`export_meter_entity_id` if set, else `import_meter_entity_id` fallback).
 
 ---
 

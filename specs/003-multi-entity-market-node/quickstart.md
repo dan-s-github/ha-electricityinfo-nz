@@ -51,6 +51,7 @@ Write `tests/test_migration.py` first:
 - Test VERSION 1 `PRSS` subentry migrates to intraday
 - Test VERSION 1 `NRSL`/`NRSS` subentries migrate with `non_responsive`
 - Test that `enable_live_price=True` is always set during migration
+- Test duplicate legacy entries for the same node keep first entry and skip later duplicates with warnings
 - Test that entity ID change warnings are logged
 
 Implement `async_migrate_entry` in `__init__.py`.
@@ -65,6 +66,7 @@ Write `tests/test_coordinator.py`:
 - Test that accounting fetch uses `Interim, back=48`
 - Test energy delta computation (current − previous meter reading)
 - Test bidirectional meter mode (same entity for import and export)
+- Test export fallback mode (export meter unset, import meter set)
 - Test first-poll skips delta (no previous stored)
 - Test per-node error isolation
 - Test retry/backoff logic
@@ -171,3 +173,4 @@ def mock_day_ahead_data():
 - [ ] Daily total sensors reset accumulated total on midnight NZT date advance
 - [ ] Two separate energy meter entity selectors (`import_meter_entity_id`, `export_meter_entity_id`) in config flow
 - [ ] Bidirectional meter mode active when both fields point to same entity_id
+- [ ] Export fallback mode active when `export_meter_entity_id` is unset and `import_meter_entity_id` is set

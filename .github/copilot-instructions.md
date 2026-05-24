@@ -34,14 +34,14 @@ pytest tests/live/ -v -m live_api # Optional: live API tests (requires .env)
 ```
 
 **Key Design Decisions**:
-- **003 replaces 002 entirely**: `async_migrate_entry` migrates VERSION 1 → 2; entity IDs change (log warnings)
+- **003 replaces 002 entirely**: `async_migrate_entry` migrates VERSION 1 → 2; for duplicate legacy entries targeting the same `market_node`, keep the first and skip later duplicates with warnings; entity IDs change (log warnings)
 - **Single 30-min coordinator**: All sensor types (live, forecast, accounting) share one DataUpdateCoordinator per config entry
 - **Live price from forecast**: `LivePriceSensor` state = current trade period price from PRSL/NRSL `forward=48` response
 - **Unit conversion at ingest**: Prices stored in user-selected unit (c/kWh or NZD/kWh); no runtime conversion in sensors
 - **Selective RestoreEntity**: `LivePriceSensor` (staleness guard 30 min), `DailyImportCostSensor`, `DailyExportRevenueSensor` (restore daily accumulated total + date); all other sensors start unavailable on restart
 - **Accounting via Interim back=48**: Settled price sourced from Interim schedule (back=48 = 24h history); supports daily total rebuild after restart
-- **Three-tier accounting**: Settled price always; import cost + export revenue (per-period) only if import/export meter linked; daily totals if same meter linked; bidirectional mode if import_meter_entity_id == export_meter_entity_id
-- **Two energy meter selectors**: `import_meter_entity_id` and `export_meter_entity_id` (both optional); if same entity ID → bidirectional signed delta mode
+- **Three-tier accounting**: Settled price always; import cost + export revenue (per-period) when an effective import/export source exists; if `export_meter_entity_id` is unset but `import_meter_entity_id` is set, reuse import as signed bidirectional source for export calculations; daily totals follow the same effective-source rule
+- **Two energy meter selectors**: `import_meter_entity_id` and `export_meter_entity_id` (both optional); if same entity ID (or export is omitted while import is set) → bidirectional signed delta mode
 - **Daily totals (midnight NZT reset)**: `DailyImportCostSensor` + `DailyExportRevenueSensor` accumulate since midnight NZT; coordinator detects date advance via `accounting_date_nzt` field; up to ~30 min delay accepted
 - **Energy delta computation**: Coordinator stores previous meter reading; delta = current − previous per poll; first poll after startup skips that period
 - **Poll boundary alignment**: Integration cannot enforce :00/:30 alignment; users automate HA reload at :01/:31 if needed

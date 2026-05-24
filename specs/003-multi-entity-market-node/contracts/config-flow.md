@@ -84,6 +84,7 @@ vol.Schema({
 | If `enable_forecast=True`, `forecast_horizons` is non-empty | `"forecast_horizons_empty"` | FR-006 |
 | If `import_meter_entity_id` provided, entity exists with `device_class: energy` | `"entity_not_energy_import"` | FR-018 |
 | If `export_meter_entity_id` provided, entity exists with `device_class: energy` | `"entity_not_energy_export"` | FR-018 |
+| If `export_meter_entity_id` is empty and `import_meter_entity_id` is set, export calculations use import as signed bidirectional fallback | — | FR-018 clarification |
 | `node` is a member of `MARKET_NODES` | `"node_invalid"` | FR-001 |
 
 **On success**: `async_create_entry(title=_node_title(data), data=_build_node_data(user_input))`
@@ -101,6 +102,7 @@ Same schema as `user` step, pre-filled with current subentry data.
 **Sensor delta on reconfigure**:
 - Newly enabled sensor types → entities created by HA on next platform reload
 - Newly disabled sensor types → entities removed (FR-015) — handled by `sensor.async_setup_entry` comparing enabled config vs existing entities
+- If export meter is cleared while import meter remains set, export sensors continue to exist using import-meter fallback bidirectional mode
 - `node` change → entity unique IDs change; old entities become orphaned (user must manually remove from entity registry if desired)
 
 ---

@@ -1,104 +1,106 @@
-# Implementation Plan: [FEATURE]
+# Implementation Plan: Multiple Entities for Market Node
 
-**Branch**: `[###-feature-name]` | **Date**: [DATE] | **Spec**: [link]
-**Input**: Feature specification from `/specs/[###-feature-name]/spec.md`
-
-**Note**: This template is filled in by the `/speckit-plan` command. See `.specify/templates/plan-template.md` for the execution workflow.
+**Branch**: `003-multi-entity-market-node` | **Date**: 2026-05-24 | **Spec**: `specs/003-multi-entity-market-node/spec.md`
+**Input**: Feature specification from `specs/003-multi-entity-market-node/spec.md`
 
 ## Summary
 
-[Extract from feature spec: primary requirement + technical approach from research]
+Replace 002 single-sensor subentries with 003 market-node subentries that can create live, forecast, and accounting sensors per node, backed by one 30-minute coordinator. Keep OAuth wrapper-first architecture, migrate 002 entries automatically, enforce one migrated entry per `market_node`, and support accounting export fallback to import meter when export meter is not configured.
 
 ## Technical Context
 
-<!--
-  ACTION REQUIRED: Replace the content in this section with the technical details
-  for the project. The structure here is presented in advisory capacity to guide
-  the iteration process.
--->
-
-**Language/Version**: [e.g., Python 3.11, Swift 5.9, Rust 1.75 or NEEDS CLARIFICATION]
-**Primary Dependencies**: [e.g., FastAPI, UIKit, LLVM or NEEDS CLARIFICATION]
-**Storage**: [if applicable, e.g., PostgreSQL, CoreData, files or N/A]
-**Testing**: [e.g., pytest, XCTest, cargo test or NEEDS CLARIFICATION]
-**Target Platform**: [e.g., Linux server, iOS 15+, WASM or NEEDS CLARIFICATION]
-**Project Type**: [e.g., library/cli/web-service/mobile-app/compiler/desktop-app or NEEDS CLARIFICATION]
-**Performance Goals**: [domain-specific, e.g., 1000 req/s, 10k lines/sec, 60 fps or NEEDS CLARIFICATION]
-**Constraints**: [domain-specific, e.g., <200ms p95, <100MB memory, offline-capable or NEEDS CLARIFICATION]
-**Scale/Scope**: [domain-specific, e.g., 10k users, 1M LOC, 50 screens or NEEDS CLARIFICATION]
+**Language/Version**: Python 3.14+  
+**Primary Dependencies**: Home Assistant 2026.3.1, `electricityinfo-nz==1.0.0rc2`, voluptuous selectors, DataUpdateCoordinator, RestoreEntity  
+**Storage**: Home Assistant config entries/subentries + entity registry/state restoration (no standalone DB)  
+**Testing**: `pytest`, `pytest-asyncio`, `pytest-homeassistant-custom-component`  
+**Target Platform**: Home Assistant custom integration runtime (async Python)  
+**Project Type**: Integration/library-wrapper client (single project)  
+**Performance Goals**: New/updated sensors visible within 3 minutes of config completion (SC-001); support up to 5 configured nodes without observable HA UI degradation (SC-003)  
+**Constraints**: OAuth-only auth; no direct HTTP in integration; single 30-minute coordinator per config entry; prices converted at ingest to selected unit; one migrated entry per `market_node`; if export meter is unset and import meter is set, treat import meter as signed bidirectional source for export calculations  
+**Scale/Scope**: Up to 5 market node subentries per config entry; up to 8 sensors per node; 24h/48h accounting history; 48 day-ahead periods and 8 intraday periods
 
 ## Constitution Check
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-[Gates determined based on constitution file]
+- **I. Library API Wrapper First**: PASS — plan keeps all API access through `electricityinfo-nz` wrapper.
+- **II. OAuth Token-Based Authentication**: PASS — no auth model changes; config entry remains OAuth credentials only.
+- **III. Configurable Sensor Architecture**: PASS — all behavior driven by config subentries (`market_node`).
+- **IV. Test-First Methodology**: PASS — quickstart and tasks sequencing keep migration/coordinator/sensor work test-first.
+- **V. Semantic Versioning & Breaking Changes**: PASS — 003 is breaking vs 002 and plan preserves migration + warning behavior.
+
+Post-design constitution check: **PASS** (no justified violations required).
 
 ## Project Structure
 
 ### Documentation (this feature)
 
 ```text
-specs/[###-feature]/
-├── plan.md              # This file (/speckit-plan command output)
-├── research.md          # Phase 0 output (/speckit-plan command)
-├── data-model.md        # Phase 1 output (/speckit-plan command)
-├── quickstart.md        # Phase 1 output (/speckit-plan command)
-├── contracts/           # Phase 1 output (/speckit-plan command)
-└── tasks.md             # Phase 2 output (/speckit-tasks command - NOT created by /speckit-plan)
+specs/003-multi-entity-market-node/
+├── plan.md
+├── research.md
+├── data-model.md
+├── quickstart.md
+├── contracts/
+│   ├── config-flow.md
+│   └── sensor-platform.md
+└── tasks.md
 ```
 
 ### Source Code (repository root)
-<!--
-  ACTION REQUIRED: Replace the placeholder tree below with the concrete layout
-  for this feature. Delete unused options and expand the chosen structure with
-  real paths (e.g., apps/admin, packages/something). The delivered plan must
-  not include Option labels.
--->
 
 ```text
-# [REMOVE IF UNUSED] Option 1: Single project (DEFAULT)
-src/
-├── models/
-├── services/
-├── cli/
-└── lib/
+custom_components/electricityinfo/
+├── __init__.py
+├── config_flow.py
+├── const.py
+├── coordinator.py
+├── sensor.py
+├── manifest.json
+└── translations/en.json
 
 tests/
-├── contract/
+├── test_config_flow.py
+├── test_sensor.py
+├── test_sensor_multiple.py
+├── test_unit_conversion.py
+├── test_init.py
 ├── integration/
-└── unit/
-
-# [REMOVE IF UNUSED] Option 2: Web application (when "frontend" + "backend" detected)
-backend/
-├── src/
-│   ├── models/
-│   ├── services/
-│   └── api/
-└── tests/
-
-frontend/
-├── src/
-│   ├── components/
-│   ├── pages/
-│   └── services/
-└── tests/
-
-# [REMOVE IF UNUSED] Option 3: Mobile + API (when "iOS/Android" detected)
-api/
-└── [same as backend above]
-
-ios/ or android/
-└── [platform-specific structure: feature modules, UI flows, platform tests]
+│   └── test_sensor_lifecycle.py
+└── live/
+    ├── test_schedule_date_range.py
+    └── FINDINGS.md
 ```
 
-**Structure Decision**: [Document the selected structure and reference the real
-directories captured above]
+**Structure Decision**: Single-project Home Assistant integration layout (`custom_components/electricityinfo` + `tests`) is retained; feature artifacts stay under `specs/003-multi-entity-market-node`.
+
+## Phase 0: Outline & Research
+
+Research outputs are captured in `research.md` and resolve architecture decisions for:
+1. 002 → 003 migration semantics and config versioning
+2. Coordinator topology and fetch dispatch
+3. Unit conversion at ingest
+4. RestoreEntity strategy
+5. Accounting computation and meter-link rules
+6. Live price extraction from forecast data
+7. Midnight NZT daily reset behavior
+
+## Phase 1: Design & Contracts
+
+Design outputs are captured in:
+- `data-model.md`
+- `contracts/config-flow.md`
+- `contracts/sensor-platform.md`
+- `quickstart.md`
+
+Design includes these clarified rules:
+- Migration keeps the first legacy entry when duplicates resolve to the same `market_node`; later duplicates are skipped with warnings.
+- Accounting uses two optional selectors, but if `export_meter_entity_id` is unset and `import_meter_entity_id` is set, export calculations use the import meter in signed bidirectional mode.
+
+## Agent Context Update
+
+Updated `.github/copilot-instructions.md` within `<!-- SPECKIT START -->` and `<!-- SPECKIT END -->` to keep plan/design references aligned with this plan and latest clarifications.
 
 ## Complexity Tracking
 
-> **Fill ONLY if Constitution Check has violations that must be justified**
-
-| Violation | Why Needed | Simpler Alternative Rejected Because |
-|-----------|------------|-------------------------------------|
-| [e.g., 4th project] | [current need] | [why 3 projects insufficient] |
-| [e.g., Repository pattern] | [specific problem] | [why direct DB access insufficient] |
+No constitution violations requiring justification.

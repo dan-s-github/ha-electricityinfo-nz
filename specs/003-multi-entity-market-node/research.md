@@ -32,8 +32,9 @@
     "forecast_horizons": ["day_ahead"],   # ["day_ahead"], ["intraday"], or both
     "forecast_retention_hours": 24,
     "enable_accounting": False,
-    "accounting_retention_hours": 6,
-    "energy_meter_entity_id": None,
+    "accounting_retention_hours": 24,
+    "import_meter_entity_id": None,
+    "export_meter_entity_id": None,
 }
 ```
 
@@ -43,7 +44,7 @@ Mapping rules:
 - `NRSL` → `forecast_type="non_responsive"`, `forecast_horizons=["day_ahead"]`
 - `NRSS` → `forecast_type="non_responsive"`, `forecast_horizons=["intraday"]`
 - `RTD`, `WDS`, `Interim`, `Final` → `enable_forecast=False`; `enable_accounting=False`; `enable_live_price=True` only
-- Multiple 002 subentries for the same node: merged into a single 003 subentry (horizons list extended); the first subentry's `forecast_type` is used
+- Multiple 002 subentries for the same node: only one 003 subentry is created per `market_node`; keep the first encountered entry and skip later duplicates with a warning
 - `forward_prices_count` is dropped (003 uses fixed forecast horizons)
 - Entity IDs change (002 had `_nzd_mwh` and `_c_kwh` suffixes; 003 uses sensor-type suffixes); log a warning listing all changed entity IDs
 
@@ -218,9 +219,10 @@ Reset delay: up to ~30 minutes after midnight NZT (one coordinator interval). Ac
 Each selector independently controls creation of the corresponding sensor tier:
 - `import_meter_entity_id` set → `ImportCostSensor` + `DailyImportCostSensor` created
 - `export_meter_entity_id` set → `ExportRevenueSensor` + `DailyExportRevenueSensor` created
+- `export_meter_entity_id` unset and `import_meter_entity_id` set → export sensors also created using import meter as signed bidirectional source
 - Neither set → only `SettledPriceSensor` created
 
-**Bidirectional mode**: If both fields contain the same entity ID, the coordinator applies signed delta logic (positive = import, negative = export absolute value). This allows users with a single bidirectional grid meter to get both import cost and export revenue sensors.
+**Bidirectional mode**: If both fields contain the same entity ID, or export is unset while import is set, the coordinator applies signed delta logic (positive = import, negative = export absolute value). This allows users with a single bidirectional grid meter to get both import cost and export revenue sensors.
 
 **Rationale**: Most prosumers in HA have separate import and export sensors (HA Energy Dashboard standard). Supporting bidirectional as a special case (same entity in both fields) avoids requiring a third "meter type" toggle in the UI.
 
