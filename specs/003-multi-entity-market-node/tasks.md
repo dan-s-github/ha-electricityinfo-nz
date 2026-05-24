@@ -17,11 +17,11 @@
 
 **Purpose**: Establish 003 constants/config scaffolding and baseline fixtures.
 
-- [ ] T001 Update 003 constants and option enums in `custom_components/electricityinfo/const.py`
-- [ ] T002 Align integration metadata/version prerequisites for 003 in `custom_components/electricityinfo/manifest.json`
-- [ ] T003 [P] Add/refresh shared schedule fixtures for 003 scenarios in `tests/fixtures/market_prices.json`
-- [ ] T004 [P] Add/refresh shared test helpers for subentry/coordinator fixtures in `tests/helpers.py`
-- [ ] T005 [P] Add 003 config-flow translation keys and validation errors in `custom_components/electricityinfo/translations/en.json`
+- [X] T001 Update 003 constants and option enums in `custom_components/electricityinfo/const.py`
+- [X] T002 Align integration metadata/version prerequisites for 003 in `custom_components/electricityinfo/manifest.json`
+- [X] T003 [P] Add/refresh shared schedule fixtures for 003 scenarios in `tests/fixtures/market_prices.json`
+- [X] T004 [P] Add/refresh shared test helpers for subentry/coordinator fixtures in `tests/helpers.py`
+- [X] T005 [P] Add 003 config-flow translation keys and validation errors in `custom_components/electricityinfo/translations/en.json`
 
 ---
 

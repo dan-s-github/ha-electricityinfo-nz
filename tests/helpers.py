@@ -114,6 +114,69 @@ def create_mock_coordinator(
     return coordinator
 
 
+def create_market_node_config(
+    node: str = "HAY2201",
+    price_unit: str = "c/kWh",
+    enable_live_price: bool = True,
+    enable_forecast: bool = False,
+    forecast_type: str = "price_responsive",
+    forecast_horizons: list[str] | None = None,
+    forecast_retention_hours: int = 24,
+    enable_accounting: bool = False,
+    accounting_retention_hours: int = 24,
+    import_meter_entity_id: str | None = None,
+    export_meter_entity_id: str | None = None,
+) -> dict[str, Any]:
+    """Build normalized market-node config payloads for tests."""
+    data: dict[str, Any] = {
+        "node": node,
+        "price_unit": price_unit,
+        "enable_live_price": enable_live_price,
+        "enable_forecast": enable_forecast,
+        "enable_accounting": enable_accounting,
+    }
+    if enable_forecast:
+        data["forecast_type"] = forecast_type
+        data["forecast_horizons"] = forecast_horizons or ["day_ahead"]
+        data["forecast_retention_hours"] = forecast_retention_hours
+    if enable_accounting:
+        data["accounting_retention_hours"] = accounting_retention_hours
+        data["import_meter_entity_id"] = import_meter_entity_id
+        data["export_meter_entity_id"] = export_meter_entity_id
+    return data
+
+
+def create_mock_node_data(
+    schedule: str = "PRSL",
+    node: str = "HAY2201",
+    price: float = 4.23,
+    trading_period: int = 24,
+    trading_datetime: str = "2026-05-09T12:00:00+00:00",
+    error: str | None = None,
+) -> dict[str, Any]:
+    """Build coordinator node payload for one subentry."""
+    price_detail = {
+        "trading_datetime": trading_datetime,
+        "trading_period": trading_period,
+        "node": node,
+        "price": price,
+    }
+    return {
+        "day_ahead": {
+            "schedule": schedule,
+            "schedule_name": "Mock schedule",
+            "prices": [price_detail],
+        },
+        "intraday": None,
+        "accounting": None,
+        "import_cost_delta": None,
+        "export_revenue_delta": None,
+        "accounting_date_nzt": None,
+        "config": {"node": node},
+        "error": error,
+    }
+
+
 def create_mock_entity_id(
     node: str = "HAY2201",
     schedule_type: str = "RTD",
