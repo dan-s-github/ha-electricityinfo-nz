@@ -38,6 +38,7 @@ pytest tests/live/ -v -m live_api # Optional: live API tests (requires .env)
 - **Single 30-min coordinator**: All sensor types (live, forecast, accounting) share one DataUpdateCoordinator per config entry
 - **Live price from forecast**: `LivePriceSensor` state = current trade period price from PRSL/NRSL `forward=48` response
 - **Unit conversion at ingest**: Prices stored in user-selected unit (c/kWh or NZD/kWh); no runtime conversion in sensors
+- **Forecast history retention**: `forecast_retention_hours` defines forecast API lookback (`back`) and all returned prior trade periods are stored in sensor `history`
 - **Selective RestoreEntity**: `LivePriceSensor` (staleness guard 30 min), `DailyImportCostSensor`, `DailyExportRevenueSensor` (restore daily accumulated total + date); all other sensors start unavailable on restart
 - **Accounting via Interim back=48**: Settled price sourced from Interim schedule (back=48 = 24h history); supports daily total rebuild after restart
 - **Three-tier accounting**: Settled price always; import cost + export revenue (per-period) when an effective import/export source exists; if `export_meter_entity_id` is unset but `import_meter_entity_id` is set, reuse import as signed bidirectional source for export calculations; daily totals follow the same effective-source rule
@@ -46,6 +47,7 @@ pytest tests/live/ -v -m live_api # Optional: live API tests (requires .env)
 - **Energy delta computation**: Coordinator stores previous meter reading; delta = current − previous per poll; first poll after startup skips that period
 - **Poll boundary alignment**: Integration cannot enforce :00/:30 alignment; users automate HA reload at :01/:31 if needed
 - **Subentry type key**: `"market_node"` (replaced `"sensor"` from 002)
+- **Post-migration runtime entities**: Setup path creates `market_node` entities only; legacy `sensor` entities are not created
 
 **Prior Phase Dependency**:
 Phase 1 (001-oauth-config-flow) completed: OAuth 2.0 authentication, token management, config flow validation.

@@ -5,7 +5,7 @@
 
 ## Summary
 
-Replace 002 single-sensor subentries with 003 market-node subentries that can create live, forecast, and accounting sensors per node, backed by one 30-minute coordinator. Keep OAuth wrapper-first architecture, migrate 002 entries automatically, enforce one migrated entry per `market_node`, and support accounting export fallback to import meter when export meter is not configured.
+Replace 002 single-sensor subentries with 003 `market_node` subentries that can create live, forecast, and accounting sensors per node under one 30-minute coordinator. Preserve OAuth wrapper-first architecture, migrate 002 entries automatically (dedupe by node), create only `market_node` entities at runtime post-migration, and use forecast retention as API lookback (`back`) where all returned prior periods populate forecast history.
 
 ## Technical Context
 
@@ -15,21 +15,21 @@ Replace 002 single-sensor subentries with 003 market-node subentries that can cr
 **Testing**: `pytest`, `pytest-asyncio`, `pytest-homeassistant-custom-component`
 **Target Platform**: Home Assistant custom integration runtime (async Python)
 **Project Type**: Integration/library-wrapper client (single project)
-**Performance Goals**: New/updated sensors visible within 3 minutes of config completion (SC-001); support up to 5 configured nodes without observable HA UI degradation (SC-003)
-**Constraints**: OAuth-only auth; no direct HTTP in integration; single 30-minute coordinator per config entry; prices converted at ingest to selected unit; one migrated entry per `market_node`; if export meter is unset and import meter is set, treat import meter as signed bidirectional source for export calculations
-**Scale/Scope**: Up to 5 market node subentries per config entry; up to 8 sensors per node; 24h/48h accounting history; 48 day-ahead periods and 8 intraday periods
+**Performance Goals**: Within 5 configured market nodes, saving a node config completes <10s in 95% of attempts; selected sensors become available within 3 minutes
+**Constraints**: OAuth-only auth; no direct HTTP in integration; single 30-minute coordinator per config entry; ingest-time unit conversion only; one migrated subentry per market node; runtime entity setup uses `market_node` only (no legacy `sensor` entity creation); forecast retention drives forecast history API lookback (`back`) and all returned prior periods are stored in history
+**Scale/Scope**: Up to 5 market node subentries per config entry; up to 8 sensors per node; accounting history 24h/48h; day-ahead forward 48 periods; intraday forward 8 periods
 
 ## Constitution Check
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-- **I. Library API Wrapper First**: PASS — plan keeps all API access through `electricityinfo-nz` wrapper.
-- **II. OAuth Token-Based Authentication**: PASS — no auth model changes; config entry remains OAuth credentials only.
-- **III. Configurable Sensor Architecture**: PASS — all behavior driven by config subentries (`market_node`).
-- **IV. Test-First Methodology**: PASS — quickstart and tasks sequencing keep migration/coordinator/sensor work test-first.
-- **V. Semantic Versioning & Breaking Changes**: PASS — 003 is breaking vs 002 and plan preserves migration + warning behavior.
+- **I. Library API Wrapper First**: PASS — all external price access remains through `electricityinfo-nz`.
+- **II. OAuth Token-Based Authentication**: PASS — no auth model change; credentials remain in HA config entry storage.
+- **III. Configurable Sensor Architecture**: PASS — all behavior remains config-subentry driven (`market_node` flow).
+- **IV. Test-First Methodology**: PASS — tests exist and remain the primary verification surface for migration/coordinator/sensor behavior.
+- **V. Semantic Versioning & Breaking Changes**: PASS — 003 remains a breaking schema shift with migration and warning semantics documented.
 
-Post-design constitution check: **PASS** (no justified violations required).
+Post-design constitution check: **PASS** (no justified violations).
 
 ## Project Structure
 
@@ -63,25 +63,26 @@ tests/
 ├── test_config_flow.py
 ├── test_sensor.py
 ├── test_sensor_multiple.py
-├── test_unit_conversion.py
+├── test_accounting.py
+├── test_coordinator.py
 ├── test_init.py
-├── integration/
-│   └── test_sensor_lifecycle.py
-└── live/
-    └── test_schedule_date_range.py
+├── test_options_flow.py
+└── integration/
+    ├── test_sensor_lifecycle.py
+    └── test_multi_node.py
 ```
 
-**Structure Decision**: Single-project Home Assistant integration layout (`custom_components/electricityinfo` + `tests`) is retained; feature artifacts stay under `specs/003-multi-entity-market-node`.
+**Structure Decision**: Single-project Home Assistant integration layout (`custom_components/electricityinfo` + `tests`) is retained; feature artifacts remain under `specs/003-multi-entity-market-node`.
 
 ## Phase 0: Outline & Research
 
-Research outputs are captured in `research.md` and resolve architecture decisions for:
-1. 002 → 003 migration semantics and config versioning
+Research outputs are captured in `research.md` and cover:
+1. 002 → 003 migration semantics (dedupe + runtime legacy-entity prohibition)
 2. Coordinator topology and fetch dispatch
-3. Unit conversion at ingest
+3. Ingest-time unit conversion
 4. RestoreEntity strategy
-5. Accounting computation and meter-link rules
-6. Live price extraction from forecast data
+5. Accounting computation and meter-link/fallback rules
+6. Forecast history retention semantics (`retention` => API `back`, all returned prior periods go to `history`)
 7. Midnight NZT daily reset behavior
 
 ## Phase 1: Design & Contracts
@@ -92,13 +93,15 @@ Design outputs are captured in:
 - `contracts/sensor-platform.md`
 - `quickstart.md`
 
-Design includes these clarified rules:
-- Migration keeps the first legacy entry when duplicates resolve to the same `market_node`; later duplicates are skipped with warnings.
-- Accounting uses two optional selectors, but if `export_meter_entity_id` is unset and `import_meter_entity_id` is set, export calculations use the import meter in signed bidirectional mode.
+Design clarifications captured:
+- Migration keeps first legacy subentry per node, skips duplicates with warnings.
+- Runtime entity creation path post-migration uses only `market_node` subentries.
+- Forecast history retention setting drives API lookback (`back`) and all returned prior periods are stored in history.
+- Export fallback: when export meter is unset and import meter is set, import is used as signed bidirectional source.
 
 ## Agent Context Update
 
-Updated `.github/copilot-instructions.md` within `<!-- SPECKIT START -->` and `<!-- SPECKIT END -->` to keep plan/design references aligned with this plan and latest clarifications.
+Plan reference between `<!-- SPECKIT START -->` and `<!-- SPECKIT END -->` in `.github/copilot-instructions.md` points to this plan path: `specs/003-multi-entity-market-node/plan.md`.
 
 ## Complexity Tracking
 

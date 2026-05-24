@@ -130,6 +130,8 @@ def _build_node_data(user_input: dict) -> dict:
     return data
 ```
 
+`forecast_retention_hours` is consumed by coordinator forecast fetches as the history lookback (`back`) window; all prior trade periods returned in that window are propagated into forecast sensor `history`.
+
 ---
 
 ## Error String Keys (for `translations/en.json`)

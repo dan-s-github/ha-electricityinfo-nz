@@ -63,6 +63,7 @@ Set `ConfigFlow.VERSION = 2`.
 Write `tests/test_coordinator.py`:
 - Test that day-ahead fetch is dispatched when `enable_live_price=True`
 - Test that intraday fetch is dispatched when intraday horizon enabled
+- Test that forecast retention config drives forecast API `back` window
 - Test that accounting fetch uses `Interim, back=48`
 - Test energy delta computation (current − previous meter reading)
 - Test bidirectional meter mode (same entity for import and export)
@@ -80,8 +81,8 @@ Refactor `coordinator.py`:
 
 Write tests for each sensor class in `tests/test_sensor.py` and `tests/test_accounting.py`:
 - `LivePriceSensor`: current period detection, RestoreEntity restore, staleness guard, forecast attribute
-- `DayAheadForecastSensor`: next period as native_value, forecast list, history retention
-- `IntradayForecastSensor`: same as day-ahead but 8 periods
+- `DayAheadForecastSensor`: next period as native_value, forecast list, and history contains all prior periods returned by retention-defined `back` window
+- `IntradayForecastSensor`: same history rule as day-ahead but 8 forward periods
 - `SettledPriceSensor`: most recent back=48 entry, history retention
 - `ImportCostSensor`: price × import delta, unavailable when meter state unavailable, separate `import_meter_entity_id`
 - `ExportRevenueSensor`: price × export delta, separate `export_meter_entity_id`

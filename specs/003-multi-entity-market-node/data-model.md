@@ -159,7 +159,7 @@ Inherits: `CoordinatorEntity`, `SensorEntity`
 | `native_unit_of_measurement` | `price_unit` from subentry config |
 | `device_class` | `SensorDeviceClass.MONETARY` |
 | `native_value` | Price of the next upcoming trade period |
-| `extra_state_attributes` | `forecast: list[PeriodPrice]` (up to 48 future periods), `history: list[PeriodPrice]` (up to `forecast_retention_hours × 2` periods back) |
+| `extra_state_attributes` | `forecast: list[PeriodPrice]` (up to 48 future periods), `history: list[PeriodPrice]` (all prior periods returned by retention-defined API `back` window; typically `forecast_retention_hours × 2` periods) |
 | RestoreEntity | ❌ No — start unavailable on restart |
 
 ### IntradayForecastSensor
@@ -176,7 +176,7 @@ Inherits: `CoordinatorEntity`, `SensorEntity`
 |-----------|-------|
 | `native_unit_of_measurement` | `price_unit` from subentry config |
 | `device_class` | `SensorDeviceClass.MONETARY` |
-| `native_value` | Most recent settled price (latest entry in `back=4` result) |
+| `native_value` | Most recent settled price (latest entry in `back=48` result) |
 | `extra_state_attributes` | `history: list[PeriodPrice]` (up to `accounting_retention_hours × 2` periods), `trading_period`, `timestamp`, `node` |
 | RestoreEntity | ❌ No — start unavailable on restart |
 
@@ -259,5 +259,7 @@ See `research.md §1` for full mapping rules. Summary:
 All migrated subentries: `enable_live_price=True`, `enable_accounting=False`, `price_unit="NZD/kWh"`, `forecast_retention_hours=24`, `accounting_retention_hours=24`, `import_meter_entity_id=None`, `export_meter_entity_id=None`.
 
 If multiple legacy 002 entries resolve to the same `node`, migration keeps the first and skips later duplicates with warnings (one 003 subentry per market node).
+
+Post-migration runtime setup creates only `market_node` entities; legacy `sensor` entities are not created.
 
 Entity IDs **will change** for all sensors (002 suffix `_nzd_mwh`/`_c_kwh` → 003 suffix `_live_price` etc.). Log one warning per changed entity ID during migration.

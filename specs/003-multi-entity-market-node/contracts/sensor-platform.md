@@ -54,8 +54,8 @@ async def async_setup_entry(hass, entry, async_add_entities):
 `ElectricityInfoCoordinator._async_update_data()` fetches all market node data in a single async pass:
 
 1. For each `"market_node"` subentry:
-   - If `enable_live_price` or day-ahead forecast enabled → `get_schedule_prices(PRSL/NRSL, forward=48)`
-   - If intraday forecast enabled → `get_schedule_prices(PRSS/NRSS, forward=8)`
+   - If `enable_live_price` or day-ahead forecast enabled → `get_schedule_prices(PRSL/NRSL, forward=48, back=forecast_retention_hours × 2)`
+   - If intraday forecast enabled → `get_schedule_prices(PRSS/NRSS, forward=8, back=forecast_retention_hours × 2)`
    - If accounting enabled → `get_schedule_prices("Interim", back=48)`
 2. Errors are caught per-node and stored in `NodeData["error"]` — other nodes continue updating
 3. On full success: reset `_retry_count`, restore `update_interval = 30 min`
@@ -159,7 +159,7 @@ def available(self) -> bool:
 | `native_value` | `float \| None` | Next trade period price (first future entry) |
 | `native_unit_of_measurement` | `str` | `price_unit` |
 | `extra_state_attributes.forecast` | `list[PeriodPrice]` | Up to 48 future periods |
-| `extra_state_attributes.history` | `list[PeriodPrice]` | Up to `forecast_retention_hours × 2` past periods |
+| `extra_state_attributes.history` | `list[PeriodPrice]` | All prior periods returned by the retention-defined API `back` window (typically `forecast_retention_hours × 2` periods) |
 
 ### IntradayForecastSensor
 
