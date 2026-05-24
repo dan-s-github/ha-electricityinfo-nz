@@ -85,6 +85,43 @@ async def test_sensor_platform_sets_up(hass) -> None:
         assert entity.state_class is None
 
 
+async def test_live_sensor_uses_coordinator_live_payload(hass, mock_entry) -> None:
+    """Live sensor consumes coordinator-provided current period payload."""
+    subentry = create_mock_market_node_subentry(
+        enable_live_price=True, enable_forecast=False, enable_accounting=False
+    )
+    with patch("custom_components.electricityinfo.AsyncMarketPricesClient"):
+        coordinator = ElectricityInfoCoordinator(hass, mock_entry)
+        coordinator.last_update_success = True
+        coordinator.data = {
+            subentry.subentry_id: {
+                "live_current": {
+                    "timestamp": "2026-05-09T12:00:00+00:00",
+                    "trading_period": 24,
+                    "node": "HAY2201",
+                    "schedule": "PRSL",
+                    "price": 4.23,
+                },
+                "live_forecast": [
+                    {
+                        "period_start": "2026-05-09T12:30:00+00:00",
+                        "trading_period": 25,
+                        "price": 4.51,
+                    }
+                ],
+                "error": None,
+            }
+        }
+        entity = LivePriceSensor(coordinator, mock_entry, subentry)
+        with patch.object(entity, "async_write_ha_state", MagicMock()):
+            entity._handle_coordinator_update()
+
+    assert entity.native_value == pytest.approx(4.23, abs=1e-6)
+    attrs = entity.extra_state_attributes
+    assert attrs["trading_period"] == 24
+    assert attrs["forecast"][0]["trading_period"] == 25
+
+
 # ---------------------------------------------------------------------------
 # T050 - Restore-state regression tests (SC-008)
 # ---------------------------------------------------------------------------

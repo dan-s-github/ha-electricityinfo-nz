@@ -12,6 +12,7 @@ from electricityinfo_nz.exceptions import AuthenticationError, MarketPricesAPIEr
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.util import dt as dt_util
 
 from .const import (
     ACCOUNTING_BACK_PERIODS,
@@ -65,6 +66,47 @@ def _normalized_horizons(raw_horizons: Any) -> set[str]:
     else:
         values = []
     return {horizon for horizon in values if horizon in {"day_ahead", "intraday"}}
+
+
+def _extract_live_price_payload(
+    day_ahead: Any,
+) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
+    """Extract current trade period and future forecast entries from day-ahead data."""
+    if not day_ahead or not getattr(day_ahead, "prices", None):
+        return None, []
+
+    sorted_prices = sorted(day_ahead.prices, key=lambda p: p.trading_datetime)
+    now = dt_util.utcnow()
+    current = None
+    for price in sorted_prices:
+        if (
+            price.trading_datetime
+            <= now
+            < (price.trading_datetime + timedelta(minutes=30))
+        ):
+            current = price
+            break
+    if current is None:
+        past = [p for p in sorted_prices if p.trading_datetime <= now]
+        current = past[-1] if past else sorted_prices[0]
+
+    current_payload = {
+        "timestamp": current.trading_datetime.isoformat(),
+        "trading_period": current.trading_period,
+        "node": current.node,
+        "schedule": current.schedule,
+        "price": current.price,
+    }
+    forecast_payload = [
+        {
+            "period_start": p.trading_datetime.isoformat(),
+            "trading_period": p.trading_period,
+            "price": p.price,
+        }
+        for p in sorted_prices
+        if p.trading_datetime > current.trading_datetime and p.price is not None
+    ]
+    return current_payload, forecast_payload
 
 
 class ElectricityInfoCoordinator(DataUpdateCoordinator):
@@ -142,6 +184,8 @@ class ElectricityInfoCoordinator(DataUpdateCoordinator):
             "day_ahead": None,
             "intraday": None,
             "accounting": None,
+            "live_current": None,
+            "live_forecast": [],
             "settled_price": None,
             "settled_timestamp": None,
             "settled_trading_period": None,
@@ -173,6 +217,9 @@ class ElectricityInfoCoordinator(DataUpdateCoordinator):
                 for p in day_ahead.prices:
                     p.price = _convert_price(p.price, price_unit)
             node_data["day_ahead"] = day_ahead
+            live_current, live_forecast = _extract_live_price_payload(day_ahead)
+            node_data["live_current"] = live_current
+            node_data["live_forecast"] = live_forecast
 
         if config.get(CONF_ENABLE_FORECAST) and "intraday" in horizons:
             intraday = await client.get_schedule_prices(

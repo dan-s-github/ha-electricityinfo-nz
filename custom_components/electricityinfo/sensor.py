@@ -270,6 +270,19 @@ class LivePriceSensor(MarketNodeSensorBase, RestoreEntity):
             self.async_write_ha_state()
             return
 
+        live_current = node_data.get("live_current")
+        if live_current:
+            self._native_value = live_current.get("price")
+            self._attributes = {
+                "timestamp": live_current.get("timestamp"),
+                "trading_period": live_current.get("trading_period"),
+                "node": live_current.get("node"),
+                "schedule": live_current.get("schedule"),
+                "forecast": list(node_data.get("live_forecast", [])),
+            }
+            self.async_write_ha_state()
+            return
+
         day_ahead = node_data.get("day_ahead")
         if not day_ahead or not getattr(day_ahead, "prices", None):
             self._native_value = None

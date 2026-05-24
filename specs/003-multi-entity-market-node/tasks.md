@@ -51,15 +51,15 @@
 
 ### Tests for User Story 1
 
-- [ ] T013 [P] [US1] Add config-flow test for live-only market-node creation in `tests/test_config_flow.py`
-- [ ] T014 [P] [US1] Add live sensor restore/staleness tests in `tests/test_sensor.py`
-- [ ] T015 [P] [US1] Add live sensor startup availability integration test in `tests/integration/test_sensor_lifecycle.py`
+- [X] T013 [P] [US1] Add config-flow test for live-only market-node creation in `tests/test_config_flow.py`
+- [X] T014 [P] [US1] Add live sensor restore/staleness tests in `tests/test_sensor.py`
+- [X] T015 [P] [US1] Add live sensor startup availability integration test in `tests/integration/test_sensor_lifecycle.py`
 
 ### Implementation for User Story 1
 
-- [ ] T016 [US1] Implement current trade period extraction for live state from day-ahead forecast response in `custom_components/electricityinfo/coordinator.py`
-- [ ] T017 [US1] Implement `LivePriceSensor` state/attributes/RestoreEntity behavior in `custom_components/electricityinfo/sensor.py`
-- [ ] T018 [US1] Wire live-only entity creation path for market-node subentries in `custom_components/electricityinfo/sensor.py`
+- [X] T016 [US1] Implement current trade period extraction for live state from day-ahead forecast response in `custom_components/electricityinfo/coordinator.py`
+- [X] T017 [US1] Implement `LivePriceSensor` state/attributes/RestoreEntity behavior in `custom_components/electricityinfo/sensor.py`
+- [X] T018 [US1] Wire live-only entity creation path for market-node subentries in `custom_components/electricityinfo/sensor.py`
 
 **Checkpoint**: US1 functional and independently testable.
 
