@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from electricityinfo_nz.exceptions import MarketPricesAPIError
+from homeassistant.helpers.update_coordinator import CoordinatorEntity, UpdateFailed
 
 from custom_components.electricityinfo.coordinator import ElectricityInfoCoordinator
 from custom_components.electricityinfo.sensor import (
@@ -193,3 +195,68 @@ async def test_daily_export_revenue_accumulates(hass, mock_entry) -> None:
             entity._handle_coordinator_update()
 
     assert entity.native_value == pytest.approx(0.3, abs=1e-6)
+
+
+async def test_coordinator_live_routing_and_c_kwh_conversion(hass, mock_entry) -> None:
+    """Coordinator routes live fetch to day-ahead and converts at ingest."""
+    subentry = create_mock_market_node_subentry(
+        subentry_id="market_node_1",
+        node="HAY2201",
+        price_unit="c/kWh",
+        enable_live_price=True,
+        enable_forecast=False,
+        enable_accounting=False,
+    )
+    mock_entry.subentries = {subentry.subentry_id: subentry}
+    coordinator = ElectricityInfoCoordinator(hass, mock_entry)
+
+    now = datetime.now(UTC).replace(minute=0, second=0, microsecond=0)
+    mock_schedule = SimpleNamespace(
+        prices=[
+            SimpleNamespace(
+                trading_datetime=now,
+                trading_period=24,
+                node="HAY2201",
+                price=100.0,
+                schedule="PRSL",
+                run_type="A",
+            )
+        ]
+    )
+
+    client = AsyncMock()
+    client.get_schedule_prices.return_value = mock_schedule
+    coordinator.client = client
+    data = await coordinator._async_update_data()
+
+    kwargs = client.get_schedule_prices.call_args.kwargs
+    assert kwargs["schedule"] == "PRSL"
+    assert kwargs["forward"] == 48
+    assert data[subentry.subentry_id]["day_ahead"].prices[0].price == pytest.approx(
+        10.0
+    )
+
+
+async def test_coordinator_retry_backoff_on_client_error(hass, mock_entry) -> None:
+    """Coordinator applies retry backoff interval after client-level errors."""
+    subentry = create_mock_market_node_subentry(
+        subentry_id="market_node_1",
+        node="HAY2201",
+        price_unit="NZD/kWh",
+        enable_live_price=True,
+        enable_forecast=False,
+        enable_accounting=False,
+    )
+    mock_entry.subentries = {subentry.subentry_id: subentry}
+    coordinator = ElectricityInfoCoordinator(hass, mock_entry)
+
+    with (
+        patch.object(
+            coordinator, "_ensure_client", side_effect=MarketPricesAPIError("boom")
+        ),
+        pytest.raises(UpdateFailed),
+    ):
+        await coordinator._async_update_data()
+
+    assert coordinator._retry_count == 1
+    assert coordinator.update_interval == timedelta(minutes=1)

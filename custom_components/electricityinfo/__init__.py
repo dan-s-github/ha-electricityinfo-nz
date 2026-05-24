@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import logging
+from types import MappingProxyType
 from typing import TYPE_CHECKING
 
 from electricityinfo_nz import AsyncMarketPricesClient
+from homeassistant.config_entries import ConfigSubentry
 from homeassistant.const import Platform
 
 from .const import (
@@ -21,6 +23,7 @@ from .const import (
     DEFAULT_ACCOUNTING_RETENTION_HOURS,
     DEFAULT_FORECAST_RETENTION_HOURS,
     DOMAIN,
+    SUBENTRY_TYPE,
 )
 from .coordinator import ElectricityInfoCoordinator
 
@@ -77,23 +80,40 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         return True
 
     seen_nodes: set[str] = set()
-    duplicate_nodes: set[str] = set()
+    subentries_to_remove: list[str] = []
 
-    for subentry in entry.subentries.values():
+    for subentry_id, subentry in list(entry.subentries.items()):
         if subentry.subentry_type != "sensor":
             continue
+        subentries_to_remove.append(subentry_id)
         node = subentry.data.get("node")
         if not node:
+            _LOGGER.warning(
+                "Skipping legacy sensor subentry without node: %s", subentry_id
+            )
             continue
         if node in seen_nodes:
-            duplicate_nodes.add(node)
+            _LOGGER.warning(
+                "Migration dedupe for market_node=%s; keep first, skip later entries",
+                node,
+            )
+            continue
         seen_nodes.add(node)
-
-    for node in sorted(duplicate_nodes):
+        migrated_data = _build_migrated_node_data(dict(subentry.data))
+        migrated_subentry = ConfigSubentry(
+            data=MappingProxyType(migrated_data),
+            subentry_type=SUBENTRY_TYPE,
+            title=f"{node} [{migrated_data[CONF_PRICE_UNIT]}]",
+            unique_id=None,
+        )
+        hass.config_entries.async_add_subentry(entry, migrated_subentry)
         _LOGGER.warning(
-            "Migration dedupe for market_node=%s; keep first, skip later entries",
+            "Entity IDs changed during migration for market_node=%s",
             node,
         )
+
+    for subentry_id in subentries_to_remove:
+        hass.config_entries.async_remove_subentry(entry, subentry_id)
 
     hass.config_entries.async_update_entry(entry, version=MIGRATION_VERSION)
     _LOGGER.info("Migrated config entry to version 2")

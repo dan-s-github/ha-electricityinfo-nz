@@ -65,92 +65,83 @@ async def async_setup_entry(
     expected_market_unique_ids: set[str] = set()
 
     for subentry in entry.subentries.values():
-        if subentry.subentry_type == "sensor":
-            legacy_entities = [
-                PriceSensorEntity(
-                    coordinator=coordinator, entry=entry, subentry=subentry, unit=unit
+        if subentry.subentry_type != SUBENTRY_TYPE:
+            continue
+        config = dict(subentry.data)
+        market_entities: list[MarketNodeSensorBase] = []
+        if config.get(CONF_ENABLE_LIVE_PRICE):
+            market_entities.append(
+                LivePriceSensor(
+                    coordinator=coordinator,
+                    entry=entry,
+                    subentry=subentry,
                 )
-                for unit in ("NZD/MWh", "c/kWh")
-            ]
-            async_add_entities(legacy_entities, config_subentry_id=subentry.subentry_id)
-        elif subentry.subentry_type == SUBENTRY_TYPE:
-            config = dict(subentry.data)
-            market_entities: list[MarketNodeSensorBase] = []
-            if config.get(CONF_ENABLE_LIVE_PRICE):
+            )
+        if config.get(CONF_ENABLE_FORECAST):
+            horizons = set(config.get(CONF_FORECAST_HORIZONS, []))
+            if "day_ahead" in horizons:
                 market_entities.append(
-                    LivePriceSensor(
+                    DayAheadForecastSensor(
                         coordinator=coordinator,
                         entry=entry,
                         subentry=subentry,
                     )
                 )
-            if config.get(CONF_ENABLE_FORECAST):
-                horizons = set(config.get(CONF_FORECAST_HORIZONS, []))
-                if "day_ahead" in horizons:
-                    market_entities.append(
-                        DayAheadForecastSensor(
-                            coordinator=coordinator,
-                            entry=entry,
-                            subentry=subentry,
-                        )
-                    )
-                if "intraday" in horizons:
-                    market_entities.append(
-                        IntradayForecastSensor(
-                            coordinator=coordinator,
-                            entry=entry,
-                            subentry=subentry,
-                        )
-                    )
-            if config.get(CONF_ENABLE_ACCOUNTING):
+            if "intraday" in horizons:
                 market_entities.append(
-                    SettledPriceSensor(
+                    IntradayForecastSensor(
                         coordinator=coordinator,
                         entry=entry,
                         subentry=subentry,
                     )
                 )
-                import_meter = config.get(CONF_IMPORT_METER_ENTITY_ID)
-                export_meter = config.get(CONF_EXPORT_METER_ENTITY_ID) or import_meter
-                if import_meter:
-                    market_entities.append(
-                        ImportCostSensor(
-                            coordinator=coordinator,
-                            entry=entry,
-                            subentry=subentry,
-                        )
-                    )
-                    market_entities.append(
-                        DailyImportCostSensor(
-                            coordinator=coordinator,
-                            entry=entry,
-                            subentry=subentry,
-                        )
-                    )
-                if export_meter:
-                    market_entities.append(
-                        ExportRevenueSensor(
-                            coordinator=coordinator,
-                            entry=entry,
-                            subentry=subentry,
-                        )
-                    )
-                    market_entities.append(
-                        DailyExportRevenueSensor(
-                            coordinator=coordinator,
-                            entry=entry,
-                            subentry=subentry,
-                        )
-                    )
-            if market_entities:
-                expected_market_unique_ids.update(
-                    entity.unique_id
-                    for entity in market_entities
-                    if entity.unique_id is not None
+        if config.get(CONF_ENABLE_ACCOUNTING):
+            market_entities.append(
+                SettledPriceSensor(
+                    coordinator=coordinator,
+                    entry=entry,
+                    subentry=subentry,
                 )
-                async_add_entities(
-                    market_entities, config_subentry_id=subentry.subentry_id
+            )
+            import_meter = config.get(CONF_IMPORT_METER_ENTITY_ID)
+            export_meter = config.get(CONF_EXPORT_METER_ENTITY_ID) or import_meter
+            if import_meter:
+                market_entities.append(
+                    ImportCostSensor(
+                        coordinator=coordinator,
+                        entry=entry,
+                        subentry=subentry,
+                    )
                 )
+                market_entities.append(
+                    DailyImportCostSensor(
+                        coordinator=coordinator,
+                        entry=entry,
+                        subentry=subentry,
+                    )
+                )
+            if export_meter:
+                market_entities.append(
+                    ExportRevenueSensor(
+                        coordinator=coordinator,
+                        entry=entry,
+                        subentry=subentry,
+                    )
+                )
+                market_entities.append(
+                    DailyExportRevenueSensor(
+                        coordinator=coordinator,
+                        entry=entry,
+                        subentry=subentry,
+                    )
+                )
+        if market_entities:
+            expected_market_unique_ids.update(
+                entity.unique_id
+                for entity in market_entities
+                if entity.unique_id is not None
+            )
+            async_add_entities(market_entities, config_subentry_id=subentry.subentry_id)
 
     _remove_stale_market_node_entities(hass, entry.entry_id, expected_market_unique_ids)
 

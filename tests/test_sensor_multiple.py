@@ -184,23 +184,24 @@ async def test_multiple_sensors_in_config_flow(hass, mock_config_entry_with_sens
 
 
 async def test_five_sensors_no_performance_degradation(hass) -> None:
-    """SC-005: Test 5+ simultaneous sensors without performance degradation."""
-    # Create 5 sensor subentries
+    """SC-005: Test 5+ simultaneous market-node sensors without degradation."""
+    # Create 5 market-node subentries
     subentries_data = []
     nodes = ["HAY2201", "BEN2201", "OTA0011", "TWI0331", "CEN0011"]
     for i, node in enumerate(nodes):
-        sub = create_mock_subentry(
-            subentry_id=f"sensor_{i}",
-            title=f"{node} RTD (E)",
-            schedule_type="RTD",
-            market_type="E",
+        sub = create_mock_market_node_subentry(
+            subentry_id=f"market_node_{i}",
+            title=f"{node} [c/kWh]",
             node=node,
-            forward_prices_count=24,
+            price_unit="c/kWh",
+            enable_live_price=True,
+            enable_forecast=False,
+            enable_accounting=False,
         )
         subentries_data.append(
             {
                 "data": dict(sub.data),
-                "subentry_type": "sensor",
+                "subentry_type": "market_node",
                 "title": sub.title,
                 "unique_id": None,
             }
@@ -224,27 +225,21 @@ async def test_five_sensors_no_performance_degradation(hass) -> None:
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
 
-    # Verify all 5 sensors are created (10 entities: 2 per sensor)
+    # Verify one live-price entity per market node is created
     states = hass.states.async_all("sensor")
-    # Should have 10 entities (5 sensors x 2 units each)
-    assert len(states) >= 10, f"Expected >=10 sensor entities, got {len(states)}"
+    assert len(states) >= 5, f"Expected >=5 sensor entities, got {len(states)}"
 
-    # Verify each sensor has both NZD/MWh and c/kWh entities
+    # Verify each market node has a live price entity
     for node in nodes:
-        nzd_entity = next(
-            (s for s in states if node.lower() in s.entity_id and "nzd" in s.entity_id),
-            None,
-        )
-        ckwh_entity = next(
+        live_entity = next(
             (
                 s
                 for s in states
-                if node.lower() in s.entity_id and "c_kwh" in s.entity_id
+                if node.lower() in s.entity_id and "live_price" in s.entity_id
             ),
             None,
         )
-        assert nzd_entity is not None, f"Missing NZD/MWh entity for {node}"
-        assert ckwh_entity is not None, f"Missing c/kWh entity for {node}"
+        assert live_entity is not None, f"Missing live_price entity for {node}"
 
     # Verify no duplicate entities or ID collisions
     entity_ids = [s.entity_id for s in states]

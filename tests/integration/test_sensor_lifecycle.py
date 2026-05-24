@@ -13,7 +13,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.electricityinfo.const import DOMAIN, MAX_RETRIES
 from custom_components.electricityinfo.coordinator import ElectricityInfoCoordinator
-from tests.helpers import create_mock_subentry
+from tests.helpers import create_mock_market_node_subentry
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -22,13 +22,14 @@ if TYPE_CHECKING:
 @pytest.fixture
 def subentry_data():
     """Create a mock subentry for lifecycle tests."""
-    return create_mock_subentry(
-        subentry_id="test_hay_rtd",
-        title="HAY2201 RTD (E)",
-        schedule_type="RTD",
-        market_type="E",
+    return create_mock_market_node_subentry(
+        subentry_id="market_node_1",
+        title="HAY2201 [c/kWh]",
         node="HAY2201",
-        forward_prices_count=24,
+        price_unit="c/kWh",
+        enable_live_price=True,
+        enable_forecast=False,
+        enable_accounting=False,
     )
 
 
@@ -52,7 +53,7 @@ async def test_sensors_unavailable_after_coordinator_failure_then_recover(
         subentries_data=[
             {
                 "data": dict(subentry_data.data),
-                "subentry_type": "sensor",
+                "subentry_type": "market_node",
                 "title": subentry_data.title,
                 "unique_id": None,
             }
@@ -67,7 +68,7 @@ async def test_sensors_unavailable_after_coordinator_failure_then_recover(
         await hass.async_block_till_done()
 
     states_initial = hass.states.async_all("sensor")
-    assert len(states_initial) >= 2
+    assert len(states_initial) >= 1
 
     coordinator: ElectricityInfoCoordinator = hass.data[DOMAIN][entry.entry_id][
         "coordinator"
@@ -82,7 +83,7 @@ async def test_sensors_unavailable_after_coordinator_failure_then_recover(
     hay_states = [
         s for s in hass.states.async_all("sensor") if "hay2201" in s.entity_id
     ]
-    assert len(hay_states) >= 2
+    assert len(hay_states) >= 1
     for state in hay_states:
         assert state.state == "unavailable", (
             f"Expected unavailable after coordinator failure, "

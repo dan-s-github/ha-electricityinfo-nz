@@ -39,14 +39,15 @@ def mock_coordinator_update():
 
 
 async def test_sensor_platform_sets_up(hass) -> None:
-    """Test setting up the integration creates a price sensor entity."""
-    subentry = create_mock_subentry(
-        subentry_id="test_hay_rtd",
-        title="HAY2201 RTD (E)",
-        schedule_type="RTD",
-        market_type="E",
+    """Test setting up the integration creates market-node sensor entities."""
+    subentry = create_mock_market_node_subentry(
+        subentry_id="market_node_1",
+        title="HAY2201 [c/kWh]",
         node="HAY2201",
-        forward_prices_count=24,
+        price_unit="c/kWh",
+        enable_live_price=True,
+        enable_forecast=False,
+        enable_accounting=False,
     )
 
     entry = MockConfigEntry(
@@ -59,7 +60,7 @@ async def test_sensor_platform_sets_up(hass) -> None:
         subentries_data=[
             {
                 "data": dict(subentry.data),
-                "subentry_type": "sensor",
+                "subentry_type": "market_node",
                 "title": subentry.title,
                 "unique_id": None,
             }
@@ -71,9 +72,9 @@ async def test_sensor_platform_sets_up(hass) -> None:
     await hass.async_block_till_done()
 
     states = hass.states.async_all("sensor")
-    assert len(states) >= 2  # 2 entities per subentry (NZD/MWh + c/kWh)
+    assert len(states) >= 1
 
-    price_sensors = [s for s in states if "hay2201" in s.entity_id]
+    price_sensors = [s for s in states if "live_price" in s.entity_id]
     sensor_ids = [s.entity_id for s in states]
     assert len(price_sensors) > 0, f"No price sensors found. States: {sensor_ids}"
 

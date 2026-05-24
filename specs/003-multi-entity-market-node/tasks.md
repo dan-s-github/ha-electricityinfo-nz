@@ -31,13 +31,13 @@
 
 **⚠️ CRITICAL**: No user story work starts until this phase completes.
 
-- [ ] T006 Implement `MarketNodeSubentryFlow` registration and entry points in `custom_components/electricityinfo/config_flow.py`
-- [ ] T007 Implement shared config normalization/validation helpers (enabled sections, meter validation, node validation, retention normalization) in `custom_components/electricityinfo/config_flow.py`
-- [ ] T008 Implement 002→003 migration (`async_migrate_entry`) and config version bump in `custom_components/electricityinfo/__init__.py`
-- [ ] T009 [P] Add migration coverage for schedule mappings, dedupe-by-node, and warning behavior in `tests/test_init.py`
-- [ ] T010 Refactor coordinator data shape and per-subentry fetch dispatch in `custom_components/electricityinfo/coordinator.py`
-- [ ] T011 [P] Add coordinator routing/retry/unit-conversion baseline tests in `tests/test_coordinator.py`
-- [ ] T012 Implement market-node-only sensor setup baseline (no runtime legacy `sensor` entity creation path) in `custom_components/electricityinfo/sensor.py`
+- [X] T006 Implement `MarketNodeSubentryFlow` registration and entry points in `custom_components/electricityinfo/config_flow.py`
+- [X] T007 Implement shared config normalization/validation helpers (enabled sections, meter validation, node validation, retention normalization) in `custom_components/electricityinfo/config_flow.py`
+- [X] T008 Implement 002→003 migration (`async_migrate_entry`) and config version bump in `custom_components/electricityinfo/__init__.py`
+- [X] T009 [P] Add migration coverage for schedule mappings, dedupe-by-node, and warning behavior in `tests/test_init.py`
+- [X] T010 Refactor coordinator data shape and per-subentry fetch dispatch in `custom_components/electricityinfo/coordinator.py`
+- [X] T011 [P] Add coordinator routing/retry/unit-conversion baseline tests in `tests/test_coordinator.py`
+- [X] T012 Implement market-node-only sensor setup baseline (no runtime legacy `sensor` entity creation path) in `custom_components/electricityinfo/sensor.py`
 
 **Checkpoint**: Foundation complete; user stories can now be delivered independently.
 
