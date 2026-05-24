@@ -13,10 +13,26 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .const import (
+    ACCOUNTING_BACK_PERIODS,
     CONF_CLIENT_ID,
     CONF_CLIENT_SECRET,
+    CONF_ENABLE_ACCOUNTING,
+    CONF_ENABLE_FORECAST,
+    CONF_ENABLE_LIVE_PRICE,
+    CONF_FORECAST_HORIZONS,
+    CONF_FORECAST_TYPE,
+    CONF_MARKET_TYPE,
+    CONF_NODE,
+    CONF_PRICE_UNIT,
+    CONF_SCHEDULE_TYPE,
+    DAY_AHEAD_FORWARD_PERIODS,
+    FORECAST_SCHEDULE_MAP,
+    INTRADAY_FORWARD_PERIODS,
     MAX_RETRIES,
+    NZD_PER_MWH_TO_C_PER_KWH,
+    NZD_PER_MWH_TO_NZD_PER_KWH,
     RETRY_INTERVAL_MINUTES,
+    SUBENTRY_TYPE,
     UPDATE_INTERVAL_MINUTES,
 )
 
@@ -25,6 +41,26 @@ if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
 
 _LOGGER: logging.Logger = logging.getLogger(__name__)
+
+
+def _convert_price(price_nzd_mwh: float | None, price_unit: str) -> float | None:
+    """Convert API NZD/MWh price to configured display unit."""
+    if price_nzd_mwh is None:
+        return None
+    if price_unit == "c/kWh":
+        return round(price_nzd_mwh * NZD_PER_MWH_TO_C_PER_KWH, 4)
+    return round(price_nzd_mwh * NZD_PER_MWH_TO_NZD_PER_KWH, 6)
+
+
+def _normalized_horizons(raw_horizons: Any) -> set[str]:
+    """Return valid forecast horizons from config payload."""
+    if isinstance(raw_horizons, str):
+        values = [raw_horizons]
+    elif isinstance(raw_horizons, list):
+        values = [value for value in raw_horizons if isinstance(value, str)]
+    else:
+        values = []
+    return {horizon for horizon in values if horizon in {"day_ahead", "intraday"}}
 
 
 class ElectricityInfoCoordinator(DataUpdateCoordinator):
@@ -46,112 +82,145 @@ class ElectricityInfoCoordinator(DataUpdateCoordinator):
         self.client: AsyncMarketPricesClient | None = None
         self._retry_count = 0
 
+    def _ensure_client(self) -> None:
+        """Initialize API client from config entry if needed."""
+        if self.client:
+            return
+
+        client_id = self.entry.data.get(CONF_CLIENT_ID)
+        client_secret = self.entry.data.get(CONF_CLIENT_SECRET)
+        if not client_id or not client_secret:
+            msg = "Missing OAuth credentials"
+            raise ConfigEntryAuthFailed(msg)
+
+        self.client = AsyncMarketPricesClient(
+            client_id=client_id,
+            client_secret=client_secret,
+            session=async_get_clientsession(self.hass),
+        )
+
+    async def _fetch_legacy_sensor_data(self, subentry: Any) -> dict[str, Any]:
+        """Fetch data for legacy 002 sensor subentry type."""
+        sensor_config = dict(subentry.data)
+        node = sensor_config.get(CONF_NODE)
+        schedule_type = sensor_config.get(CONF_SCHEDULE_TYPE)
+        market_type = sensor_config.get(CONF_MARKET_TYPE)
+        forward_hours = sensor_config.get("forward_prices_count", 24)
+        forward_prices = int(forward_hours) * 2
+
+        schedule_details = await self.client.get_schedule_prices(
+            schedule=schedule_type,
+            market_type=market_type,
+            nodes=[node] if node else None,
+            forward=forward_prices,
+        )
+        return {"prices": schedule_details, "config": sensor_config}
+
+    async def _fetch_market_node_data(self, subentry: Any) -> dict[str, Any]:
+        """Fetch data for 003 market_node subentry."""
+        config = dict(subentry.data)
+        node = config.get(CONF_NODE)
+        price_unit = config.get(CONF_PRICE_UNIT, "c/kWh")
+
+        node_data: dict[str, Any] = {
+            "node": node,
+            "day_ahead": None,
+            "intraday": None,
+            "accounting": None,
+            "config": config,
+            "error": None,
+        }
+
+        forecast_type = config.get(CONF_FORECAST_TYPE, "price_responsive")
+        schedule_map = FORECAST_SCHEDULE_MAP.get(
+            forecast_type, FORECAST_SCHEDULE_MAP["price_responsive"]
+        )
+        horizons = _normalized_horizons(config.get(CONF_FORECAST_HORIZONS, []))
+
+        if config.get(CONF_ENABLE_LIVE_PRICE) or (
+            config.get(CONF_ENABLE_FORECAST) and "day_ahead" in horizons
+        ):
+            day_ahead = await self.client.get_schedule_prices(
+                schedule=schedule_map["day_ahead"],
+                market_type="E",
+                nodes=[node] if node else None,
+                forward=DAY_AHEAD_FORWARD_PERIODS,
+            )
+            if day_ahead:
+                for p in day_ahead.prices:
+                    p.price = _convert_price(p.price, price_unit)
+            node_data["day_ahead"] = day_ahead
+
+        if config.get(CONF_ENABLE_FORECAST) and "intraday" in horizons:
+            intraday = await self.client.get_schedule_prices(
+                schedule=schedule_map["intraday"],
+                market_type="E",
+                nodes=[node] if node else None,
+                forward=INTRADAY_FORWARD_PERIODS,
+            )
+            if intraday:
+                for p in intraday.prices:
+                    p.price = _convert_price(p.price, price_unit)
+            node_data["intraday"] = intraday
+
+        if config.get(CONF_ENABLE_ACCOUNTING):
+            accounting = await self.client.get_schedule_prices(
+                schedule="Interim",
+                market_type="E",
+                nodes=[node] if node else None,
+                back=ACCOUNTING_BACK_PERIODS,
+            )
+            if accounting:
+                for p in accounting.prices:
+                    p.price = _convert_price(p.price, price_unit)
+            node_data["accounting"] = accounting
+
+        return node_data
+
     async def _async_update_data(self) -> dict[str, Any]:
         """Fetch price data from API."""
         try:
-            if not self.client:
-                # Initialize client from config entry
-                client_id = self.entry.data.get(CONF_CLIENT_ID)
-                client_secret = self.entry.data.get(CONF_CLIENT_SECRET)
+            self._ensure_client()
 
-                if not client_id or not client_secret:
-                    msg = "Missing OAuth credentials"
-                    raise ConfigEntryAuthFailed(msg)  # noqa: TRY301
-
-                self.client = AsyncMarketPricesClient(
-                    client_id=client_id,
-                    client_secret=client_secret,
-                    session=async_get_clientsession(self.hass),
-                )
-
-            # Fetch prices for all configured sensor subentries
-            subentries = [
-                s for s in self.entry.subentries.values() if s.subentry_type == "sensor"
-            ]
+            subentries = list(self.entry.subentries.values())
             if not subentries:
-                _LOGGER.debug("No sensors configured")
                 return {}
 
-            price_data: dict[str, Any] = {}
-
+            data: dict[str, Any] = {}
             for subentry in subentries:
-                sensor_id = subentry.subentry_id
-                sensor_config = dict(subentry.data)
-                node = sensor_config.get("node")
-                schedule_type = sensor_config.get("schedule_type")
-                market_type = sensor_config.get("market_type")
-                forward_hours = sensor_config.get("forward_prices_count", 24)
-                # Each hour has 2 trading periods (30-min intervals)
-                forward_prices = forward_hours * 2
-
+                subentry_id = subentry.subentry_id
                 try:
-                    schedule_details = await self.client.get_schedule_prices(
-                        schedule=schedule_type,
-                        market_type=market_type,
-                        nodes=[node] if node else None,
-                        forward=forward_prices,
-                    )
-
-                    if schedule_details:
-                        price_data[sensor_id] = {
-                            "prices": schedule_details,
-                            "config": sensor_config,
-                        }
-                        _LOGGER.debug(
-                            "Updated prices for sensor %s: %s %s",
-                            sensor_id,
-                            schedule_type,
-                            market_type,
+                    if subentry.subentry_type == "sensor":
+                        data[subentry_id] = await self._fetch_legacy_sensor_data(
+                            subentry
                         )
+                    elif subentry.subentry_type == SUBENTRY_TYPE:
+                        data[subentry_id] = await self._fetch_market_node_data(subentry)
                     else:
-                        _LOGGER.warning(
-                            "No price data returned for sensor %s"
-                            " (node=%s, schedule=%s)",
-                            sensor_id,
-                            node,
-                            schedule_type,
-                        )
-
-                except (AuthenticationError, MarketPricesAPIError) as err:
-                    _LOGGER.exception(
-                        "Error fetching prices for sensor %s",
-                        sensor_id,
-                    )
-                    price_data[sensor_id] = {
+                        continue
+                except AuthenticationError:
+                    raise
+                except Exception as err:  # noqa: BLE001
+                    data[subentry_id] = {
                         "error": str(err),
-                        "config": sensor_config,
+                        "node": dict(subentry.data).get(CONF_NODE),
+                        "config": dict(subentry.data),
                     }
 
-            # Reset retry counter and interval on successful update
             self._retry_count = 0
             self.update_interval = timedelta(minutes=UPDATE_INTERVAL_MINUTES)
 
         except AuthenticationError as err:
-            _LOGGER.exception("Authentication error")
             msg = "Authentication failed"
             raise ConfigEntryAuthFailed(msg) from err
         except (MarketPricesAPIError, Exception) as err:
-            _LOGGER.exception("Error fetching price data")
-
-            # Implement exponential backoff
             self._retry_count += 1
             if self._retry_count >= MAX_RETRIES:
-                _LOGGER.error(  # noqa: TRY400
-                    "Max retries exceeded, marking coordinator as failed"
-                )
                 self.last_update_success = False
 
-            # Calculate next retry interval
             retry_interval = RETRY_INTERVAL_MINUTES * (2 ** (self._retry_count - 1))
             self.update_interval = timedelta(minutes=retry_interval)
-            _LOGGER.debug(
-                "Retry %d/%d, next retry in %d minutes",
-                self._retry_count,
-                MAX_RETRIES,
-                retry_interval,
-            )
-
             msg = f"Error fetching prices: {err}"
             raise UpdateFailed(msg) from err
-
-        return price_data
+        else:
+            return data

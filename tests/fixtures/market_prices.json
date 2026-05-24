@@ -172,5 +172,22 @@
       5.00,
       5.05
     ]
+  },
+  "market_node_live_sample": {
+    "schedule": "PRSL",
+    "schedule_name": "Price-responsive long schedule",
+    "node": "HAY2201",
+    "prices": [
+      {
+        "trading_datetime": "2026-05-09T12:00:00+00:00",
+        "trading_period": 24,
+        "price": 4.23
+      },
+      {
+        "trading_datetime": "2026-05-09T12:30:00+00:00",
+        "trading_period": 25,
+        "price": 4.51
+      }
+    ]
   }
 }

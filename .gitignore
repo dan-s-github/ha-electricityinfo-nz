@@ -70,3 +70,5 @@ logs/
 *.temp
 Thumbs.db
 todo/
+tests/live/
+tests/test_coordinator.py

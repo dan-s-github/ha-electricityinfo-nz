@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
@@ -103,3 +104,60 @@ async def test_sensors_unavailable_after_coordinator_failure_then_recover(
     # A full recovery requires sensor data in coordinator.data.
     assert coordinator.last_update_success is True
     assert coordinator._retry_count == 0
+
+
+async def test_live_market_node_sensor_available_after_startup(
+    hass: HomeAssistant,
+) -> None:
+    """US1: live market node sensor is created and not unavailable after startup."""
+    subentry_data = {
+        "node": "HAY2201",
+        "price_unit": "c/kWh",
+        "enable_live_price": True,
+        "enable_forecast": False,
+        "enable_accounting": False,
+    }
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Main",
+        data={"client_id": "test_client", "client_secret": "test_secret"},
+        subentries_data=[
+            {
+                "data": subentry_data,
+                "subentry_type": "market_node",
+                "title": "HAY2201 [c/kWh]",
+                "unique_id": None,
+            }
+        ],
+    )
+    entry.add_to_hass(hass)
+
+    mock_price = MagicMock()
+    mock_price.trading_datetime = datetime(2026, 5, 9, 12, 0, tzinfo=UTC)
+    mock_price.trading_period = 24
+    mock_price.node = "HAY2201"
+    mock_price.schedule = "PRSL"
+    mock_price.price = 4.23
+
+    mock_schedule = MagicMock()
+    mock_schedule.prices = [mock_price]
+
+    with patch.object(
+        ElectricityInfoCoordinator,
+        "_async_update_data",
+        return_value={
+            "market_node_1": {
+                "day_ahead": mock_schedule,
+                "intraday": None,
+                "accounting": None,
+                "config": subentry_data,
+                "error": None,
+            }
+        },
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    states = hass.states.async_all("sensor")
+    live_states = [s for s in states if "live_price" in s.entity_id]
+    assert live_states

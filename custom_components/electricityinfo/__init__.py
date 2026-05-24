@@ -8,7 +8,20 @@ from typing import TYPE_CHECKING
 from electricityinfo_nz import AsyncMarketPricesClient
 from homeassistant.const import Platform
 
-from .const import DOMAIN
+from .const import (
+    CONF_ACCOUNTING_RETENTION_HOURS,
+    CONF_ENABLE_ACCOUNTING,
+    CONF_ENABLE_FORECAST,
+    CONF_ENABLE_LIVE_PRICE,
+    CONF_FORECAST_HORIZONS,
+    CONF_FORECAST_RETENTION_HOURS,
+    CONF_FORECAST_TYPE,
+    CONF_NODE,
+    CONF_PRICE_UNIT,
+    DEFAULT_ACCOUNTING_RETENTION_HOURS,
+    DEFAULT_FORECAST_RETENTION_HOURS,
+    DOMAIN,
+)
 from .coordinator import ElectricityInfoCoordinator
 
 if TYPE_CHECKING:
@@ -20,6 +33,71 @@ _LOGGER: logging.Logger = logging.getLogger(__name__)
 PLATFORMS: list[Platform] = [Platform.SENSOR]
 
 __all__ = ["AsyncMarketPricesClient", "ElectricityInfoCoordinator"]
+MIGRATION_VERSION = 2
+
+
+def _migrate_legacy_schedule(
+    schedule_type: str | None,
+) -> tuple[bool, str | None, list[str]]:
+    """Map 002 schedule type to 003 forecast settings."""
+    if schedule_type == "PRSL":
+        return True, "price_responsive", ["day_ahead"]
+    if schedule_type == "PRSS":
+        return True, "price_responsive", ["intraday"]
+    if schedule_type == "NRSL":
+        return True, "non_responsive", ["day_ahead"]
+    if schedule_type == "NRSS":
+        return True, "non_responsive", ["intraday"]
+    return False, None, []
+
+
+def _build_migrated_node_data(legacy_data: dict) -> dict:
+    """Build 003 market-node data from legacy sensor subentry data."""
+    enable_forecast, forecast_type, horizons = _migrate_legacy_schedule(
+        legacy_data.get("schedule_type")
+    )
+    migrated: dict = {
+        CONF_NODE: legacy_data.get("node"),
+        CONF_PRICE_UNIT: "NZD/kWh",
+        CONF_ENABLE_LIVE_PRICE: True,
+        CONF_ENABLE_FORECAST: enable_forecast,
+        CONF_ENABLE_ACCOUNTING: False,
+        CONF_FORECAST_RETENTION_HOURS: DEFAULT_FORECAST_RETENTION_HOURS,
+        CONF_ACCOUNTING_RETENTION_HOURS: DEFAULT_ACCOUNTING_RETENTION_HOURS,
+    }
+    if enable_forecast:
+        migrated[CONF_FORECAST_TYPE] = forecast_type
+        migrated[CONF_FORECAST_HORIZONS] = horizons
+    return migrated
+
+
+async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Migrate config entry to version 2."""
+    if entry.version >= MIGRATION_VERSION:
+        return True
+
+    seen_nodes: set[str] = set()
+    duplicate_nodes: set[str] = set()
+
+    for subentry in entry.subentries.values():
+        if subentry.subentry_type != "sensor":
+            continue
+        node = subentry.data.get("node")
+        if not node:
+            continue
+        if node in seen_nodes:
+            duplicate_nodes.add(node)
+        seen_nodes.add(node)
+
+    for node in sorted(duplicate_nodes):
+        _LOGGER.warning(
+            "Migration dedupe for market_node=%s; keep first, skip later entries",
+            node,
+        )
+
+    hass.config_entries.async_update_entry(entry, version=MIGRATION_VERSION)
+    _LOGGER.info("Migrated config entry to version 2")
+    return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

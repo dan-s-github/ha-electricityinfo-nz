@@ -17,11 +17,11 @@
 
 **Purpose**: Establish 003 constants/config scaffolding and baseline test assets.
 
-- [ ] T001 Update 003 constants and option enums in `custom_components/electricityinfo/const.py`
-- [ ] T002 Align integration metadata/version prerequisites for 003 in `custom_components/electricityinfo/manifest.json`
-- [ ] T003 [P] Add/refresh shared schedule fixtures for 003 scenarios in `tests/fixtures/market_prices.json`
-- [ ] T004 [P] Add/refresh shared test helpers for subentry/coordinator fixtures in `tests/helpers.py`
-- [ ] T005 [P] Add 003 config-flow translation keys and validation errors in `custom_components/electricityinfo/translations/en.json`
+- [X] T001 Update 003 constants and option enums in `custom_components/electricityinfo/const.py`
+- [X] T002 Align integration metadata/version prerequisites for 003 in `custom_components/electricityinfo/manifest.json`
+- [X] T003 [P] Add/refresh shared schedule fixtures for 003 scenarios in `tests/fixtures/market_prices.json`
+- [X] T004 [P] Add/refresh shared test helpers for subentry/coordinator fixtures in `tests/helpers.py`
+- [X] T005 [P] Add 003 config-flow translation keys and validation errors in `custom_components/electricityinfo/translations/en.json`
 
 ---
 
@@ -31,13 +31,13 @@
 
 **⚠️ CRITICAL**: No user story work starts until this phase completes.
 
-- [ ] T006 Implement `MarketNodeSubentryFlow` registration and entry points in `custom_components/electricityinfo/config_flow.py`
-- [ ] T007 Implement shared config normalization/validation helpers (enabled sections, meter validation, node validation) in `custom_components/electricityinfo/config_flow.py`
-- [ ] T008 Implement 002→003 migration (`async_migrate_entry`) and config version bump in `custom_components/electricityinfo/__init__.py`
-- [ ] T009 [P] Add migration coverage for schedule mappings, dedupe-by-node, and warning behavior in `tests/test_init.py`
-- [ ] T010 Refactor coordinator data shape and per-subentry fetch dispatch in `custom_components/electricityinfo/coordinator.py`
-- [ ] T011 [P] Add coordinator routing/retry/unit-conversion baseline tests in `tests/test_coordinator.py`
-- [ ] T012 Implement shared sensor entity base/ID/device helpers for market-node subentries in `custom_components/electricityinfo/sensor.py`
+- [X] T006 Implement `MarketNodeSubentryFlow` registration and entry points in `custom_components/electricityinfo/config_flow.py`
+- [X] T007 Implement shared config normalization/validation helpers (enabled sections, meter validation, node validation) in `custom_components/electricityinfo/config_flow.py`
+- [X] T008 Implement 002→003 migration (`async_migrate_entry`) and config version bump in `custom_components/electricityinfo/__init__.py`
+- [X] T009 [P] Add migration coverage for schedule mappings, dedupe-by-node, and warning behavior in `tests/test_init.py`
+- [X] T010 Refactor coordinator data shape and per-subentry fetch dispatch in `custom_components/electricityinfo/coordinator.py`
+- [X] T011 [P] Add coordinator routing/retry/unit-conversion baseline tests in `tests/test_coordinator.py`
+- [X] T012 Implement shared sensor entity base/ID/device helpers for market-node subentries in `custom_components/electricityinfo/sensor.py`
 
 **Checkpoint**: Foundation complete; user stories can be implemented/tested independently.
 
@@ -51,15 +51,15 @@
 
 ### Tests for User Story 1
 
-- [ ] T013 [P] [US1] Add config-flow test for live-only market-node creation in `tests/test_config_flow.py`
-- [ ] T014 [P] [US1] Add live sensor restore/staleness tests in `tests/test_sensor.py`
-- [ ] T015 [P] [US1] Add live sensor startup availability integration test in `tests/integration/test_sensor_lifecycle.py`
+- [X] T013 [P] [US1] Add config-flow test for live-only market-node creation in `tests/test_config_flow.py`
+- [X] T014 [P] [US1] Add live sensor restore/staleness tests in `tests/test_sensor.py`
+- [X] T015 [P] [US1] Add live sensor startup availability integration test in `tests/integration/test_sensor_lifecycle.py`
 
 ### Implementation for User Story 1
 
-- [ ] T016 [US1] Implement current trade period extraction for live state from forecast response in `custom_components/electricityinfo/coordinator.py`
-- [ ] T017 [US1] Implement `LivePriceSensor` state/attributes/RestoreEntity behavior in `custom_components/electricityinfo/sensor.py`
-- [ ] T018 [US1] Wire live-only entity creation path for market-node subentries in `custom_components/electricityinfo/sensor.py`
+- [X] T016 [US1] Implement current trade period extraction for live state from forecast response in `custom_components/electricityinfo/coordinator.py`
+- [X] T017 [US1] Implement `LivePriceSensor` state/attributes/RestoreEntity behavior in `custom_components/electricityinfo/sensor.py`
+- [X] T018 [US1] Wire live-only entity creation path for market-node subentries in `custom_components/electricityinfo/sensor.py`
 
 **Checkpoint**: US1 is functional and independently testable (MVP).
 
@@ -73,15 +73,15 @@
 
 ### Tests for User Story 2
 
-- [ ] T019 [P] [US2] Add forecast form validation tests (horizons/type/retention) in `tests/test_config_flow.py`
-- [ ] T020 [P] [US2] Add day-ahead/intraday forecast sensor behavior tests in `tests/test_sensor.py`
-- [ ] T021 [P] [US2] Add forecast retention history assertions in `tests/test_sensor_multiple.py`
+- [X] T019 [P] [US2] Add forecast form validation tests (horizons/type/retention) in `tests/test_config_flow.py`
+- [X] T020 [P] [US2] Add day-ahead/intraday forecast sensor behavior tests in `tests/test_sensor.py`
+- [X] T021 [P] [US2] Add forecast retention history assertions in `tests/test_sensor_multiple.py`
 
 ### Implementation for User Story 2
 
-- [ ] T022 [US2] Implement forecast schedule mapping and horizon-based fetch logic in `custom_components/electricityinfo/coordinator.py`
-- [ ] T023 [US2] Implement `DayAheadForecastSensor` and `IntradayForecastSensor` state/attribute models in `custom_components/electricityinfo/sensor.py`
-- [ ] T024 [US2] Implement forecast section parsing and persistence in `custom_components/electricityinfo/config_flow.py`
+- [X] T022 [US2] Implement forecast schedule mapping and horizon-based fetch logic in `custom_components/electricityinfo/coordinator.py`
+- [X] T023 [US2] Implement `DayAheadForecastSensor` and `IntradayForecastSensor` state/attribute models in `custom_components/electricityinfo/sensor.py`
+- [X] T024 [US2] Implement forecast section parsing and persistence in `custom_components/electricityinfo/config_flow.py`
 
 **Checkpoint**: US2 works independently with US1 intact.
 
@@ -95,14 +95,14 @@
 
 ### Tests for User Story 4
 
-- [ ] T025 [P] [US4] Add multi-node setup and independent update integration tests in `tests/integration/test_multi_node.py`
-- [ ] T026 [P] [US4] Add per-node coordinator error-isolation tests in `tests/test_coordinator.py`
+- [X] T025 [P] [US4] Add multi-node setup and independent update integration tests in `tests/integration/test_multi_node.py`
+- [X] T026 [P] [US4] Add per-node coordinator error-isolation tests in `tests/test_coordinator.py`
 
 ### Implementation for User Story 4
 
-- [ ] T027 [US4] Implement per-subentry coordinator update isolation and node-keyed storage in `custom_components/electricityinfo/coordinator.py`
-- [ ] T028 [US4] Implement per-node device/entity naming and unique-ID prefix rules in `custom_components/electricityinfo/sensor.py`
-- [ ] T029 [US4] Enforce one configured subentry per market node in flow validation in `custom_components/electricityinfo/config_flow.py`
+- [X] T027 [US4] Implement per-subentry coordinator update isolation and node-keyed storage in `custom_components/electricityinfo/coordinator.py`
+- [X] T028 [US4] Implement per-node device/entity naming and unique-ID prefix rules in `custom_components/electricityinfo/sensor.py`
+- [X] T029 [US4] Enforce one configured subentry per market node in flow validation in `custom_components/electricityinfo/config_flow.py`
 
 **Checkpoint**: US4 is independently functional with multi-node behavior.
 
@@ -264,4 +264,3 @@ Task: "Add accounting sensor tests in tests/test_accounting.py"
    - Track B: US2 → US4
    - Track C: US3
 3. Integrate in priority order with checkpoint validation per story.
-
