@@ -1,0 +1,195 @@
+"""Tests for accounting sensor entities (US3)."""
+
+from __future__ import annotations
+
+from datetime import UTC, date, datetime
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
+
+from custom_components.electricityinfo.coordinator import ElectricityInfoCoordinator
+from custom_components.electricityinfo.sensor import (
+    DailyExportRevenueSensor,
+    DailyImportCostSensor,
+    ExportRevenueSensor,
+    ImportCostSensor,
+    SettledPriceSensor,
+)
+from tests.helpers import create_mock_market_node_subentry
+
+
+def _make_accounting_schedule(prices: list[tuple[datetime, int, float]]) -> MagicMock:
+    """Create accounting schedule object from datetime/period/price tuples."""
+    schedule = MagicMock()
+    schedule.prices = []
+    for dt_val, period, price in prices:
+        row = MagicMock()
+        row.trading_datetime = dt_val
+        row.trading_period = period
+        row.node = "HAY2201"
+        row.schedule = "Interim"
+        row.price = price
+        schedule.prices.append(row)
+    return schedule
+
+
+async def test_settled_price_sensor_uses_latest_and_history_retention(
+    hass, mock_entry
+) -> None:
+    """Settled sensor chooses latest settled point and exposes retained history."""
+    subentry = create_mock_market_node_subentry(
+        enable_live_price=False,
+        enable_forecast=False,
+        enable_accounting=True,
+        accounting_retention_hours=24,
+    )
+    t1 = datetime(2026, 5, 24, 9, 0, tzinfo=UTC)
+    t2 = datetime(2026, 5, 24, 9, 30, tzinfo=UTC)
+    schedule = _make_accounting_schedule([(t1, 19, 0.23), (t2, 20, 0.25)])
+
+    with patch("custom_components.electricityinfo.AsyncMarketPricesClient"):
+        coordinator = ElectricityInfoCoordinator(hass, mock_entry)
+        coordinator.last_update_success = True
+        coordinator.data = {
+            subentry.subentry_id: {
+                "accounting": schedule,
+                "settled_price": 0.25,
+                "settled_timestamp": t2,
+                "settled_trading_period": 20,
+                "config": dict(subentry.data),
+                "error": None,
+            }
+        }
+        entity = SettledPriceSensor(coordinator, mock_entry, subentry)
+        with patch.object(entity, "async_write_ha_state", MagicMock()):
+            entity._handle_coordinator_update()
+
+    assert entity.native_value == pytest.approx(0.25, abs=1e-6)
+    attrs = entity.extra_state_attributes
+    assert attrs["trading_period"] == 20
+    assert len(attrs["history"]) == 2
+
+
+async def test_import_and_export_sensors_use_coordinator_deltas(
+    hass, mock_entry
+) -> None:
+    """Import/export sensors expose computed value and meter attrs."""
+    subentry = create_mock_market_node_subentry(
+        enable_live_price=False,
+        enable_forecast=False,
+        enable_accounting=True,
+        import_meter_entity_id="sensor.import_meter",
+        export_meter_entity_id="sensor.export_meter",
+    )
+    settled_time = datetime(2026, 5, 24, 9, 30, tzinfo=UTC)
+    node_data = {
+        "settled_price": 0.30,
+        "settled_timestamp": settled_time,
+        "settled_trading_period": 20,
+        "import_energy_delta": 1.2,
+        "export_energy_delta": 0.5,
+        "import_cost_delta": 0.36,
+        "export_revenue_delta": 0.15,
+        "config": dict(subentry.data),
+        "error": None,
+    }
+
+    with patch("custom_components.electricityinfo.AsyncMarketPricesClient"):
+        coordinator = ElectricityInfoCoordinator(hass, mock_entry)
+        coordinator.last_update_success = True
+        coordinator.data = {subentry.subentry_id: node_data}
+        import_entity = ImportCostSensor(coordinator, mock_entry, subentry)
+        export_entity = ExportRevenueSensor(coordinator, mock_entry, subentry)
+        with (
+            patch.object(import_entity, "async_write_ha_state", MagicMock()),
+            patch.object(export_entity, "async_write_ha_state", MagicMock()),
+        ):
+            import_entity._handle_coordinator_update()
+            export_entity._handle_coordinator_update()
+
+    assert import_entity.native_value == pytest.approx(0.36, abs=1e-6)
+    assert export_entity.native_value == pytest.approx(0.15, abs=1e-6)
+    assert import_entity.extra_state_attributes["energy_kwh"] == pytest.approx(
+        1.2, abs=1e-6
+    )
+    assert export_entity.extra_state_attributes["energy_kwh"] == pytest.approx(
+        0.5, abs=1e-6
+    )
+
+
+async def test_daily_import_cost_restore_and_date_reset(hass, mock_entry) -> None:
+    """Daily import sensor restores and resets when accounting day advances."""
+    subentry = create_mock_market_node_subentry(
+        enable_live_price=False,
+        enable_forecast=False,
+        enable_accounting=True,
+        import_meter_entity_id="sensor.import_meter",
+    )
+
+    with patch("custom_components.electricityinfo.AsyncMarketPricesClient"):
+        coordinator = ElectricityInfoCoordinator(hass, mock_entry)
+        coordinator.last_update_success = True
+        coordinator.data = {}
+        entity = DailyImportCostSensor(coordinator, mock_entry, subentry)
+
+        restored = MagicMock()
+        restored.state = "1.5"
+        restored.attributes = {"accumulation_date": "2026-05-24"}
+        with (
+            patch.object(CoordinatorEntity, "async_added_to_hass", AsyncMock()),
+            patch.object(
+                entity,
+                "async_get_last_state",
+                AsyncMock(return_value=restored),
+            ),
+        ):
+            await entity.async_added_to_hass()
+
+        coordinator.data = {
+            subentry.subentry_id: {
+                "accounting_date_nzt": date(2026, 5, 25),
+                "import_cost_delta": 0.4,
+                "config": dict(subentry.data),
+                "error": None,
+            }
+        }
+        with patch.object(entity, "async_write_ha_state", MagicMock()):
+            entity._handle_coordinator_update()
+
+    assert entity.native_value == pytest.approx(0.4, abs=1e-6)
+    assert entity.extra_state_attributes["accumulation_date"] == "2026-05-25"
+
+
+async def test_daily_export_revenue_accumulates(hass, mock_entry) -> None:
+    """Daily export revenue accumulates deltas across updates."""
+    subentry = create_mock_market_node_subentry(
+        enable_live_price=False,
+        enable_forecast=False,
+        enable_accounting=True,
+        import_meter_entity_id="sensor.grid_meter",
+        export_meter_entity_id="sensor.grid_meter",
+    )
+
+    with patch("custom_components.electricityinfo.AsyncMarketPricesClient"):
+        coordinator = ElectricityInfoCoordinator(hass, mock_entry)
+        coordinator.last_update_success = True
+        entity = DailyExportRevenueSensor(coordinator, mock_entry, subentry)
+        entity._accumulation_date = date(2026, 5, 24)
+
+        coordinator.data = {
+            subentry.subentry_id: {
+                "accounting_date_nzt": date(2026, 5, 24),
+                "export_revenue_delta": 0.2,
+                "config": dict(subentry.data),
+                "error": None,
+            }
+        }
+        with patch.object(entity, "async_write_ha_state", MagicMock()):
+            entity._handle_coordinator_update()
+
+        coordinator.data[subentry.subentry_id]["export_revenue_delta"] = 0.1
+        with patch.object(entity, "async_write_ha_state", MagicMock()):
+            entity._handle_coordinator_update()
+
+    assert entity.native_value == pytest.approx(0.3, abs=1e-6)

@@ -137,15 +137,15 @@
 
 ### Tests for User Story 3
 
-- [ ] T035 [P] [US3] Add accounting flow validation tests for meter selectors and fallback rules in `tests/test_config_flow.py`
-- [ ] T036 [P] [US3] Add coordinator accounting tests (Interim `back=48`, meter delta, bidirectional, export fallback) in `tests/test_coordinator.py`
-- [ ] T037 [P] [US3] Add accounting sensor tests for settled/import/export/daily restore/reset behavior in `tests/test_accounting.py`
+- [X] T035 [P] [US3] Add accounting flow validation tests for meter selectors and fallback rules in `tests/test_config_flow.py`
+- [X] T036 [P] [US3] Add coordinator accounting tests (Interim `back=48`, meter delta, bidirectional, export fallback) in `tests/test_coordinator.py`
+- [X] T037 [P] [US3] Add accounting sensor tests for settled/import/export/daily restore/reset behavior in `tests/test_accounting.py`
 
 ### Implementation for User Story 3
 
-- [ ] T038 [US3] Implement accounting fetch, meter delta tracking, and export fallback computation in `custom_components/electricityinfo/coordinator.py`
-- [ ] T039 [US3] Implement `SettledPriceSensor`, `ImportCostSensor`, `ExportRevenueSensor`, `DailyImportCostSensor`, and `DailyExportRevenueSensor` in `custom_components/electricityinfo/sensor.py`
-- [ ] T040 [US3] Implement accounting section schema (retention + two optional selectors + fallback normalization) in `custom_components/electricityinfo/config_flow.py`
+- [X] T038 [US3] Implement accounting fetch, meter delta tracking, and export fallback computation in `custom_components/electricityinfo/coordinator.py`
+- [X] T039 [US3] Implement `SettledPriceSensor`, `ImportCostSensor`, `ExportRevenueSensor`, `DailyImportCostSensor`, and `DailyExportRevenueSensor` in `custom_components/electricityinfo/sensor.py`
+- [X] T040 [US3] Implement accounting section schema (retention + two optional selectors + fallback normalization) in `custom_components/electricityinfo/config_flow.py`
 
 **Checkpoint**: US3 accounting behavior is independently functional.
 

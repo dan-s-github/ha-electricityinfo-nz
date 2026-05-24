@@ -491,3 +491,74 @@ async def test_market_node_duplicate_node_rejected_on_reconfigure(
     )
     assert result2["type"] is FlowResultType.FORM
     assert result2["errors"]["node"] == "node_already_configured"
+
+
+async def test_market_node_accounting_import_meter_must_be_energy(
+    hass: HomeAssistant,
+) -> None:
+    """Accounting import selector validates device_class and unit."""
+    hass.states.async_set(
+        "sensor.bad_import_meter",
+        "123.0",
+        {"device_class": "power", "unit_of_measurement": "W"},
+    )
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Electricityinfo NZ",
+        data={CONF_CLIENT_ID: "client123", CONF_CLIENT_SECRET: "secret123"},
+    )
+    entry.add_to_hass(hass)
+    result = await hass.config_entries.subentries.async_init(
+        (entry.entry_id, "market_node"),
+        context={"source": config_entries.SOURCE_USER},
+    )
+    result2 = await hass.config_entries.subentries.async_configure(
+        result["flow_id"],
+        user_input={
+            "node": "HAY2201",
+            "price_unit": "c/kWh",
+            "enable_live_price": False,
+            "enable_forecast": False,
+            "enable_accounting": True,
+            "accounting_retention_hours": "24",
+            "import_meter_entity_id": "sensor.bad_import_meter",
+        },
+    )
+    assert result2["type"] is FlowResultType.FORM
+    assert result2["errors"]["import_meter_entity_id"] == "entity_not_energy_import"
+
+
+async def test_market_node_accounting_export_falls_back_to_import(
+    hass: HomeAssistant,
+) -> None:
+    """When export meter omitted, accounting normalizes export to import meter."""
+    hass.states.async_set(
+        "sensor.import_meter",
+        "456.0",
+        {"device_class": "energy", "unit_of_measurement": "kWh"},
+    )
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Electricityinfo NZ",
+        data={CONF_CLIENT_ID: "client123", CONF_CLIENT_SECRET: "secret123"},
+    )
+    entry.add_to_hass(hass)
+    result = await hass.config_entries.subentries.async_init(
+        (entry.entry_id, "market_node"),
+        context={"source": config_entries.SOURCE_USER},
+    )
+    result2 = await hass.config_entries.subentries.async_configure(
+        result["flow_id"],
+        user_input={
+            "node": "HAY2201",
+            "price_unit": "c/kWh",
+            "enable_live_price": False,
+            "enable_forecast": False,
+            "enable_accounting": True,
+            "accounting_retention_hours": "24",
+            "import_meter_entity_id": "sensor.import_meter",
+        },
+    )
+    assert result2["type"] is FlowResultType.CREATE_ENTRY
+    assert result2["data"]["import_meter_entity_id"] == "sensor.import_meter"
+    assert result2["data"]["export_meter_entity_id"] == "sensor.import_meter"

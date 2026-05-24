@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any
+from zoneinfo import ZoneInfo
 
 from electricityinfo_nz import AsyncMarketPricesClient
 from electricityinfo_nz.exceptions import AuthenticationError, MarketPricesAPIError
@@ -19,8 +20,10 @@ from .const import (
     CONF_ENABLE_ACCOUNTING,
     CONF_ENABLE_FORECAST,
     CONF_ENABLE_LIVE_PRICE,
+    CONF_EXPORT_METER_ENTITY_ID,
     CONF_FORECAST_HORIZONS,
     CONF_FORECAST_TYPE,
+    CONF_IMPORT_METER_ENTITY_ID,
     CONF_MARKET_TYPE,
     CONF_NODE,
     CONF_PRICE_UNIT,
@@ -41,6 +44,7 @@ if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
 
 _LOGGER: logging.Logger = logging.getLogger(__name__)
+NZ_TZ = ZoneInfo("Pacific/Auckland")
 
 
 def _convert_price(price_nzd_mwh: float | None, price_unit: str) -> float | None:
@@ -81,6 +85,8 @@ class ElectricityInfoCoordinator(DataUpdateCoordinator):
         self.entry = entry
         self.client: AsyncMarketPricesClient | None = None
         self._retry_count = 0
+        self._meter_prev_import: dict[str, float | None] = {}
+        self._meter_prev_export: dict[str, float | None] = {}
 
     def _ensure_client(self) -> None:
         """Initialize API client from config entry if needed."""
@@ -127,6 +133,14 @@ class ElectricityInfoCoordinator(DataUpdateCoordinator):
             "day_ahead": None,
             "intraday": None,
             "accounting": None,
+            "settled_price": None,
+            "settled_timestamp": None,
+            "settled_trading_period": None,
+            "import_energy_delta": None,
+            "export_energy_delta": None,
+            "import_cost_delta": None,
+            "export_revenue_delta": None,
+            "accounting_date_nzt": None,
             "config": config,
             "error": None,
         }
@@ -174,8 +188,90 @@ class ElectricityInfoCoordinator(DataUpdateCoordinator):
                 for p in accounting.prices:
                     p.price = _convert_price(p.price, price_unit)
             node_data["accounting"] = accounting
+            self._populate_accounting_metrics(subentry.subentry_id, config, node_data)
 
         return node_data
+
+    def _read_energy_meter(self, entity_id: str | None) -> float | None:
+        """Read current energy meter value from hass state machine."""
+        if not entity_id:
+            return None
+        state = self.hass.states.get(entity_id)
+        if state is None:
+            return None
+        try:
+            return float(state.state)
+        except TypeError, ValueError:
+            return None
+
+    @staticmethod
+    def _compute_delta(previous: float | None, current: float | None) -> float | None:
+        """Return current minus previous when both values are available."""
+        if previous is None or current is None:
+            return None
+        return current - previous
+
+    def _populate_accounting_metrics(
+        self,
+        subentry_id: str,
+        config: dict[str, Any],
+        node_data: dict[str, Any],
+    ) -> None:
+        """Populate settled and meter-derived accounting fields for subentry."""
+        accounting = node_data.get("accounting")
+        if not accounting or not getattr(accounting, "prices", None):
+            return
+
+        settled_prices = [p for p in accounting.prices if p.price is not None]
+        if not settled_prices:
+            return
+
+        latest = max(settled_prices, key=lambda p: p.trading_datetime)
+        node_data["settled_price"] = latest.price
+        node_data["settled_timestamp"] = latest.trading_datetime
+        node_data["settled_trading_period"] = latest.trading_period
+        node_data["accounting_date_nzt"] = latest.trading_datetime.astimezone(
+            NZ_TZ
+        ).date()
+
+        import_meter = config.get(CONF_IMPORT_METER_ENTITY_ID)
+        export_meter = config.get(CONF_EXPORT_METER_ENTITY_ID) or import_meter
+        bidirectional = bool(
+            import_meter and export_meter and import_meter == export_meter
+        )
+
+        import_current = self._read_energy_meter(import_meter)
+        export_current = self._read_energy_meter(export_meter)
+
+        import_previous = self._meter_prev_import.get(subentry_id)
+        export_previous = self._meter_prev_export.get(subentry_id)
+
+        self._meter_prev_import[subentry_id] = import_current
+        self._meter_prev_export[subentry_id] = export_current
+
+        if import_meter and bidirectional:
+            delta = self._compute_delta(import_previous, import_current)
+            if delta is None:
+                return
+            import_delta = max(delta, 0.0)
+            export_delta = abs(min(delta, 0.0))
+        else:
+            import_delta_raw = self._compute_delta(import_previous, import_current)
+            export_delta_raw = self._compute_delta(export_previous, export_current)
+            import_delta = (
+                max(import_delta_raw, 0.0) if import_delta_raw is not None else None
+            )
+            export_delta = (
+                max(export_delta_raw, 0.0) if export_delta_raw is not None else None
+            )
+
+        settled_price = node_data.get("settled_price")
+        node_data["import_energy_delta"] = import_delta
+        node_data["export_energy_delta"] = export_delta
+        if settled_price is not None and import_delta is not None:
+            node_data["import_cost_delta"] = round(settled_price * import_delta, 6)
+        if settled_price is not None and export_delta is not None:
+            node_data["export_revenue_delta"] = round(settled_price * export_delta, 6)
 
     async def _async_update_data(self) -> dict[str, Any]:  # noqa: PLR0912
         """Fetch price data from API."""

@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import logging
-from datetime import timedelta
+from datetime import date, datetime, timedelta
 from typing import TYPE_CHECKING, Any
+from zoneinfo import ZoneInfo
 
 from homeassistant.components.sensor import (
     RestoreEntity,
     SensorDeviceClass,
     SensorEntity,
+    SensorStateClass,
 )
 from homeassistant.core import HomeAssistant  # noqa: TC002
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
@@ -25,10 +27,14 @@ from homeassistant.util import dt as dt_util
 
 from .const import (
     C_PER_KWH_TO_NZD_PER_MWH,
+    CONF_ACCOUNTING_RETENTION_HOURS,
+    CONF_ENABLE_ACCOUNTING,
     CONF_ENABLE_FORECAST,
     CONF_ENABLE_LIVE_PRICE,
+    CONF_EXPORT_METER_ENTITY_ID,
     CONF_FORECAST_HORIZONS,
     CONF_FORECAST_RETENTION_HOURS,
+    CONF_IMPORT_METER_ENTITY_ID,
     CONF_NODE,
     CONF_PRICE_UNIT,
     DOMAIN,
@@ -44,6 +50,7 @@ if TYPE_CHECKING:
 
 
 _LOGGER = logging.getLogger(__name__)
+NZ_TZ = ZoneInfo("Pacific/Auckland")
 
 
 async def async_setup_entry(
@@ -90,6 +97,46 @@ async def async_setup_entry(
                 if "intraday" in horizons:
                     entities.append(
                         IntradayForecastSensor(
+                            coordinator=coordinator,
+                            entry=entry,
+                            subentry=subentry,
+                        )
+                    )
+            if config.get(CONF_ENABLE_ACCOUNTING):
+                entities.append(
+                    SettledPriceSensor(
+                        coordinator=coordinator,
+                        entry=entry,
+                        subentry=subentry,
+                    )
+                )
+                import_meter = config.get(CONF_IMPORT_METER_ENTITY_ID)
+                export_meter = config.get(CONF_EXPORT_METER_ENTITY_ID) or import_meter
+                if import_meter:
+                    entities.append(
+                        ImportCostSensor(
+                            coordinator=coordinator,
+                            entry=entry,
+                            subentry=subentry,
+                        )
+                    )
+                    entities.append(
+                        DailyImportCostSensor(
+                            coordinator=coordinator,
+                            entry=entry,
+                            subentry=subentry,
+                        )
+                    )
+                if export_meter:
+                    entities.append(
+                        ExportRevenueSensor(
+                            coordinator=coordinator,
+                            entry=entry,
+                            subentry=subentry,
+                        )
+                    )
+                    entities.append(
+                        DailyExportRevenueSensor(
                             coordinator=coordinator,
                             entry=entry,
                             subentry=subentry,
@@ -373,6 +420,280 @@ class IntradayForecastSensor(ForecastSensorBase):
             subentry=subentry,
             sensor_type="intraday_forecast",
             sensor_name="Intraday Forecast",
+        )
+
+
+class SettledPriceSensor(MarketNodeSensorBase):
+    """Settled accounting price sensor."""
+
+    def __init__(
+        self,
+        coordinator: ElectricityInfoCoordinator,
+        entry: ConfigEntry,
+        subentry: ConfigSubentry,
+    ) -> None:
+        """Initialize settled price sensor."""
+        super().__init__(
+            coordinator=coordinator,
+            entry=entry,
+            subentry=subentry,
+            sensor_type="settled_price",
+            sensor_name="Settled Price",
+        )
+
+    def _handle_coordinator_update(self) -> None:
+        """Handle coordinator update for settled price."""
+        node_data = (self.coordinator.data or {}).get(self._subentry_id)
+        if not node_data or node_data.get("error"):
+            self._native_value = None
+            self._attributes = {}
+            self.async_write_ha_state()
+            return
+
+        accounting = node_data.get("accounting")
+        if not accounting or not getattr(accounting, "prices", None):
+            self._native_value = None
+            self._attributes = {}
+            self.async_write_ha_state()
+            return
+
+        settled_prices = [p for p in accounting.prices if p.price is not None]
+        if not settled_prices:
+            self._native_value = None
+            self._attributes = {}
+            self.async_write_ha_state()
+            return
+
+        latest = max(settled_prices, key=lambda p: p.trading_datetime)
+        retention = int(self._config.get(CONF_ACCOUNTING_RETENTION_HOURS, 24)) * 2
+        history = sorted(settled_prices, key=lambda p: p.trading_datetime)[-retention:]
+        self._native_value = latest.price
+        self._attributes = {
+            "trading_period": latest.trading_period,
+            "timestamp": latest.trading_datetime.isoformat(),
+            "node": latest.node,
+            "history": [
+                {
+                    "period_start": price.trading_datetime.isoformat(),
+                    "trading_period": price.trading_period,
+                    "price": price.price,
+                }
+                for price in history
+            ],
+        }
+        self.async_write_ha_state()
+
+
+class AccountingDeltaSensorBase(MarketNodeSensorBase):
+    """Base class for per-period accounting delta sensors."""
+
+    _value_key: str = ""
+    _energy_key: str = ""
+    _meter_key: str = ""
+
+    @property
+    def native_unit_of_measurement(self) -> str:
+        """Return currency unit based on configured price unit."""
+        return "c" if self._config.get(CONF_PRICE_UNIT) == "c/kWh" else "NZD"
+
+    def _handle_coordinator_update(self) -> None:
+        """Handle coordinator update for per-period accounting values."""
+        node_data = (self.coordinator.data or {}).get(self._subentry_id)
+        if not node_data or node_data.get("error"):
+            self._native_value = None
+            self._attributes = {}
+            self.async_write_ha_state()
+            return
+
+        value = node_data.get(self._value_key)
+        energy = node_data.get(self._energy_key)
+        settled_price = node_data.get("settled_price")
+        settled_timestamp: datetime | None = node_data.get("settled_timestamp")
+        settled_period = node_data.get("settled_trading_period")
+        meter_entity = self._config.get(self._meter_key)
+
+        if value is None or energy is None or settled_price is None:
+            self._native_value = None
+            self._attributes = {}
+            self.async_write_ha_state()
+            return
+
+        self._native_value = value
+        self._attributes = {
+            "settled_price": settled_price,
+            "energy_kwh": energy,
+            self._meter_key: meter_entity,
+            "trading_period": settled_period,
+            "timestamp": settled_timestamp.isoformat() if settled_timestamp else None,
+        }
+        self.async_write_ha_state()
+
+
+class ImportCostSensor(AccountingDeltaSensorBase):
+    """Import cost delta sensor."""
+
+    _value_key = "import_cost_delta"
+    _energy_key = "import_energy_delta"
+    _meter_key = CONF_IMPORT_METER_ENTITY_ID
+
+    def __init__(
+        self,
+        coordinator: ElectricityInfoCoordinator,
+        entry: ConfigEntry,
+        subentry: ConfigSubentry,
+    ) -> None:
+        """Initialize import cost sensor."""
+        super().__init__(
+            coordinator=coordinator,
+            entry=entry,
+            subentry=subentry,
+            sensor_type="import_cost",
+            sensor_name="Import Cost",
+        )
+
+
+class ExportRevenueSensor(AccountingDeltaSensorBase):
+    """Export revenue delta sensor."""
+
+    _value_key = "export_revenue_delta"
+    _energy_key = "export_energy_delta"
+    _meter_key = CONF_EXPORT_METER_ENTITY_ID
+
+    def __init__(
+        self,
+        coordinator: ElectricityInfoCoordinator,
+        entry: ConfigEntry,
+        subentry: ConfigSubentry,
+    ) -> None:
+        """Initialize export revenue sensor."""
+        super().__init__(
+            coordinator=coordinator,
+            entry=entry,
+            subentry=subentry,
+            sensor_type="export_revenue",
+            sensor_name="Export Revenue",
+        )
+
+
+class DailyAccountingSensorBase(AccountingDeltaSensorBase, RestoreEntity):
+    """Base class for daily accumulated accounting sensors."""
+
+    _attr_state_class = SensorStateClass.TOTAL
+    _daily_value_key: str = ""
+    _daily_meter_key: str = ""
+
+    def __init__(
+        self,
+        coordinator: ElectricityInfoCoordinator,
+        entry: ConfigEntry,
+        subentry: ConfigSubentry,
+        sensor_type: str,
+        sensor_name: str,
+    ) -> None:
+        """Initialize daily accounting sensor."""
+        super().__init__(
+            coordinator=coordinator,
+            entry=entry,
+            subentry=subentry,
+            sensor_type=sensor_type,
+            sensor_name=sensor_name,
+        )
+        self._accumulated_total: float = 0.0
+        self._accumulation_date: date | None = None
+
+    async def async_added_to_hass(self) -> None:
+        """Restore previously accumulated total and date."""
+        await super().async_added_to_hass()
+        last_state = await self.async_get_last_state()
+        if last_state and last_state.state not in ("unknown", "unavailable"):
+            self._accumulated_total = float(last_state.state)
+            date_str = last_state.attributes.get("accumulation_date")
+            if isinstance(date_str, str):
+                parsed = dt_util.parse_date(date_str)
+                self._accumulation_date = parsed
+
+        today_nzt = dt_util.utcnow().astimezone(NZ_TZ).date()
+        if self._accumulation_date and self._accumulation_date < today_nzt:
+            self._accumulated_total = 0.0
+            self._accumulation_date = today_nzt
+        elif self._accumulation_date is None:
+            self._accumulation_date = today_nzt
+        self._native_value = self._accumulated_total
+        self._attributes = {
+            "accumulation_date": self._accumulation_date.isoformat(),
+            self._daily_meter_key: self._config.get(self._daily_meter_key),
+        }
+
+    def _handle_coordinator_update(self) -> None:
+        """Update running total from coordinator accounting deltas."""
+        node_data = (self.coordinator.data or {}).get(self._subentry_id)
+        if not node_data or node_data.get("error"):
+            self._native_value = None
+            self._attributes = {}
+            self.async_write_ha_state()
+            return
+
+        accounting_date: date | None = node_data.get("accounting_date_nzt")
+        if accounting_date and accounting_date != self._accumulation_date:
+            self._accumulated_total = 0.0
+            self._accumulation_date = accounting_date
+
+        delta_value = node_data.get(self._daily_value_key)
+        if delta_value is not None:
+            self._accumulated_total += delta_value
+
+        if self._accumulation_date is None:
+            self._accumulation_date = dt_util.utcnow().astimezone(NZ_TZ).date()
+
+        self._native_value = self._accumulated_total
+        self._attributes = {
+            "accumulation_date": self._accumulation_date.isoformat(),
+            self._daily_meter_key: self._config.get(self._daily_meter_key),
+        }
+        self.async_write_ha_state()
+
+
+class DailyImportCostSensor(DailyAccountingSensorBase):
+    """Daily accumulated import cost sensor."""
+
+    _daily_value_key = "import_cost_delta"
+    _daily_meter_key = CONF_IMPORT_METER_ENTITY_ID
+
+    def __init__(
+        self,
+        coordinator: ElectricityInfoCoordinator,
+        entry: ConfigEntry,
+        subentry: ConfigSubentry,
+    ) -> None:
+        """Initialize daily import cost sensor."""
+        super().__init__(
+            coordinator=coordinator,
+            entry=entry,
+            subentry=subentry,
+            sensor_type="daily_import_cost",
+            sensor_name="Daily Import Cost",
+        )
+
+
+class DailyExportRevenueSensor(DailyAccountingSensorBase):
+    """Daily accumulated export revenue sensor."""
+
+    _daily_value_key = "export_revenue_delta"
+    _daily_meter_key = CONF_EXPORT_METER_ENTITY_ID
+
+    def __init__(
+        self,
+        coordinator: ElectricityInfoCoordinator,
+        entry: ConfigEntry,
+        subentry: ConfigSubentry,
+    ) -> None:
+        """Initialize daily export revenue sensor."""
+        super().__init__(
+            coordinator=coordinator,
+            entry=entry,
+            subentry=subentry,
+            sensor_type="daily_export_revenue",
+            sensor_name="Daily Export Revenue",
         )
 
 
