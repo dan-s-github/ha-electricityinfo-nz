@@ -35,3 +35,4 @@
 - Scope boundary: arbitrage analytics sensors created as a fixed bundle (no individual selection in v1)
 - Scope boundary: per-sensor refresh rates not configurable in v1
 - Dependency: Phase 1 OAuth config flow must be complete before implementation
+- Refinement update (2026-05-24): FR wording aligned for live-source and migration behavior; SC-003 made measurable; edge-case outcomes converted from questions to explicit expected behavior.

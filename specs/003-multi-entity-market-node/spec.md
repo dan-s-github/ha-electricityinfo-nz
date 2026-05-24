@@ -95,14 +95,14 @@ A user wants to change the options they chose when first setting up a market nod
 
 ### Edge Cases
 
-- What happens when a user submits a configuration with no sensor types enabled?
-- How does the system behave when the same market node is configured a second time?
-- What happens when forecast data is unavailable for the selected horizon?
-- How does the system handle switching from price-responsive to non-responsive forecast type when sensors already exist?
-- What happens if history retention is reduced and existing stored data exceeds the new limit?
-- What happens when accounting is enabled but no energy meter entity is linked — are calculated cost/revenue sensors omitted silently or does the UI prompt for a meter? (Only the raw settled price sensor is created; calculated sensors are silently omitted. User can link a meter later via reconfigure.)
-- What happens when the same HA entity is linked for both import and export meter selectors? (Treated as a signed bidirectional meter: positive delta = import cost, negative delta absolute value = export revenue.)
-- What happens when no export meter is configured but an import meter is configured? (The import meter is treated as the signed bidirectional meter for both import and export calculations.)
+- If a user submits a configuration with no sensor types enabled, the flow rejects the save with a validation error and keeps the existing configuration unchanged.
+- If a user attempts to configure the same market node a second time, the flow rejects the duplicate and preserves the existing node configuration.
+- If forecast data is unavailable for a selected horizon during an update cycle, the corresponding forecast sensor remains unavailable until valid forecast data is received again.
+- If a user switches from price-responsive to non-responsive forecast type (or vice versa), existing forecast sensors remain in place and begin reporting values from the newly selected forecast source after save.
+- If history retention is reduced and stored history exceeds the new limit, history is trimmed to the new retention window on the next update cycle.
+- If accounting is enabled with no linked energy meter, only the raw settled price sensor is created; calculated sensors are omitted and can be enabled later by linking a meter in reconfigure.
+- If the same HA entity is linked for both import and export selectors, it is treated as a signed bidirectional meter (positive delta = import cost, negative delta absolute value = export revenue).
+- If no export meter is configured but an import meter is configured, the import meter is used as the signed bidirectional source for both import and export calculations.
 - On HA restart, the live price sensor restores its last known state (via `RestoreEntity`) so it shows a value immediately; forecast and per-period accounting sensors (settled price, import cost, export revenue) start as unavailable and refresh on the first coordinator poll. Daily total sensors (`DailyImportCostSensor`, `DailyExportRevenueSensor`) restore their last accumulated daily total via `RestoreEntity` and continue accumulating from that value; if HA was down and the energy meter changed during the outage, the restored total may be slightly stale — this is a known accepted limitation.
 
 ## Requirements *(mandatory)*
@@ -111,13 +111,13 @@ A user wants to change the options they chose when first setting up a market nod
 
 - **FR-001**: System MUST allow users to select a market node from the list of available NZ electricity market nodes
 - **FR-002**: System MUST allow users to select a price display unit (c/kWh or NZD/kWh) per market node configuration. The selected unit is the **native stored unit** for all sensors in that node — prices are converted from the API's NZD/MWh format at ingest time and stored/reported in the selected unit directly. No runtime conversion at display time. This replaces the 002 convention of storing NZD/MWh internally.
-- **FR-003**: System MUST create a live current-price sensor when the user enables the "Current electricity price" option. The live price sensor MUST source its current price from the **current trade period's price within the forecast schedule response** (day-ahead PRSL or intraday PRSS, using the `forward` parameter). This unifies the live price and forecast data into a single coordinator fetch: the current trade period's price becomes the sensor state; remaining periods become the forecast attribute.
+- **FR-003**: System MUST create a live current-price sensor when the user enables the "Current electricity price" option. The live price sensor MUST source its current price from the **current trade period's price within the day-ahead forecast schedule response** (`forward=48`, using PRSL or NRSL based on configured forecast type). This unifies the live price and forecast data into a single coordinator fetch: the current trade period's price becomes the sensor state; remaining periods become the forecast attribute.
 - **FR-004**: System MUST allow users to independently enable or disable forecasting, accounting, and live pricing sections
 - **FR-005**: System MUST allow users to select forecast type: price-responsive or non-responsive
 - **FR-006**: System MUST allow users to select one or both forecast horizons: day-ahead (48 trade periods / 24h) and intraday updates (4h)
-- **FR-007**: System MUST allow users to configure history retention (6h, 12h, or 24h) for forecast sensors
+- **FR-007**: System MUST allow users to configure history retention (6h, 12h, or 24h) for forecast sensors. The configured retention defines the forecast-history API lookback (`back`) window, and all returned prior trading periods within that window MUST be stored in the sensor `history` attribute.
 - **FR-008**: System MUST create a forecast sensor for each selected forecast horizon when forecasting is enabled
-- **FR-009**: System MUST allow users to independently enable or disable accounting/analytics
+- **FR-009**: System MUST apply accounting-specific enable/disable behavior independently of other sections: when accounting is enabled, accounting sensors are created per configuration; when accounting is disabled, accounting sensors are not created (or are removed on save if previously present).
 - **FR-010**: System MUST create Interim-sourced settled price, import cost, export revenue, and daily total sensors when accounting is enabled; the settled price data source MUST be the Interim schedule (`back=48`), which fetches the full day's settled periods (up to 48 trade periods / 24h) and converges to identical Final settled values within ~30 minutes of each trading period. Three tiers of sensors are created: (1) a raw settled price sensor (Interim price in the node's selected unit — always created), (2) calculated per-period cost/revenue sensors (price × energy volume — created when the user links an import and/or export Home Assistant energy meter entity; silently omitted only if neither is linked), and (3) daily total sensors — `DailyImportCostSensor` and `DailyExportRevenueSensor` — that accumulate cost/revenue from midnight NZT and reset at midnight NZT (created when at least one meter selector is linked). If no export meter is configured but an import meter is configured, the import meter MUST also be used as the export source in signed bidirectional mode (positive delta = import, negative delta = export). Daily totals use `RestoreEntity` to persist their accumulated value across HA restarts and continue accumulating from the restored value (stale-if-meter-changed during outage is an accepted known limitation). The reset to zero at midnight NZT is triggered coordinator-side: on each poll, the NZT date of the latest Interim trade period in the API response is compared against the stored accumulation date; if the date has advanced, the running total is reset before accumulating the new period. Reset may occur up to ~30 minutes after midnight NZT (one coordinator interval delay — accepted). Per-period accounting sensors (settled price, import cost, export revenue) start unavailable on HA restart and refresh on the first coordinator poll. Arbitrage analytics sensors are out of scope for this version.
 - **FR-011**: System MUST enforce a minimum accounting history retention of 24h (48 trade periods); configurable options are 24h or 48h with a default of 24h
 - **FR-012**: All sensor identifiers created for a market node MUST be prefixed with that market node's identifier
@@ -125,9 +125,9 @@ A user wants to change the options they chose when first setting up a market nod
 - **FR-014**: System MUST allow users to modify an existing market node configuration after initial setup
 - **FR-015**: System MUST remove sensors that correspond to disabled sections when a configuration is updated
 - **FR-016**: System MUST prevent saving a configuration where no sensor types are enabled
-- **FR-017**: The day-ahead forecast sensor MUST expose 48 trade periods of forward price data (24 hours) and retain historical data going back 2× the configured retention period (in trade periods)
+- **FR-017**: The day-ahead forecast sensor MUST expose 48 trade periods of forward price data (24 hours) and include all previous trading periods returned by the retention-defined API lookback in `history` (not only the current period).
 - **FR-018**: The config flow MUST expose two independently optional energy meter entity selectors per market node: one for grid import kWh and one for grid export kWh. Each linked entity MUST be validated to have `device_class: energy` (unit: kWh); entities that do not meet this contract MUST be rejected with a user-facing validation error. If the user provides the same entity for both import and export selectors, the integration MUST treat it as a signed bidirectional meter: positive delta = import cost; negative delta = export revenue (absolute value used for revenue calculation). If the export selector is left empty but an import meter is linked, the integration MUST treat that import meter as the signed bidirectional meter for both import and export calculations. Import cost sensors are created when an import meter is linked. Export revenue sensors are created when an export meter is linked or when export falls back to the import meter.
-- **FR-019**: On upgrade from 002, the integration MUST automatically migrate existing 002 config entries to the 003 structure. Migration MUST map the existing single-node configuration (market node, price unit, enabled sensor types) to a 003 multi-node entry, converting stored prices from NZD/MWh to the node's configured display unit. During migration, each `market_node` may produce only one 003 entry; if duplicate legacy entries target the same `market_node`, the first encountered entry MUST be kept and later duplicates MUST be skipped with a warning. Sensor entity IDs MUST be preserved where possible to avoid breaking existing automations and dashboards; where an ID cannot be preserved, the migration MUST log a warning listing the changed entity IDs.
+- **FR-019**: On upgrade from 002, the integration MUST automatically migrate existing 002 config entries to the 003 structure. Migration MUST map the existing single-node configuration (market node, price unit, enabled sensor types) to a 003 multi-node entry configuration. Historical price values are not migrated; prices are fetched after migration in the configured display unit during normal coordinator updates. During migration, each `market_node` may produce only one 003 entry; if duplicate legacy entries target the same `market_node`, the first encountered entry MUST be kept and later duplicates MUST be skipped with a warning. After migration, runtime entity setup MUST create `market_node` entities only; legacy `sensor` entities MUST NOT be created. Sensor entity IDs MUST be preserved where possible to avoid breaking existing automations and dashboards; where an ID cannot be preserved, the migration MUST log a warning listing the changed entity IDs.
 
 ### Key Entities
 
@@ -141,7 +141,7 @@ A user wants to change the options they chose when first setting up a market nod
 - **Daily Export Revenue Sensor**: A sensor entity that accumulates the total export electricity revenue for the current calendar day (midnight-to-midnight NZT), calculated as the sum of (settled price × export energy volume) for each trade period since midnight. Resets to zero at midnight NZT. Uses `RestoreEntity` to persist accumulated daily total across HA restarts; accumulation continues from the restored value. If HA was down and the energy meter changed during the outage, the restored total may be slightly stale (accepted limitation).
 - **Trade Period**: The 30-minute interval unit used by the NZ electricity market. All price data — live, forecast, and settled — is structured as a sequence of trade periods. One hour equals 2 trade periods.
 - **Forecast Horizon**: The time window of a price forecast. Day-ahead (PRSL) covers 48 trade periods forward (24 hours). Intraday (PRSS) covers 4 hours forward.
-- **History Retention**: The maximum lookback window of data kept in a forecast sensor's history. A day-ahead forecast sensor retains historical data going back 2× the configured retention period (measured in trade periods). For example, a 24h retention setting = 48 trade periods forward + 96 trade periods of history (48h back).
+- **History Retention**: The lookback window for forecast history data. The configured retention value is used as the API `back` window for forecast history, and all prior trading periods returned in that window are stored in `history`. For example, a 24h retention setting keeps the previous 24h of trading periods in history.
 
 ## Success Criteria *(mandatory)*
 
@@ -149,10 +149,10 @@ A user wants to change the options they chose when first setting up a market nod
 
 - **SC-001**: A user can configure a market node and see at least one working price sensor within 3 minutes of starting the configuration flow
 - **SC-002**: All selected entity types are created and visible in Home Assistant immediately after the configuration is saved, with no manual restart required
-- **SC-003**: Users can configure up to 5 different market nodes simultaneously without observable performance degradation in the Home Assistant UI
+- **SC-003**: With 5 configured market nodes, saving a new or updated market-node configuration completes in under 10 seconds in at least 95% of attempts, and all selected sensors for that save become available within 3 minutes.
 - **SC-004**: Users can update any part of an existing market node configuration without removing and re-adding the integration entry
 - **SC-005**: Sensor values reflect the latest available data within the integration's standard data refresh cycle
-- **SC-006**: Every sensor name clearly and unambiguously identifies both its market node and its data type (live price, day-ahead forecast, intraday forecast, final price, etc.)
+- **SC-006**: Every sensor name clearly and unambiguously identifies both its market node and its data type (live price, day-ahead forecast, intraday forecast, settled price, import cost, export revenue, daily totals).
 - **SC-007**: When a user disables a sensor type, the corresponding sensors are removed from Home Assistant within one configuration save
 
 ## Assumptions
@@ -172,7 +172,7 @@ A user wants to change the options they chose when first setting up a market nod
 
 ### Session 2026-05-19
 
-- Q: What is the data structure of the day-ahead forecast sensor (forward/backward periods and period granularity)? → A: Day-ahead uses 48 trade periods forward (24h); lookback = 2× the configured retention period (in trade periods); trade periods are 30 minutes each.
+- Q: What is the data structure of the day-ahead forecast sensor (forward/backward periods and period granularity)? → A: Day-ahead uses 48 trade periods forward (24h); lookback is defined by the configured retention (`back` window), and all prior periods returned in that window are included in history; trade periods are 30 minutes each.
 
 ### Session 2026-05-20
 
@@ -199,3 +199,5 @@ A user wants to change the options they chose when first setting up a market nod
 
 - Q: How should migration handle duplicate legacy entries that resolve to the same `market_node`? → A: Enforce one migrated entry per `market_node`: keep the first encountered legacy entry and skip later duplicates with a warning.
 - Q: When accounting is configured without an export meter but with an import meter, how should export calculations behave? → A: Treat the import meter as the signed bidirectional meter for both import and export calculations.
+- Q: How should legacy runtime entities be handled after migration? → A: Legacy entries are converted to `market_node` entries, and runtime setup creates only `market_node` entities (no legacy `sensor` entities).
+- Q: How should forecast history retention populate sensor history? → A: The retention setting defines the forecast API `back` window, and all returned previous trading periods are added to `history` (not just the current value).
