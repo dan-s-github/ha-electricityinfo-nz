@@ -177,7 +177,7 @@ class ElectricityInfoCoordinator(DataUpdateCoordinator):
 
         return node_data
 
-    async def _async_update_data(self) -> dict[str, Any]:
+    async def _async_update_data(self) -> dict[str, Any]:  # noqa: PLR0912
         """Fetch price data from API."""
         try:
             self._ensure_client()
@@ -186,6 +186,7 @@ class ElectricityInfoCoordinator(DataUpdateCoordinator):
             if not subentries:
                 return {}
 
+            previous_data = self.data if isinstance(self.data, dict) else {}
             data: dict[str, Any] = {}
             for subentry in subentries:
                 subentry_id = subentry.subentry_id
@@ -206,6 +207,13 @@ class ElectricityInfoCoordinator(DataUpdateCoordinator):
                         "node": dict(subentry.data).get(CONF_NODE),
                         "config": dict(subentry.data),
                     }
+
+            for subentry in subentries:
+                subentry_id = subentry.subentry_id
+                if subentry_id in data:
+                    continue
+                if subentry_id in previous_data:
+                    data[subentry_id] = previous_data[subentry_id]
 
             self._retry_count = 0
             self.update_interval = timedelta(minutes=UPDATE_INTERVAL_MINUTES)

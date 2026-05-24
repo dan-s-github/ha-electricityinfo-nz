@@ -531,11 +531,18 @@ class MarketNodeSubentryFlow(config_entries.ConfigSubentryFlow):
             ):
                 errors[CONF_NODE] = "node_already_configured"
             if not errors:
+                updated_data = _build_node_data(user_input)
+                updated_title = _node_title(user_input)
+                if (
+                    dict(subentry.data) == updated_data
+                    and subentry.title == updated_title
+                ):
+                    return self.async_abort(reason="reconfigure_successful")
                 return self.async_update_and_abort(
                     self._get_entry(),
                     subentry,
-                    title=_node_title(user_input),
-                    data=_build_node_data(user_input),
+                    title=updated_title,
+                    data=updated_data,
                 )
 
         return self.async_show_form(

@@ -16,6 +16,10 @@ from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import (
     AddConfigEntryEntitiesCallback,  # noqa: TC002
 )
+from homeassistant.helpers.entity_registry import (
+    async_entries_for_config_entry,
+    async_get,
+)
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 
@@ -51,6 +55,7 @@ async def async_setup_entry(
     coordinator: ElectricityInfoCoordinator = hass.data[DOMAIN][entry.entry_id][
         "coordinator"
     ]
+    expected_market_unique_ids: set[str] = set()
 
     for subentry in entry.subentries.values():
         if subentry.subentry_type == "sensor":
@@ -91,7 +96,29 @@ async def async_setup_entry(
                         )
                     )
             if entities:
+                expected_market_unique_ids.update(
+                    entity.unique_id for entity in entities
+                )
                 async_add_entities(entities, config_subentry_id=subentry.subentry_id)
+
+    _remove_stale_market_node_entities(hass, entry.entry_id, expected_market_unique_ids)
+
+
+def _remove_stale_market_node_entities(
+    hass: HomeAssistant,
+    entry_id: str,
+    expected_unique_ids: set[str],
+) -> None:
+    """Remove stale market-node entities no longer enabled in config."""
+    registry = async_get(hass)
+    unique_prefix = f"electricityinfo_{entry_id}_"
+    for entity_entry in async_entries_for_config_entry(registry, entry_id):
+        unique_id = entity_entry.unique_id
+        if not unique_id or not unique_id.startswith(unique_prefix):
+            continue
+        if unique_id in expected_unique_ids:
+            continue
+        registry.async_remove(entity_entry.entity_id)
 
 
 class MarketNodeSensorBase(CoordinatorEntity, SensorEntity):

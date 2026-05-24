@@ -116,14 +116,14 @@
 
 ### Tests for User Story 5
 
-- [ ] T030 [P] [US5] Add reconfigure no-op vs changed-save tests in `tests/test_options_flow.py`
-- [ ] T031 [P] [US5] Add entity add/remove-on-reconfigure integration coverage in `tests/integration/test_sensor_lifecycle.py`
+- [X] T030 [P] [US5] Add reconfigure no-op vs changed-save tests in `tests/test_options_flow.py`
+- [X] T031 [P] [US5] Add entity add/remove-on-reconfigure integration coverage in `tests/integration/test_sensor_lifecycle.py`
 
 ### Implementation for User Story 5
 
-- [ ] T032 [US5] Implement reconfigure form population/update-and-abort path in `custom_components/electricityinfo/config_flow.py`
-- [ ] T033 [US5] Implement sensor delta reconciliation on config changes in `custom_components/electricityinfo/sensor.py`
-- [ ] T034 [US5] Preserve unaffected nodes during one-node reconfigure updates in `custom_components/electricityinfo/coordinator.py`
+- [X] T032 [US5] Implement reconfigure form population/update-and-abort path in `custom_components/electricityinfo/config_flow.py`
+- [X] T033 [US5] Implement sensor delta reconciliation on config changes in `custom_components/electricityinfo/sensor.py`
+- [X] T034 [US5] Preserve unaffected nodes during one-node reconfigure updates in `custom_components/electricityinfo/coordinator.py`
 
 **Checkpoint**: US5 reconfigure behavior is independently testable.
 
