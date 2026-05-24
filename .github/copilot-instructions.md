@@ -51,6 +51,10 @@ pytest tests/live/ -v -m live_api # Optional: live API tests (requires .env)
 Phase 1 (001-oauth-config-flow) completed: OAuth 2.0 authentication, token management, config flow validation.
 Phase 2 (002-price-schedules-sensor) replaced by Phase 3 (003): 002 config entries automatically migrated to 003.
 
+**Implementation Status (Current Branch)**:
+- Phases 1–8 are implemented for `003-multi-entity-market-node` (including accounting sensors and polish updates).
+- Regression baseline for the implemented state is `pytest tests/`, `ruff check custom_components/ tests/`, and `mypy custom_components/`.
+
 **Pre-commit Note**: Repository has pre-commit hooks that auto-fix formatting (trailing whitespace, EOF).
 Changes made by hooks require re-staging and re-committing. This is expected behavior.
 

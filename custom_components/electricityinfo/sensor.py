@@ -66,18 +66,18 @@ async def async_setup_entry(
 
     for subentry in entry.subentries.values():
         if subentry.subentry_type == "sensor":
-            entities = [
+            legacy_entities = [
                 PriceSensorEntity(
                     coordinator=coordinator, entry=entry, subentry=subentry, unit=unit
                 )
                 for unit in ("NZD/MWh", "c/kWh")
             ]
-            async_add_entities(entities, config_subentry_id=subentry.subentry_id)
+            async_add_entities(legacy_entities, config_subentry_id=subentry.subentry_id)
         elif subentry.subentry_type == SUBENTRY_TYPE:
             config = dict(subentry.data)
-            entities = []
+            market_entities: list[MarketNodeSensorBase] = []
             if config.get(CONF_ENABLE_LIVE_PRICE):
-                entities.append(
+                market_entities.append(
                     LivePriceSensor(
                         coordinator=coordinator,
                         entry=entry,
@@ -87,7 +87,7 @@ async def async_setup_entry(
             if config.get(CONF_ENABLE_FORECAST):
                 horizons = set(config.get(CONF_FORECAST_HORIZONS, []))
                 if "day_ahead" in horizons:
-                    entities.append(
+                    market_entities.append(
                         DayAheadForecastSensor(
                             coordinator=coordinator,
                             entry=entry,
@@ -95,7 +95,7 @@ async def async_setup_entry(
                         )
                     )
                 if "intraday" in horizons:
-                    entities.append(
+                    market_entities.append(
                         IntradayForecastSensor(
                             coordinator=coordinator,
                             entry=entry,
@@ -103,7 +103,7 @@ async def async_setup_entry(
                         )
                     )
             if config.get(CONF_ENABLE_ACCOUNTING):
-                entities.append(
+                market_entities.append(
                     SettledPriceSensor(
                         coordinator=coordinator,
                         entry=entry,
@@ -113,14 +113,14 @@ async def async_setup_entry(
                 import_meter = config.get(CONF_IMPORT_METER_ENTITY_ID)
                 export_meter = config.get(CONF_EXPORT_METER_ENTITY_ID) or import_meter
                 if import_meter:
-                    entities.append(
+                    market_entities.append(
                         ImportCostSensor(
                             coordinator=coordinator,
                             entry=entry,
                             subentry=subentry,
                         )
                     )
-                    entities.append(
+                    market_entities.append(
                         DailyImportCostSensor(
                             coordinator=coordinator,
                             entry=entry,
@@ -128,25 +128,29 @@ async def async_setup_entry(
                         )
                     )
                 if export_meter:
-                    entities.append(
+                    market_entities.append(
                         ExportRevenueSensor(
                             coordinator=coordinator,
                             entry=entry,
                             subentry=subentry,
                         )
                     )
-                    entities.append(
+                    market_entities.append(
                         DailyExportRevenueSensor(
                             coordinator=coordinator,
                             entry=entry,
                             subentry=subentry,
                         )
                     )
-            if entities:
+            if market_entities:
                 expected_market_unique_ids.update(
-                    entity.unique_id for entity in entities
+                    entity.unique_id
+                    for entity in market_entities
+                    if entity.unique_id is not None
                 )
-                async_add_entities(entities, config_subentry_id=subentry.subentry_id)
+                async_add_entities(
+                    market_entities, config_subentry_id=subentry.subentry_id
+                )
 
     _remove_stale_market_node_entities(hass, entry.entry_id, expected_market_unique_ids)
 
@@ -172,7 +176,7 @@ class MarketNodeSensorBase(CoordinatorEntity, SensorEntity):
     """Base class for market node sensors."""
 
     _attr_device_class = SensorDeviceClass.MONETARY
-    _attr_state_class = None
+    _attr_state_class: SensorStateClass | None = None
     _attr_has_entity_name = True
 
     def __init__(

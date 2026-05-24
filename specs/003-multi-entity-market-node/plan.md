@@ -9,14 +9,14 @@ Replace 002 single-sensor subentries with 003 market-node subentries that can cr
 
 ## Technical Context
 
-**Language/Version**: Python 3.14+  
-**Primary Dependencies**: Home Assistant 2026.3.1, `electricityinfo-nz==1.0.0rc2`, voluptuous selectors, DataUpdateCoordinator, RestoreEntity  
-**Storage**: Home Assistant config entries/subentries + entity registry/state restoration (no standalone DB)  
-**Testing**: `pytest`, `pytest-asyncio`, `pytest-homeassistant-custom-component`  
-**Target Platform**: Home Assistant custom integration runtime (async Python)  
-**Project Type**: Integration/library-wrapper client (single project)  
-**Performance Goals**: New/updated sensors visible within 3 minutes of config completion (SC-001); support up to 5 configured nodes without observable HA UI degradation (SC-003)  
-**Constraints**: OAuth-only auth; no direct HTTP in integration; single 30-minute coordinator per config entry; prices converted at ingest to selected unit; one migrated entry per `market_node`; if export meter is unset and import meter is set, treat import meter as signed bidirectional source for export calculations  
+**Language/Version**: Python 3.14+
+**Primary Dependencies**: Home Assistant 2026.3.1, `electricityinfo-nz==1.0.0rc2`, voluptuous selectors, DataUpdateCoordinator, RestoreEntity
+**Storage**: Home Assistant config entries/subentries + entity registry/state restoration (no standalone DB)
+**Testing**: `pytest`, `pytest-asyncio`, `pytest-homeassistant-custom-component`
+**Target Platform**: Home Assistant custom integration runtime (async Python)
+**Project Type**: Integration/library-wrapper client (single project)
+**Performance Goals**: New/updated sensors visible within 3 minutes of config completion (SC-001); support up to 5 configured nodes without observable HA UI degradation (SC-003)
+**Constraints**: OAuth-only auth; no direct HTTP in integration; single 30-minute coordinator per config entry; prices converted at ingest to selected unit; one migrated entry per `market_node`; if export meter is unset and import meter is set, treat import meter as signed bidirectional source for export calculations
 **Scale/Scope**: Up to 5 market node subentries per config entry; up to 8 sensors per node; 24h/48h accounting history; 48 day-ahead periods and 8 intraday periods
 
 ## Constitution Check
@@ -68,8 +68,7 @@ tests/
 ├── integration/
 │   └── test_sensor_lifecycle.py
 └── live/
-    ├── test_schedule_date_range.py
-    └── FINDINGS.md
+    └── test_schedule_date_range.py
 ```
 
 **Structure Decision**: Single-project Home Assistant integration layout (`custom_components/electricityinfo` + `tests`) is retained; feature artifacts stay under `specs/003-multi-entity-market-node`.

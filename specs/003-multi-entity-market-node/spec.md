@@ -176,7 +176,7 @@ A user wants to change the options they chose when first setting up a market nod
 
 ### Session 2026-05-20
 
-- Q: Which API schedule should accounting sensors use to source settled price data? → A: Interim schedule (`back=N`) — near real-time (~30 min lag), converges to identical Final settled values (confirmed identical prices in live API testing; see `tests/live/FINDINGS.md`).
+- Q: Which API schedule should accounting sensors use to source settled price data? → A: Interim schedule (`back=N`) — near real-time (~30 min lag), converges to identical Final settled values (confirmed identical prices in live API testing).
 - Q: Do import cost / export revenue sensors show raw price only or calculated cost (price × volume)? → A: Both — a raw Interim settled price sensor is always created; separate calculated cost/revenue sensors are also created and require the user to optionally link a Home Assistant energy meter entity per node.
 - Q: When accounting is enabled but no energy meter is linked, what should the config flow do? → A: Optional — settled price sensor always created; calculated sensors (import cost, export revenue, arbitrage analytics) silently omitted if no meter linked; user can link a meter later via reconfigure to activate them.
 - Q: What entity validation should the config flow apply to a linked energy meter? → A: Require `device_class: energy` (unit: kWh) — standard HA energy meter type, ensuring dimensionally correct price × volume calculation.

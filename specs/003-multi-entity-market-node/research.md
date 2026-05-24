@@ -146,7 +146,7 @@ The user-selected `price_unit` is available as `subentry.data["price_unit"]`.
 
 **Decision**: Use `get_schedule_prices(schedule="Interim", market_type="E", nodes=[node], back=48)` for accounting. `back=48` = 48 trade periods = 24 hours of settled prices (full trading day).
 
-**Confirmed by live testing** (see `tests/live/FINDINGS.md`):
+**Confirmed by live testing**:
 - Interim prices are identical to Final settled prices within ~30 min of each trading period closing
 - `from_datetime`-only queries for Final have ~1-day publication lag (unreliable for recent periods)
 - `back=48` reliably returns up to the last 24 hours of settled prices

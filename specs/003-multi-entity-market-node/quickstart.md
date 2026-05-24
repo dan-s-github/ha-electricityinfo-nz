@@ -109,6 +109,17 @@ Update `translations/en.json`:
 
 ---
 
+## Phase 8 Alignment Notes (As Implemented)
+
+- Migration coverage and VERSION 1→2 behavior are verified in `tests/test_init.py` (including duplicate-by-node migration handling).
+- Coordinator behavior (routing, isolation, accounting deltas, bidirectional/fallback) is verified in `tests/test_coordinator.py`.
+- Accounting sensor behavior (settled/import/export/daily restore/reset) is verified in `tests/test_accounting.py`.
+- Reconfigure lifecycle and entity add/remove behavior are verified in `tests/test_options_flow.py` and `tests/integration/test_sensor_lifecycle.py`.
+- Multi-node isolation and independent updates are verified in `tests/integration/test_multi_node.py`.
+- Final regression gate for this feature is `pytest tests/`, with lint/type checks from `ruff check custom_components/ tests/` and `mypy custom_components/`.
+
+---
+
 ## Testing Strategy
 
 | Test Type | Location | Credentials | Speed |

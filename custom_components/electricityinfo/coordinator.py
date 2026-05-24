@@ -105,8 +105,16 @@ class ElectricityInfoCoordinator(DataUpdateCoordinator):
             session=async_get_clientsession(self.hass),
         )
 
+    def _get_client(self) -> AsyncMarketPricesClient:
+        """Return an initialized API client."""
+        if self.client is None:
+            msg = "API client is not initialized"
+            raise ConfigEntryAuthFailed(msg)
+        return self.client
+
     async def _fetch_legacy_sensor_data(self, subentry: Any) -> dict[str, Any]:
         """Fetch data for legacy 002 sensor subentry type."""
+        client = self._get_client()
         sensor_config = dict(subentry.data)
         node = sensor_config.get(CONF_NODE)
         schedule_type = sensor_config.get(CONF_SCHEDULE_TYPE)
@@ -114,7 +122,7 @@ class ElectricityInfoCoordinator(DataUpdateCoordinator):
         forward_hours = sensor_config.get("forward_prices_count", 24)
         forward_prices = int(forward_hours) * 2
 
-        schedule_details = await self.client.get_schedule_prices(
+        schedule_details = await client.get_schedule_prices(
             schedule=schedule_type,
             market_type=market_type,
             nodes=[node] if node else None,
@@ -124,6 +132,7 @@ class ElectricityInfoCoordinator(DataUpdateCoordinator):
 
     async def _fetch_market_node_data(self, subentry: Any) -> dict[str, Any]:
         """Fetch data for 003 market_node subentry."""
+        client = self._get_client()
         config = dict(subentry.data)
         node = config.get(CONF_NODE)
         price_unit = config.get(CONF_PRICE_UNIT, "c/kWh")
@@ -154,7 +163,7 @@ class ElectricityInfoCoordinator(DataUpdateCoordinator):
         if config.get(CONF_ENABLE_LIVE_PRICE) or (
             config.get(CONF_ENABLE_FORECAST) and "day_ahead" in horizons
         ):
-            day_ahead = await self.client.get_schedule_prices(
+            day_ahead = await client.get_schedule_prices(
                 schedule=schedule_map["day_ahead"],
                 market_type="E",
                 nodes=[node] if node else None,
@@ -166,7 +175,7 @@ class ElectricityInfoCoordinator(DataUpdateCoordinator):
             node_data["day_ahead"] = day_ahead
 
         if config.get(CONF_ENABLE_FORECAST) and "intraday" in horizons:
-            intraday = await self.client.get_schedule_prices(
+            intraday = await client.get_schedule_prices(
                 schedule=schedule_map["intraday"],
                 market_type="E",
                 nodes=[node] if node else None,
@@ -178,7 +187,7 @@ class ElectricityInfoCoordinator(DataUpdateCoordinator):
             node_data["intraday"] = intraday
 
         if config.get(CONF_ENABLE_ACCOUNTING):
-            accounting = await self.client.get_schedule_prices(
+            accounting = await client.get_schedule_prices(
                 schedule="Interim",
                 market_type="E",
                 nodes=[node] if node else None,
@@ -249,6 +258,8 @@ class ElectricityInfoCoordinator(DataUpdateCoordinator):
         self._meter_prev_import[subentry_id] = import_current
         self._meter_prev_export[subentry_id] = export_current
 
+        import_delta: float | None
+        export_delta: float | None
         if import_meter and bidirectional:
             delta = self._compute_delta(import_previous, import_current)
             if delta is None:
