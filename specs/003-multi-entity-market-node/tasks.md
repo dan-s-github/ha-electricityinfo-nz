@@ -1,132 +1,164 @@
-# Tasks: Multiple Entities for Market Node (003)
+# Tasks: Multiple Entities for Market Node
 
-**Branch**: `003-multi-entity-market-node`
-**Input**: Design documents from `specs/003-multi-entity-market-node/`
-**Tech stack**: Python 3.14+, Home Assistant 2026.3.1, electricityinfo-nz PyPI library, pytest + pytest-homeassistant-custom-component
+**Input**: Design documents from `/specs/003-multi-entity-market-node/`
+**Prerequisites**: `plan.md` (required), `spec.md` (required), `research.md`, `data-model.md`, `contracts/`, `quickstart.md`
+
+**Tests**: Included (spec has explicit independent test criteria per user story and constitution mandates test-first).
+
+**Organization**: Tasks are grouped by user story to enable independent implementation and testing.
 
 ## Format: `[ID] [P?] [Story] Description`
 
-- **[P]**: Can run in parallel (different files, no shared state dependencies)
-- **[Story]**: Maps to user story from spec.md (US1–US5)
-- **Tests**: Included per TDD approach specified in quickstart.md (write tests first, verify they fail, then implement)
+- **[P]**: Can run in parallel (different files, no incomplete-task dependency)
+- **[Story]**: User story label (`[US1]` ... `[US5]`)
+- All task descriptions include concrete file paths.
+
+## Phase 1: Setup (Shared Infrastructure)
+
+**Purpose**: Establish 003 constants/config scaffolding and baseline test assets.
+
+- [ ] T001 Update 003 constants and option enums in `custom_components/electricityinfo/const.py`
+- [ ] T002 Align integration metadata/version prerequisites for 003 in `custom_components/electricityinfo/manifest.json`
+- [ ] T003 [P] Add/refresh shared schedule fixtures for 003 scenarios in `tests/fixtures/market_prices.json`
+- [ ] T004 [P] Add/refresh shared test helpers for subentry/coordinator fixtures in `tests/helpers.py`
+- [ ] T005 [P] Add 003 config-flow translation keys and validation errors in `custom_components/electricityinfo/translations/en.json`
 
 ---
 
-## Phase 1: Setup (Constants & Manifest)
+## Phase 2: Foundational (Blocking Prerequisites)
 
-**Purpose**: Establish 003 constants and manifest version before any implementation can begin.
+**Purpose**: Core architecture required before any user story implementation.
 
-- [ ] T001 Update `custom_components/electricityinfo/const.py`: add `SUBENTRY_TYPE="market_node"`, `PRICE_UNITS`, `FORECAST_TYPES`, `FORECAST_HORIZONS`, `FORECAST_SCHEDULE_MAP`, `RETENTION_OPTIONS`, `ACCOUNTING_BACK_PERIODS=48`, `DAY_AHEAD_FORWARD_PERIODS=48`, `INTRADAY_FORWARD_PERIODS=8`, `NZD_MWH_TO_C_KWH=0.1`, `NZD_MWH_TO_NZD_KWH=0.001`, `UPDATE_INTERVAL_MINUTES=30`, `RETRY_INTERVAL_MINUTES=1`, `MAX_RETRIES=2`; remove old 002 constants (`CONF_SCHEDULE_TYPE`, `CONF_MARKET_TYPE`, `CONF_FORWARD_PRICES_COUNT`)
-- [ ] T002 [P] Update `custom_components/electricityinfo/manifest.json`: bump `version` to `"2.0.0"`
+**⚠️ CRITICAL**: No user story work starts until this phase completes.
 
-**Checkpoint**: Constants and manifest ready — all subsequent tasks can reference T001 symbols.
+- [ ] T006 Implement `MarketNodeSubentryFlow` registration and entry points in `custom_components/electricityinfo/config_flow.py`
+- [ ] T007 Implement shared config normalization/validation helpers (enabled sections, meter validation, node validation) in `custom_components/electricityinfo/config_flow.py`
+- [ ] T008 Implement 002→003 migration (`async_migrate_entry`) and config version bump in `custom_components/electricityinfo/__init__.py`
+- [ ] T009 [P] Add migration coverage for schedule mappings, dedupe-by-node, and warning behavior in `tests/test_init.py`
+- [ ] T010 Refactor coordinator data shape and per-subentry fetch dispatch in `custom_components/electricityinfo/coordinator.py`
+- [ ] T011 [P] Add coordinator routing/retry/unit-conversion baseline tests in `tests/test_coordinator.py`
+- [ ] T012 Implement shared sensor entity base/ID/device helpers for market-node subentries in `custom_components/electricityinfo/sensor.py`
 
----
-
-## Phase 2: Foundational (Migration — blocks all user stories)
-
-**Purpose**: Migrate existing VERSION 1 config entries to VERSION 2. MUST be complete before any user story can function correctly on an upgraded install.
-
-**⚠️ CRITICAL**: No user story work can be validated end-to-end until migration is complete.
-
-- [ ] T003 Write migration tests in `tests/test_migration.py`: cover `PRSL`→day-ahead, `PRSS`→intraday, `NRSL`/`NRSS`→non-responsive, `RTD`/`WDS`/`Final`/`Interim`→forecast disabled, `enable_live_price=True` always set, `accounting_retention_hours=24`/`import_meter_entity_id=None`/`export_meter_entity_id=None` in migrated data, and entity ID change warnings logged; confirm tests FAIL before implementation
-- [ ] T004 Implement `async_migrate_entry` in `custom_components/electricityinfo/__init__.py`: apply VERSION 1→2 mapping rules per `research.md §1`; convert `schedule_type` to `enable_forecast`, `forecast_type`, `forecast_horizons`; set `enable_live_price=True`, `enable_accounting=False`, `accounting_retention_hours=24`, `import_meter_entity_id=None`, `export_meter_entity_id=None`; log one warning per changed entity ID; return `False` on failure
-- [ ] T005 Set `ConfigFlow.VERSION = 2` in `custom_components/electricityinfo/config_flow.py` so HA triggers `async_migrate_entry` on existing VERSION 1 entries
-
-**Checkpoint**: Run `pytest tests/test_migration.py -v` — all migration tests must pass before US work begins.
+**Checkpoint**: Foundation complete; user stories can be implemented/tested independently.
 
 ---
 
-## Phase 3: User Story 1 — Live Price Sensor (Priority: P1) 🎯 MVP
+## Phase 3: User Story 1 - Live Price Sensor Setup (Priority: P1) 🎯 MVP
 
-**Goal**: User configures a market node, enables live price, and a sensor appears showing the current trade period price sourced from the forecast schedule response.
+**Goal**: Create live price sensor for a configured market node with selected unit and current trade period value.
 
-**Independent Test**: Configure one node with only live price enabled → one sensor created → sensor shows current price in selected unit.
+**Independent Test**: Configure one market node with only live price enabled and verify a single live sensor is created with current value.
 
-### Tests for US1 (write first — verify FAIL before implementing)
+### Tests for User Story 1
 
-- [ ] T006 [P] [US1] Write `MarketNodeSubentryFlow` tests in `tests/test_config_flow.py`: cover `user` step creation (required fields, node validation, `no_sensor_type_enabled` error), `reconfigure` step pre-fill, `_build_node_data` output shape, `_node_title` format `"{NODE_LABEL} [{unit}]"`, and `async_get_supported_subentry_types` returns `{"market_node": MarketNodeSubentryFlow}`
-- [ ] T007 [P] [US1] Write `LivePriceSensor` tests in `tests/test_sensor.py`: cover current trade period detection (largest `trading_datetime ≤ utcnow()`), `RestoreEntity` restore of last known state, staleness guard (age > 30 min → discard + request refresh), forecast attribute populated with remaining future periods, `native_unit_of_measurement` equals configured `price_unit`, unique ID suffix `live_price`
+- [ ] T013 [P] [US1] Add config-flow test for live-only market-node creation in `tests/test_config_flow.py`
+- [ ] T014 [P] [US1] Add live sensor restore/staleness tests in `tests/test_sensor.py`
+- [ ] T015 [P] [US1] Add live sensor startup availability integration test in `tests/integration/test_sensor_lifecycle.py`
 
-### Implementation for US1
+### Implementation for User Story 1
 
-- [ ] T008 [US1] Implement `MarketNodeSubentryFlow` in `custom_components/electricityinfo/config_flow.py`: replace `SensorSubentryFlowHandler`; implement `user` and `reconfigure` steps with schema per `contracts/config-flow.md`; implement `_build_node_data`, `_validate_node_fields` (cross-field validation, `no_sensor_type_enabled`, `forecast_horizons_empty`, `node_invalid`), and `_node_title`; register via `async_get_supported_subentry_types` returning `{"market_node": MarketNodeSubentryFlow}`
-- [ ] T009 [US1] Refactor `custom_components/electricityinfo/coordinator.py`: change per-subentry dispatch to filter `subentry_type == "market_node"`; build `NodeData` TypedDict with `day_ahead`, `intraday`, `accounting`, `import_cost_delta`, `export_revenue_delta`, `accounting_date_nzt`, `config`, `error` keys; implement `_convert_price(price_nzd_mwh, price_unit) -> float` and apply to all `PriceDetail.price` values at ingest; dispatch `get_schedule_prices(PRSL/NRSL, forward=48)` when `enable_live_price=True` or day-ahead forecast enabled
-- [ ] T010 [US1] Implement `LivePriceSensor` in `custom_components/electricityinfo/sensor.py`: inherit `CoordinatorEntity`, `RestoreEntity`, `SensorEntity`; implement `async_added_to_hass` with restore + staleness guard (30 min threshold → discard + `coordinator.async_request_refresh()`); implement `_handle_coordinator_update` selecting current period (max `trading_datetime ≤ utcnow()`) and populating `forecast` attribute; set `unique_id = f"electricityinfo_{entry.entry_id}_{subentry.subentry_id}_live_price"`
-- [ ] T011 [US1] Update `sensor.async_setup_entry` in `custom_components/electricityinfo/sensor.py`: iterate `entry.subentries.values()` filtering `subentry_type == "market_node"`; create `LivePriceSensor` when `config["enable_live_price"]`; call `async_add_entities(entities, config_subentry_id=subentry.subentry_id)`; remove old `PriceSensorEntity` setup logic
-- [ ] T012 [US1] Update `custom_components/electricityinfo/translations/en.json`: add strings for `node`, `price_unit`, `enable_live_price` fields; add error keys `no_sensor_type_enabled`, `node_invalid`; remove obsolete 002 string keys
+- [ ] T016 [US1] Implement current trade period extraction for live state from forecast response in `custom_components/electricityinfo/coordinator.py`
+- [ ] T017 [US1] Implement `LivePriceSensor` state/attributes/RestoreEntity behavior in `custom_components/electricityinfo/sensor.py`
+- [ ] T018 [US1] Wire live-only entity creation path for market-node subentries in `custom_components/electricityinfo/sensor.py`
 
-**Checkpoint**: `pytest tests/test_config_flow.py tests/test_sensor.py -v` passes. Configure live price sensor in HA dev — sensor appears with current price value.
-
----
-
-## Phase 4: User Story 2 — Forecast Sensors (Priority: P2) + US4 + US5
-
-**Goal**: User enables forecasting, selects horizon(s) and forecast type; forecast sensor(s) created with upcoming periods and history retention.
-
-**Independent Test (US2)**: Enable only forecast section, select day-ahead → one `DayAheadForecastSensor` created with next period as value and forecast attribute with up to 48 entries.
-
-**Independent Test (US4)**: Add second different market node → distinct independent entity sets, each prefixed with their node code.
-
-**Independent Test (US5)**: Reconfigure existing node → add/remove sensor types reflected on next save without removing the unmodified sensors.
-
-### Tests for US2/US4/US5 (write first)
-
-- [ ] T013 [P] [US2] Write `DayAheadForecastSensor` and `IntradayForecastSensor` tests in `tests/test_sensor.py`: cover next-period as `native_value`, `forecast` attribute (up to 48 / 8 periods), `history` attribute retained up to `forecast_retention_hours × 2` periods, `RestoreEntity` NOT used (starts unavailable), unit matches config
-- [ ] T014 [P] [US4] Write multi-node integration tests in `tests/integration/test_multi_node.py`: 2 nodes configured → separate entity sets with correct unique IDs; prices update independently; error in one node does not affect the other
-- [ ] T015 [P] [US5] Write reconfigure tests in `tests/test_config_flow.py`: enable previously disabled sensor type → entity added; disable previously enabled type → entity removed; save with no changes → all entities unchanged
-
-### Implementation for US2/US4/US5
-
-- [ ] T016 [US2] Extend `custom_components/electricityinfo/coordinator.py`: add intraday fetch `get_schedule_prices(PRSS/NRSS, forward=8)` dispatched when `"intraday" in config["forecast_horizons"]`; store result in `node_data["intraday"]`; implement `FORECAST_SCHEDULE_MAP` lookup for `price_responsive`/`non_responsive` × day-ahead/intraday
-- [ ] T017 [P] [US2] Implement `DayAheadForecastSensor` in `custom_components/electricityinfo/sensor.py`: `CoordinatorEntity` only (no `RestoreEntity`); `native_value` = first future `PriceDetail` price; `forecast` attribute = all future periods as `list[PeriodPrice]`; `history` attribute = past periods within `forecast_retention_hours × 2` trade periods; unique ID suffix `day_ahead_forecast`
-- [ ] T018 [P] [US2] Implement `IntradayForecastSensor` in `custom_components/electricityinfo/sensor.py`: same shape as `DayAheadForecastSensor` but sourced from `node_data["intraday"]` (up to 8 forward periods); unique ID suffix `intraday_forecast`
-- [ ] T019 [US2] Update `sensor.async_setup_entry` in `custom_components/electricityinfo/sensor.py`: add `DayAheadForecastSensor` when `"day_ahead" in config["forecast_horizons"]`; add `IntradayForecastSensor` when `"intraday" in config["forecast_horizons"]`
-- [ ] T020 [US4] Implement per-node error isolation in `custom_components/electricityinfo/coordinator.py`: wrap each subentry fetch in `try/except`; store `error` in `NodeData` on failure; other nodes continue updating; on `AuthenticationError` raise `ConfigEntryAuthFailed`; implement exponential backoff (`_retry_count`, intervals: 1→2→4 min); after `MAX_RETRIES` mark coordinator failed
-- [ ] T021 [US5] Implement `reconfigure` step in `custom_components/electricityinfo/config_flow.py`: pre-fill schema with current subentry data; on success call `async_update_and_abort`; sensor delta (add/remove) is handled automatically by HA on platform reload after subentry data update
-- [ ] T022 [US2] Update `custom_components/electricityinfo/translations/en.json`: add strings for `enable_forecast`, `forecast_type`, `forecast_horizons`, `forecast_retention_hours` fields; add error key `forecast_horizons_empty`
-
-**Checkpoint**: `pytest tests/test_sensor.py tests/integration/test_multi_node.py -v` passes. Two-node setup in HA dev shows independent sensor sets.
+**Checkpoint**: US1 is functional and independently testable (MVP).
 
 ---
 
-## Phase 5: User Story 3 — Accounting and Analytics Sensors (Priority: P3)
+## Phase 4: User Story 2 - Forecast Price Sensors (Priority: P2)
 
-**Goal**: User enables accounting; settled price sensor always created; import cost, export revenue, and daily total sensors created when energy meters are linked.
+**Goal**: Create day-ahead and/or intraday forecast sensors with forecast type, horizons, and retention controls.
 
-**Independent Test**: Enable accounting with import + export meter linked → 5 sensors created: `SettledPriceSensor`, `ImportCostSensor`, `ExportRevenueSensor`, `DailyImportCostSensor`, `DailyExportRevenueSensor`. Daily totals survive HA restart and continue accumulating. Midnight NZT resets totals to zero.
+**Independent Test**: Enable forecasting only, choose one or both horizons, and verify forecast sensor creation/population.
 
-### Tests for US3 (write first)
+### Tests for User Story 2
 
-- [ ] T023 [P] [US3] Write `SettledPriceSensor` tests in `tests/test_accounting.py`: most recent `back=48` Interim entry as `native_value`; `history` attribute within `accounting_retention_hours × 2` periods; starts unavailable on restart; unique ID suffix `settled_price`
-- [ ] T024 [P] [US3] Write `ImportCostSensor` and `ExportRevenueSensor` tests in `tests/test_accounting.py`: `native_value = import_cost_delta` from `NodeData`; `import_meter_entity_id` in attributes; starts unavailable on restart; not created when meter not linked; separate per-sensor for import vs export; unique ID suffixes `import_cost` and `export_revenue`
-- [ ] T025 [P] [US3] Write `DailyImportCostSensor` and `DailyExportRevenueSensor` tests in `tests/test_accounting.py`: accumulation across multiple coordinator polls; midnight NZT reset when `accounting_date_nzt` advances; `RestoreEntity` restores accumulated total + `accumulation_date` on restart; if restored date is prior day → resets to zero immediately; bidirectional meter mode (same entity_id for import and export) computes signed deltas correctly; unique ID suffixes `daily_import_cost` and `daily_export_revenue`
-- [ ] T026 [P] [US3] Write coordinator accounting/delta tests in `tests/test_coordinator.py`: Interim `back=48` dispatch when `enable_accounting=True`; energy delta `= current − previous` per poll; first poll skips delta (no previous stored); bidirectional meter (positive delta = import, negative delta abs = export); `accounting_date_nzt` is NZT date of latest settled period; retry/backoff per `MAX_RETRIES`
+- [ ] T019 [P] [US2] Add forecast form validation tests (horizons/type/retention) in `tests/test_config_flow.py`
+- [ ] T020 [P] [US2] Add day-ahead/intraday forecast sensor behavior tests in `tests/test_sensor.py`
+- [ ] T021 [P] [US2] Add forecast retention history assertions in `tests/test_sensor_multiple.py`
 
-### Implementation for US3
+### Implementation for User Story 2
 
-- [ ] T027 [US3] Extend `custom_components/electricityinfo/config_flow.py`: add `import_meter_entity_id` and `export_meter_entity_id` `EntitySelector` fields; update `accounting_retention_hours` options to 24/48 (default 24); update `_build_node_data` to handle two meter fields; add validation `entity_not_energy_import` and `entity_not_energy_export`; update `async_get_supported_subentry_types` to include updated schema
-- [ ] T028 [US3] Extend `custom_components/electricityinfo/coordinator.py`: add Interim `back=48` fetch to `NodeData["accounting"]`; add `_meter_prev_import: dict[str, float | None]` and `_meter_prev_export: dict[str, float | None]` instance dicts; compute energy deltas per subentry (skip first poll); handle bidirectional mode when `import_meter_entity_id == export_meter_entity_id`; populate `import_cost_delta`, `export_revenue_delta`, `accounting_date_nzt` in `NodeData`
-- [ ] T029 [P] [US3] Implement `SettledPriceSensor` in `custom_components/electricityinfo/sensor.py`: `CoordinatorEntity` only; `native_value` = most recent settled period price from `node_data["accounting"]`; `history` attribute = up to `accounting_retention_hours × 2` periods; attributes include `trading_period`, `timestamp`, `node`; unique ID suffix `settled_price`
-- [ ] T030 [P] [US3] Implement `ImportCostSensor` in `custom_components/electricityinfo/sensor.py`: `CoordinatorEntity` only; `native_value = node_data["import_cost_delta"]`; attributes include `settled_price`, `energy_kwh`, `import_meter_entity_id`, `trading_period`; `native_unit_of_measurement` = `"c"` if `price_unit="c/kWh"` else `"NZD"`; unique ID suffix `import_cost`
-- [ ] T031 [P] [US3] Implement `ExportRevenueSensor` in `custom_components/electricityinfo/sensor.py`: same shape as `ImportCostSensor` but uses `export_revenue_delta` and `export_meter_entity_id`; unique ID suffix `export_revenue`
-- [ ] T032 [US3] Implement `DailyImportCostSensor` in `custom_components/electricityinfo/sensor.py`: `CoordinatorEntity` + `RestoreEntity`; `async_added_to_hass` restores `_accumulated_total` and `_accumulation_date`; if restored date < today NZT → reset immediately; `_handle_coordinator_update` applies midnight reset logic (compare `accounting_date_nzt` against `_accumulation_date`) then adds `import_cost_delta`; `state_class = SensorStateClass.TOTAL`; attributes include `accumulation_date`, `import_meter_entity_id`; unique ID suffix `daily_import_cost`
-- [ ] T033 [US3] Implement `DailyExportRevenueSensor` in `custom_components/electricityinfo/sensor.py`: same shape as `DailyImportCostSensor` but accumulates `export_revenue_delta` and attributes include `export_meter_entity_id`; unique ID suffix `daily_export_revenue`
-- [ ] T034 [US3] Update `sensor.async_setup_entry` in `custom_components/electricityinfo/sensor.py`: when `enable_accounting=True`: always add `SettledPriceSensor`; add `ImportCostSensor` + `DailyImportCostSensor` only if `import_meter_entity_id` set; add `ExportRevenueSensor` + `DailyExportRevenueSensor` only if `export_meter_entity_id` set
-- [ ] T035 [US3] Update `custom_components/electricityinfo/translations/en.json`: add strings for `enable_accounting`, `accounting_retention_hours`, `import_meter_entity_id`, `export_meter_entity_id` fields; add error keys `entity_not_energy_import`, `entity_not_energy_export`
+- [ ] T022 [US2] Implement forecast schedule mapping and horizon-based fetch logic in `custom_components/electricityinfo/coordinator.py`
+- [ ] T023 [US2] Implement `DayAheadForecastSensor` and `IntradayForecastSensor` state/attribute models in `custom_components/electricityinfo/sensor.py`
+- [ ] T024 [US2] Implement forecast section parsing and persistence in `custom_components/electricityinfo/config_flow.py`
 
-**Checkpoint**: `pytest tests/test_accounting.py tests/test_coordinator.py -v` passes. Accounting sensors verified in HA dev with linked energy meter — daily totals survive restart and reset at midnight NZT.
+**Checkpoint**: US2 works independently with US1 intact.
 
 ---
 
-## Phase 6: Polish & Cross-Cutting Concerns
+## Phase 5: User Story 4 - Multiple Market Nodes (Priority: P2)
 
-**Purpose**: Final cleanup, type safety, and full acceptance checklist verification.
+**Goal**: Support multiple independently configured market nodes with isolated data updates and entity sets.
 
-- [ ] T036 [P] Remove `PriceSensorEntity` class and all remaining 002-era code from `custom_components/electricityinfo/sensor.py` and any unused 002 imports from `custom_components/electricityinfo/const.py`; verify no dead code remains
-- [ ] T037 [P] Run `ruff check --fix custom_components/ tests/` and resolve any remaining linting issues
-- [ ] T038 [P] Run `mypy custom_components/` and resolve all type errors (ensure `NodeData` TypedDict, `PeriodPrice` TypedDict, and all sensor class return types are annotated correctly)
-- [ ] T039 Run `pytest tests/ -v` and verify all tests pass (migration, coordinator, sensor, accounting, integration); confirm test count increases from baseline 64
+**Independent Test**: Add a second node and verify separate, correctly named sensors update independently.
+
+### Tests for User Story 4
+
+- [ ] T025 [P] [US4] Add multi-node setup and independent update integration tests in `tests/integration/test_multi_node.py`
+- [ ] T026 [P] [US4] Add per-node coordinator error-isolation tests in `tests/test_coordinator.py`
+
+### Implementation for User Story 4
+
+- [ ] T027 [US4] Implement per-subentry coordinator update isolation and node-keyed storage in `custom_components/electricityinfo/coordinator.py`
+- [ ] T028 [US4] Implement per-node device/entity naming and unique-ID prefix rules in `custom_components/electricityinfo/sensor.py`
+- [ ] T029 [US4] Enforce one configured subentry per market node in flow validation in `custom_components/electricityinfo/config_flow.py`
+
+**Checkpoint**: US4 is independently functional with multi-node behavior.
+
+---
+
+## Phase 6: User Story 5 - Modifying an Existing Market Node Configuration (Priority: P2)
+
+**Goal**: Allow reconfigure flows to add/remove/update node options without deleting and recreating integration.
+
+**Independent Test**: Save initial config, re-open config, modify at least one option, save, and verify sensor set reflects the change.
+
+### Tests for User Story 5
+
+- [ ] T030 [P] [US5] Add reconfigure no-op vs changed-save tests in `tests/test_options_flow.py`
+- [ ] T031 [P] [US5] Add entity add/remove-on-reconfigure integration coverage in `tests/integration/test_sensor_lifecycle.py`
+
+### Implementation for User Story 5
+
+- [ ] T032 [US5] Implement reconfigure form population/update-and-abort path in `custom_components/electricityinfo/config_flow.py`
+- [ ] T033 [US5] Implement sensor delta reconciliation on config changes in `custom_components/electricityinfo/sensor.py`
+- [ ] T034 [US5] Preserve unaffected nodes during one-node reconfigure updates in `custom_components/electricityinfo/coordinator.py`
+
+**Checkpoint**: US5 reconfigure behavior is independently testable.
+
+---
+
+## Phase 7: User Story 3 - Accounting and Analytics Sensors (Priority: P3)
+
+**Goal**: Deliver settled price, import/export per-period values, and daily totals using Interim pricing plus meter-linked deltas.
+
+**Independent Test**: Enable accounting and verify settled + calculated + daily sensors according to linked meter configuration.
+
+### Tests for User Story 3
+
+- [ ] T035 [P] [US3] Add accounting flow validation tests for meter selectors and fallback rules in `tests/test_config_flow.py`
+- [ ] T036 [P] [US3] Add coordinator accounting tests (Interim `back=48`, meter delta, bidirectional, export fallback) in `tests/test_coordinator.py`
+- [ ] T037 [P] [US3] Add accounting sensor tests for settled/import/export/daily restore/reset behavior in `tests/test_accounting.py`
+
+### Implementation for User Story 3
+
+- [ ] T038 [US3] Implement accounting fetch, meter delta tracking, and export fallback computation in `custom_components/electricityinfo/coordinator.py`
+- [ ] T039 [US3] Implement `SettledPriceSensor`, `ImportCostSensor`, `ExportRevenueSensor`, `DailyImportCostSensor`, and `DailyExportRevenueSensor` in `custom_components/electricityinfo/sensor.py`
+- [ ] T040 [US3] Implement accounting section schema (retention + two optional selectors + fallback normalization) in `custom_components/electricityinfo/config_flow.py`
+
+**Checkpoint**: US3 accounting behavior is independently functional.
+
+---
+
+## Phase 8: Polish & Cross-Cutting Concerns
+
+**Purpose**: Final consistency, docs, and full-suite confidence across all stories.
+
+- [ ] T041 [P] Update feature artifact alignment notes in `specs/003-multi-entity-market-node/quickstart.md`
+- [ ] T042 [P] Refresh plan-context summary for implemented behavior in `.github/copilot-instructions.md`
+- [ ] T043 Execute and fix full regression suite issues across `tests/` and `custom_components/electricityinfo/`
+- [ ] T044 [P] Add/update live-test findings notes for settled-price behavior in `tests/live/FINDINGS.md`
 
 ---
 
@@ -134,93 +166,102 @@
 
 ### Phase Dependencies
 
-- **Setup (Phase 1)**: No dependencies — start immediately
-- **Foundational (Phase 2)**: Depends on T001/T002 — BLOCKS all user stories
-- **US1 (Phase 3)**: Depends on Phase 2 completion — CRITICAL PATH (MVP)
-- **US2/US4/US5 (Phase 4)**: Depends on Phase 3 completion (coordinator base, config flow base, setup_entry base)
-- **US3 (Phase 5)**: Depends on Phase 3 + T020 (error isolation) — accounting builds on coordinator NodeData structure
-- **Polish (Phase 6)**: Depends on all prior phases
+- **Phase 1 (Setup)**: No dependencies.
+- **Phase 2 (Foundational)**: Depends on Phase 1 and blocks all user stories.
+- **Phases 3–7 (User Stories)**: Depend on Phase 2 completion.
+- **Phase 8 (Polish)**: Depends on all selected user stories.
 
 ### User Story Dependencies
 
-| Story | Depends On | Notes |
-|-------|-----------|-------|
-| US1 (P1) | Phase 2 | Critical path — MVP |
-| US2 (P2) | US1 | Extends coordinator, adds forecast sensors |
-| US4 (P2) | US1 | Per-node error isolation extends coordinator |
-| US5 (P2) | US1 | Reconfigure step extends config flow |
-| US3 (P3) | US1, T020 | Accounting adds new coordinator keys and 5 sensor classes |
+- **US1 (P1)**: Starts immediately after foundational phase (MVP).
+- **US2 (P2)**: Depends on foundational phase; independent of US4/US5/US3.
+- **US4 (P2)**: Depends on foundational phase and US1 entity/coordinator baseline.
+- **US5 (P2)**: Depends on US1 + US2 configuration/sensor paths.
+- **US3 (P3)**: Depends on foundational phase; can proceed independently of US4/US5.
 
-### Within Each Phase
+### Suggested Completion Order
 
-- Test tasks (T003, T006/T007, T013–T015, T023–T026) MUST be written and confirmed to FAIL before paired implementation tasks
-- T008 (config flow) and T009 (coordinator) are independent files — can be worked in parallel
-- T017 and T018 (DayAheadForecastSensor, IntradayForecastSensor) are independent — can run in parallel
-- T029, T030, T031 (SettledPriceSensor, ImportCostSensor, ExportRevenueSensor) are independent — can run in parallel
-- T036, T037, T038 (cleanup, ruff, mypy) are independent — can run in parallel
+1. US1 (MVP)
+2. US2 and US4 (parallel-capable)
+3. US5
+4. US3
 
 ---
 
-## Parallel Execution Examples
+## Parallel Opportunities
 
-### Phase 3 (US1) Implementation Parallelism
+- **Setup**: T003, T004, T005 can run in parallel.
+- **Foundational**: T009 and T011 can run in parallel after T008/T010 scaffolding.
+- **US1**: T013, T014, T015 parallelizable.
+- **US2**: T019, T020, T021 parallelizable.
+- **US4**: T025 and T026 parallelizable.
+- **US5**: T030 and T031 parallelizable.
+- **US3**: T035, T036, T037 parallelizable.
+- **Polish**: T041, T042, T044 parallelizable.
+
+## Parallel Example: User Story 1
 
 ```bash
-# These two tasks touch different files and can run concurrently:
-Task A: "Implement MarketNodeSubentryFlow in config_flow.py" (T008)
-Task B: "Refactor coordinator.py for NodeData/day_ahead fetch" (T009)
-# Then sequentially:
-Task C: "Implement LivePriceSensor in sensor.py" (T010) — needs T009 NodeData
-Task D: "Update sensor.async_setup_entry" (T011) — needs T010
+Task: "Add config-flow test for live-only market-node creation in tests/test_config_flow.py"
+Task: "Add live sensor restore/staleness tests in tests/test_sensor.py"
+Task: "Add live sensor startup availability integration test in tests/integration/test_sensor_lifecycle.py"
 ```
 
-### Phase 4 (US2) Sensor Parallelism
+## Parallel Example: User Story 2
 
 ```bash
-# These three tasks touch different sensor classes in the same file but are non-overlapping:
-Task A: "Implement DayAheadForecastSensor" (T017)
-Task B: "Implement IntradayForecastSensor" (T018)
+Task: "Add forecast form validation tests in tests/test_config_flow.py"
+Task: "Add day-ahead/intraday forecast sensor behavior tests in tests/test_sensor.py"
+Task: "Add forecast retention assertions in tests/test_sensor_multiple.py"
 ```
 
-### Phase 5 (US3) Sensor Parallelism
+## Parallel Example: User Story 4
 
 ```bash
-# Three sensors are independent:
-Task A: "Implement SettledPriceSensor" (T029)
-Task B: "Implement ImportCostSensor" (T030)
-Task C: "Implement ExportRevenueSensor" (T031)
-# Then sequentially (daily totals depend on coordinator delta fields being ready):
-Task D: "Implement DailyImportCostSensor" (T032) — needs T028
-Task E: "Implement DailyExportRevenueSensor" (T033) — needs T028
+Task: "Add multi-node setup and independent update integration tests in tests/integration/test_multi_node.py"
+Task: "Add per-node coordinator error-isolation tests in tests/test_coordinator.py"
+```
+
+## Parallel Example: User Story 5
+
+```bash
+Task: "Add reconfigure no-op vs changed-save tests in tests/test_options_flow.py"
+Task: "Add entity add/remove-on-reconfigure integration coverage in tests/integration/test_sensor_lifecycle.py"
+```
+
+## Parallel Example: User Story 3
+
+```bash
+Task: "Add accounting flow validation tests for meter selectors and fallback rules in tests/test_config_flow.py"
+Task: "Add coordinator accounting tests in tests/test_coordinator.py"
+Task: "Add accounting sensor tests in tests/test_accounting.py"
 ```
 
 ---
 
 ## Implementation Strategy
 
-### MVP First (US1 Only)
+### MVP First (US1 only)
 
-1. Complete Phase 1: Setup (T001–T002)
-2. Complete Phase 2: Migration (T003–T005) — **CRITICAL**
-3. Complete Phase 3: US1 — Live Price Sensor (T006–T012)
-4. **STOP and VALIDATE**: `pytest tests/test_config_flow.py tests/test_sensor.py -v`
-5. Configure one node in HA dev — live price sensor shows current period price
+1. Complete Phase 1 and Phase 2.
+2. Complete Phase 3 (US1).
+3. Validate US1 independently, then demo/release MVP.
 
 ### Incremental Delivery
 
-1. **MVP**: Setup + Migration + US1 → live price sensor working on upgraded install
-2. **+Forecasting**: US2 (T013–T022) → day-ahead and intraday forecast sensors + multi-node support
-3. **+Accounting**: US3 (T023–T035) → settled price, import cost, export revenue, daily totals
-4. **Polish**: Phase 6 (T036–T039) → lint, types, full test suite
+1. Foundation complete (Phases 1–2).
+2. Deliver US1.
+3. Deliver US2 + US4.
+4. Deliver US5.
+5. Deliver US3.
+6. Execute polish phase.
 
----
+### Parallel Team Strategy
 
-## Notes
+1. Team aligns on Setup + Foundational.
+2. Split into tracks after foundation:
+   - Track A: US1 → US5
+   - Track B: US2 → US4
+   - Track C: US3
+3. Integrate in priority order with checkpoint validation per story.
 
-- Tests must FAIL before implementation — don't skip this verification step
-- Each sensor class has a unique ID suffix defined in `data-model.md` — do not deviate
-- `_convert_price` in coordinator is the ONLY place NZD/MWh→display unit conversion happens — never in sensor getters
-- `RestoreEntity` is used on exactly THREE sensor classes: `LivePriceSensor`, `DailyImportCostSensor`, `DailyExportRevenueSensor`
-- Staleness guard (30 min discard) applies ONLY to `LivePriceSensor` — daily totals never discard their restored value
-- Bidirectional meter mode is triggered automatically when `import_meter_entity_id == export_meter_entity_id` (both non-None)
-- Run `ruff check --fix` after each phase — pre-commit hooks auto-fix formatting and require re-staging
