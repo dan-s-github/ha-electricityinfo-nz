@@ -73,15 +73,15 @@
 
 ### Tests for User Story 2
 
-- [ ] T019 [P] [US2] Add forecast form validation tests (horizons/type/retention) in `tests/test_config_flow.py`
-- [ ] T020 [P] [US2] Add day-ahead/intraday forecast sensor behavior tests (including history population from API lookback) in `tests/test_sensor.py`
-- [ ] T021 [P] [US2] Add forecast history retention assertions for all returned prior periods in `tests/test_sensor_multiple.py`
+- [X] T019 [P] [US2] Add forecast form validation tests (horizons/type/retention) in `tests/test_config_flow.py`
+- [X] T020 [P] [US2] Add day-ahead/intraday forecast sensor behavior tests (including history population from API lookback) in `tests/test_sensor.py`
+- [X] T021 [P] [US2] Add forecast history retention assertions for all returned prior periods in `tests/test_sensor_multiple.py`
 
 ### Implementation for User Story 2
 
-- [ ] T022 [US2] Implement forecast schedule mapping and retention-driven API lookback (`back`) dispatch in `custom_components/electricityinfo/coordinator.py`
-- [ ] T023 [US2] Implement `DayAheadForecastSensor` and `IntradayForecastSensor` state/history attribute models in `custom_components/electricityinfo/sensor.py`
-- [ ] T024 [US2] Implement forecast section parsing and retention persistence in `custom_components/electricityinfo/config_flow.py`
+- [X] T022 [US2] Implement forecast schedule mapping and retention-driven API lookback (`back`) dispatch in `custom_components/electricityinfo/coordinator.py`
+- [X] T023 [US2] Implement `DayAheadForecastSensor` and `IntradayForecastSensor` state/history attribute models in `custom_components/electricityinfo/sensor.py`
+- [X] T024 [US2] Implement forecast section parsing and retention persistence in `custom_components/electricityinfo/config_flow.py`
 
 **Checkpoint**: US2 works independently with US1 intact.
 

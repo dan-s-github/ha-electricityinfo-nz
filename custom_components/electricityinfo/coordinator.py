@@ -23,6 +23,7 @@ from .const import (
     CONF_ENABLE_LIVE_PRICE,
     CONF_EXPORT_METER_ENTITY_ID,
     CONF_FORECAST_HORIZONS,
+    CONF_FORECAST_RETENTION_HOURS,
     CONF_FORECAST_TYPE,
     CONF_IMPORT_METER_ENTITY_ID,
     CONF_MARKET_TYPE,
@@ -203,16 +204,24 @@ class ElectricityInfoCoordinator(DataUpdateCoordinator):
             forecast_type, FORECAST_SCHEDULE_MAP["price_responsive"]
         )
         horizons = _normalized_horizons(config.get(CONF_FORECAST_HORIZONS, []))
+        forecast_back = (
+            int(config.get(CONF_FORECAST_RETENTION_HOURS, 24)) * 2
+            if config.get(CONF_ENABLE_FORECAST)
+            else None
+        )
 
         if config.get(CONF_ENABLE_LIVE_PRICE) or (
             config.get(CONF_ENABLE_FORECAST) and "day_ahead" in horizons
         ):
-            day_ahead = await client.get_schedule_prices(
-                schedule=schedule_map["day_ahead"],
-                market_type="E",
-                nodes=[node] if node else None,
-                forward=DAY_AHEAD_FORWARD_PERIODS,
-            )
+            day_ahead_kwargs: dict[str, Any] = {
+                "schedule": schedule_map["day_ahead"],
+                "market_type": "E",
+                "nodes": [node] if node else None,
+                "forward": DAY_AHEAD_FORWARD_PERIODS,
+            }
+            if forecast_back is not None:
+                day_ahead_kwargs["back"] = forecast_back
+            day_ahead = await client.get_schedule_prices(**day_ahead_kwargs)
             if day_ahead:
                 for p in day_ahead.prices:
                     p.price = _convert_price(p.price, price_unit)
@@ -222,12 +231,15 @@ class ElectricityInfoCoordinator(DataUpdateCoordinator):
             node_data["live_forecast"] = live_forecast
 
         if config.get(CONF_ENABLE_FORECAST) and "intraday" in horizons:
-            intraday = await client.get_schedule_prices(
-                schedule=schedule_map["intraday"],
-                market_type="E",
-                nodes=[node] if node else None,
-                forward=INTRADAY_FORWARD_PERIODS,
-            )
+            intraday_kwargs: dict[str, Any] = {
+                "schedule": schedule_map["intraday"],
+                "market_type": "E",
+                "nodes": [node] if node else None,
+                "forward": INTRADAY_FORWARD_PERIODS,
+            }
+            if forecast_back is not None:
+                intraday_kwargs["back"] = forecast_back
+            intraday = await client.get_schedule_prices(**intraday_kwargs)
             if intraday:
                 for p in intraday.prices:
                     p.price = _convert_price(p.price, price_unit)
