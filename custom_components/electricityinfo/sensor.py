@@ -342,6 +342,11 @@ class ForecastSensorBase(MarketNodeSensorBase):
 
     _schedule_key: str = ""
 
+    async def async_added_to_hass(self) -> None:
+        """Register coordinator listener when added to hass."""
+        _LOGGER.debug("%s: async_added_to_hass called", self._attr_name)
+        await super().async_added_to_hass()
+
     @property
     def available(self) -> bool:
         """Return whether forecast data is available."""
