@@ -352,8 +352,12 @@ class ForecastSensorBase(MarketNodeSensorBase):
 
     def _handle_coordinator_update(self) -> None:
         """Handle coordinator update for forecast sensors."""
+        _LOGGER.debug("%s: Handling coordinator update", self._attr_name)
         node_data = (self.coordinator.data or {}).get(self._subentry_id)
         if not node_data or node_data.get("error"):
+            _LOGGER.debug(
+                "%s: No node data or error in coordinator data", self._attr_name
+            )
             self._native_value = None
             self._attributes = {}
             self.async_write_ha_state()
