@@ -278,7 +278,6 @@ class LivePriceSensor(MarketNodeSensorBase, RestoreEntity):
                 "trading_period": live_current.get("trading_period"),
                 "node": live_current.get("node"),
                 "schedule": live_current.get("schedule"),
-                "forecast": list(node_data.get("live_forecast", [])),
             }
             self.async_write_ha_state()
             return
@@ -311,15 +310,6 @@ class LivePriceSensor(MarketNodeSensorBase, RestoreEntity):
             "trading_period": current.trading_period,
             "node": current.node,
             "schedule": current.schedule,
-            "forecast": [
-                {
-                    "period_start": p.trading_datetime.isoformat(),
-                    "trading_period": p.trading_period,
-                    "price": p.price,
-                }
-                for p in sorted_prices
-                if p.trading_datetime > current.trading_datetime and p.price is not None
-            ],
         }
         self.async_write_ha_state()
 
@@ -332,7 +322,7 @@ class ForecastSensorBase(MarketNodeSensorBase):
     @property
     def available(self) -> bool:
         """Return whether forecast data is available."""
-        if not self.coordinator.last_update_success or self._native_value is None:
+        if not self.coordinator.last_update_success:
             return False
         node_data = (self.coordinator.data or {}).get(self._subentry_id)
         return bool(node_data and not node_data.get("error"))
@@ -362,9 +352,7 @@ class ForecastSensorBase(MarketNodeSensorBase):
         ]
         retention_periods = int(self._config.get(CONF_FORECAST_RETENTION_HOURS, 24)) * 2
         history = [
-            p
-            for p in sorted_prices
-            if p.trading_datetime <= now and p.price is not None
+            p for p in sorted_prices if p.trading_datetime < now and p.price is not None
         ][-retention_periods:]
 
         self._native_value = future[0].price if future else None

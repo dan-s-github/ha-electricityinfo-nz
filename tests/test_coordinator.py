@@ -28,6 +28,25 @@ def _entry_with_market_node(subentry_data: dict) -> MagicMock:
     return entry
 
 
+def _multi_entry_with_market_nodes(subentry_1: dict, subentry_2: dict) -> MagicMock:
+    """Build a mock config entry with two market_node subentries."""
+    entry = MagicMock()
+    entry.data = {"client_id": "id", "client_secret": "secret"}
+    entry.subentries = {
+        "market_node_1": SimpleNamespace(
+            subentry_id="market_node_1",
+            subentry_type="market_node",
+            data=subentry_1,
+        ),
+        "market_node_2": SimpleNamespace(
+            subentry_id="market_node_2",
+            subentry_type="market_node",
+            data=subentry_2,
+        ),
+    }
+    return entry
+
+
 def _make_accounting_schedule(price: float = 0.25) -> SimpleNamespace:
     """Create a minimal Interim schedule with one settled row."""
     now = datetime.now(UTC).replace(minute=0, second=0, microsecond=0)
@@ -220,7 +239,7 @@ async def test_live_fetch_routes_day_ahead_and_converts_units(hass) -> None:
 
 @pytest.mark.asyncio
 async def test_forecast_fetch_uses_retention_back_window(hass) -> None:
-    """Forecast-enabled fetch includes retention-derived back lookback."""
+    """Forecast-enabled fetch includes retention-derived back and forward windows."""
     entry = _entry_with_market_node(
         {
             "node": "HAY2201",
@@ -241,6 +260,7 @@ async def test_forecast_fetch_uses_retention_back_window(hass) -> None:
         client_cls.return_value = client
         await coordinator._async_update_data()
 
+    assert client.get_schedule_prices.call_count == 1
     kwargs = client.get_schedule_prices.call_args.kwargs
     assert kwargs["schedule"] == "PRSL"
     assert kwargs["forward"] == 48
@@ -271,3 +291,53 @@ async def test_coordinator_retries_with_backoff_on_api_error(hass) -> None:
 
     assert coordinator._retry_count == 1
     assert coordinator.update_interval == timedelta(minutes=1)
+
+
+@pytest.mark.asyncio
+async def test_multi_node_error_isolated_to_failing_subentry(hass) -> None:
+    """One failing market node should not block the other node's update."""
+    entry = _multi_entry_with_market_nodes(
+        {
+            "node": "HAY2201",
+            "price_unit": "c/kWh",
+            "enable_live_price": True,
+            "enable_forecast": False,
+            "enable_accounting": False,
+        },
+        {
+            "node": "BEN2201",
+            "price_unit": "c/kWh",
+            "enable_live_price": True,
+            "enable_forecast": False,
+            "enable_accounting": False,
+        },
+    )
+    coordinator = ElectricityInfoCoordinator(hass, entry)
+
+    hay_schedule = SimpleNamespace(
+        prices=[
+            SimpleNamespace(
+                trading_datetime=datetime.now(UTC).replace(
+                    minute=0, second=0, microsecond=0
+                ),
+                trading_period=24,
+                node="HAY2201",
+                price=100.0,
+                schedule="PRSL",
+                run_type="A",
+            )
+        ]
+    )
+
+    with patch(CLIENT_PATH) as client_cls:
+        client = AsyncMock()
+        client.get_schedule_prices.side_effect = [
+            hay_schedule,
+            MarketPricesAPIError("ben failure"),
+        ]
+        client_cls.return_value = client
+        data = await coordinator._async_update_data()
+
+    assert data["market_node_1"]["error"] is None
+    assert data["market_node_1"]["day_ahead"].prices[0].node == "HAY2201"
+    assert "error" in data["market_node_2"]

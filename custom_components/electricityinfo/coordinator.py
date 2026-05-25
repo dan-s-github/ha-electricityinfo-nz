@@ -71,10 +71,10 @@ def _normalized_horizons(raw_horizons: Any) -> set[str]:
 
 def _extract_live_price_payload(
     day_ahead: Any,
-) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
+) -> dict[str, Any] | None:
     """Extract current trade period and future forecast entries from day-ahead data."""
     if not day_ahead or not getattr(day_ahead, "prices", None):
-        return None, []
+        return None
 
     sorted_prices = sorted(day_ahead.prices, key=lambda p: p.trading_datetime)
     now = dt_util.utcnow()
@@ -91,23 +91,13 @@ def _extract_live_price_payload(
         past = [p for p in sorted_prices if p.trading_datetime <= now]
         current = past[-1] if past else sorted_prices[0]
 
-    current_payload = {
+    return {
         "timestamp": current.trading_datetime.isoformat(),
         "trading_period": current.trading_period,
         "node": current.node,
         "schedule": current.schedule,
         "price": current.price,
     }
-    forecast_payload = [
-        {
-            "period_start": p.trading_datetime.isoformat(),
-            "trading_period": p.trading_period,
-            "price": p.price,
-        }
-        for p in sorted_prices
-        if p.trading_datetime > current.trading_datetime and p.price is not None
-    ]
-    return current_payload, forecast_payload
 
 
 class ElectricityInfoCoordinator(DataUpdateCoordinator):
@@ -186,7 +176,6 @@ class ElectricityInfoCoordinator(DataUpdateCoordinator):
             "intraday": None,
             "accounting": None,
             "live_current": None,
-            "live_forecast": [],
             "settled_price": None,
             "settled_timestamp": None,
             "settled_trading_period": None,
@@ -221,14 +210,27 @@ class ElectricityInfoCoordinator(DataUpdateCoordinator):
             }
             if forecast_back is not None:
                 day_ahead_kwargs["back"] = forecast_back
+            _LOGGER.debug(
+                "Fetching day-ahead prices for node %s with params: %s",
+                node,
+                day_ahead_kwargs,
+            )
             day_ahead = await client.get_schedule_prices(**day_ahead_kwargs)
+            price_count = (
+                len(day_ahead.prices)
+                if day_ahead and hasattr(day_ahead, "prices")
+                else 0
+            )
+            _LOGGER.debug(
+                "Day-ahead prices response for node %s: %s prices returned",
+                node,
+                price_count,
+            )
             if day_ahead:
                 for p in day_ahead.prices:
                     p.price = _convert_price(p.price, price_unit)
             node_data["day_ahead"] = day_ahead
-            live_current, live_forecast = _extract_live_price_payload(day_ahead)
-            node_data["live_current"] = live_current
-            node_data["live_forecast"] = live_forecast
+            node_data["live_current"] = _extract_live_price_payload(day_ahead)
 
         if config.get(CONF_ENABLE_FORECAST) and "intraday" in horizons:
             intraday_kwargs: dict[str, Any] = {
@@ -239,18 +241,47 @@ class ElectricityInfoCoordinator(DataUpdateCoordinator):
             }
             if forecast_back is not None:
                 intraday_kwargs["back"] = forecast_back
+            _LOGGER.debug(
+                "Fetching intraday prices for node %s with params: %s",
+                node,
+                intraday_kwargs,
+            )
             intraday = await client.get_schedule_prices(**intraday_kwargs)
+            intraday_price_count = (
+                len(intraday.prices) if intraday and hasattr(intraday, "prices") else 0
+            )
+            _LOGGER.debug(
+                "Intraday prices response for node %s: %s prices returned",
+                node,
+                intraday_price_count,
+            )
             if intraday:
                 for p in intraday.prices:
                     p.price = _convert_price(p.price, price_unit)
             node_data["intraday"] = intraday
 
         if config.get(CONF_ENABLE_ACCOUNTING):
-            accounting = await client.get_schedule_prices(
-                schedule="Interim",
-                market_type="E",
-                nodes=[node] if node else None,
-                back=ACCOUNTING_BACK_PERIODS,
+            accounting_kwargs: dict[str, Any] = {
+                "schedule": "Interim",
+                "market_type": "E",
+                "nodes": [node] if node else None,
+                "back": ACCOUNTING_BACK_PERIODS,
+            }
+            _LOGGER.debug(
+                "Fetching accounting prices for node %s with params: %s",
+                node,
+                accounting_kwargs,
+            )
+            accounting = await client.get_schedule_prices(**accounting_kwargs)
+            accounting_price_count = (
+                len(accounting.prices)
+                if accounting and hasattr(accounting, "prices")
+                else 0
+            )
+            _LOGGER.debug(
+                "Accounting prices response for node %s: %s prices returned",
+                node,
+                accounting_price_count,
             )
             if accounting:
                 for p in accounting.prices:

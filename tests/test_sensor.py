@@ -90,6 +90,24 @@ async def test_live_sensor_uses_coordinator_live_payload(hass, mock_entry) -> No
     subentry = create_mock_market_node_subentry(
         enable_live_price=True, enable_forecast=False, enable_accounting=False
     )
+    now = datetime(2026, 5, 9, 12, 0, tzinfo=UTC)
+
+    def _make_price(dt, period, price) -> MagicMock:
+        p = MagicMock()
+        p.trading_datetime = dt
+        p.trading_period = period
+        p.node = "HAY2201"
+        p.schedule = "PRSL"
+        p.price = price
+        return p
+
+    day_ahead = MagicMock()
+    day_ahead.prices = [
+        _make_price(now - timedelta(minutes=30), 23, 4.05),
+        _make_price(now, 24, 4.23),
+        _make_price(now + timedelta(minutes=30), 25, 4.51),
+    ]
+
     with patch("custom_components.electricityinfo.AsyncMarketPricesClient"):
         coordinator = ElectricityInfoCoordinator(hass, mock_entry)
         coordinator.last_update_success = True
@@ -102,24 +120,72 @@ async def test_live_sensor_uses_coordinator_live_payload(hass, mock_entry) -> No
                     "schedule": "PRSL",
                     "price": 4.23,
                 },
-                "live_forecast": [
-                    {
-                        "period_start": "2026-05-09T12:30:00+00:00",
-                        "trading_period": 25,
-                        "price": 4.51,
-                    }
-                ],
+                "day_ahead": day_ahead,
                 "error": None,
             }
         }
         entity = LivePriceSensor(coordinator, mock_entry, subentry)
-        with patch.object(entity, "async_write_ha_state", MagicMock()):
+        with (
+            patch("homeassistant.util.dt.utcnow", return_value=now),
+            patch.object(entity, "async_write_ha_state", MagicMock()),
+        ):
             entity._handle_coordinator_update()
 
     assert entity.native_value == pytest.approx(4.23, abs=1e-6)
     attrs = entity.extra_state_attributes
     assert attrs["trading_period"] == 24
-    assert attrs["forecast"][0]["trading_period"] == 25
+    assert "forecast" not in attrs
+    assert "history" not in attrs
+
+
+async def test_live_sensor_fallback_splits_forecast_and_history_by_now(
+    hass, mock_entry
+) -> None:
+    """Fallback day-ahead parsing sets only current-period live attributes."""
+    subentry = create_mock_market_node_subentry(
+        enable_live_price=True, enable_forecast=False, enable_accounting=False
+    )
+    now = datetime(2026, 5, 24, 12, 0, tzinfo=UTC)
+
+    def _make_price(dt, period, price) -> MagicMock:
+        p = MagicMock()
+        p.trading_datetime = dt
+        p.trading_period = period
+        p.node = "HAY2201"
+        p.schedule = "PRSL"
+        p.price = price
+        return p
+
+    day_ahead = MagicMock()
+    day_ahead.prices = [
+        _make_price(now - timedelta(minutes=60), 22, 7.0),
+        _make_price(now - timedelta(minutes=30), 23, 8.0),
+        _make_price(now + timedelta(minutes=30), 25, 9.0),
+        _make_price(now + timedelta(minutes=60), 26, 10.0),
+    ]
+
+    with patch("custom_components.electricityinfo.AsyncMarketPricesClient"):
+        coordinator = ElectricityInfoCoordinator(hass, mock_entry)
+        coordinator.last_update_success = True
+        coordinator.data = {
+            subentry.subentry_id: {
+                "day_ahead": day_ahead,
+                "live_current": None,
+                "error": None,
+            }
+        }
+        entity = LivePriceSensor(coordinator, mock_entry, subentry)
+        with (
+            patch("homeassistant.util.dt.utcnow", return_value=now),
+            patch.object(entity, "async_write_ha_state", MagicMock()),
+        ):
+            entity._handle_coordinator_update()
+
+    attrs = entity.extra_state_attributes
+    assert entity.native_value == pytest.approx(8.0)
+    assert attrs["trading_period"] == 23
+    assert "forecast" not in attrs
+    assert "history" not in attrs
 
 
 # ---------------------------------------------------------------------------
@@ -778,7 +844,7 @@ async def test_day_ahead_forecast_sensor_state_and_attributes(hass, mock_entry) 
     assert entity.native_value == pytest.approx(9.0)
     attrs = entity.extra_state_attributes
     assert [p["trading_period"] for p in attrs["forecast"]] == [25, 26]
-    assert [p["trading_period"] for p in attrs["history"]] == [23, 24]
+    assert [p["trading_period"] for p in attrs["history"]] == [23]
 
 
 async def test_intraday_forecast_sensor_uses_intraday_schedule(
@@ -830,3 +896,48 @@ async def test_intraday_forecast_sensor_uses_intraday_schedule(
     assert entity.native_value == pytest.approx(6.0)
     attrs = entity.extra_state_attributes
     assert [p["trading_period"] for p in attrs["forecast"]] == [24, 25]
+
+
+async def test_forecast_sensor_with_no_future_periods_stays_available(
+    hass, mock_entry
+) -> None:
+    """Forecast sensors should not show unavailable when schedule data exists."""
+    subentry = create_mock_market_node_subentry(
+        enable_live_price=False,
+        enable_forecast=True,
+        forecast_horizons=["day_ahead"],
+        forecast_retention_hours=6,
+    )
+    now = datetime(2026, 5, 24, 12, 0, tzinfo=UTC)
+
+    past_price = MagicMock()
+    past_price.trading_datetime = now - timedelta(minutes=30)
+    past_price.trading_period = 23
+    past_price.node = "HAY2201"
+    past_price.schedule = "PRSL"
+    past_price.price = 7.0
+
+    day_ahead = MagicMock()
+    day_ahead.prices = [past_price]
+
+    with patch("custom_components.electricityinfo.AsyncMarketPricesClient"):
+        coordinator = ElectricityInfoCoordinator(hass, mock_entry)
+        coordinator.last_update_success = True
+        coordinator.data = {
+            subentry.subentry_id: {
+                "day_ahead": day_ahead,
+                "intraday": None,
+                "accounting": None,
+                "config": dict(subentry.data),
+                "error": None,
+            }
+        }
+        entity = DayAheadForecastSensor(coordinator, mock_entry, subentry)
+        with (
+            patch("homeassistant.util.dt.utcnow", return_value=now),
+            patch.object(entity, "async_write_ha_state", MagicMock()),
+        ):
+            entity._handle_coordinator_update()
+
+    assert entity.available
+    assert entity.native_value is None

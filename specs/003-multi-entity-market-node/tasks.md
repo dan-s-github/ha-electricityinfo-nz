@@ -95,14 +95,14 @@
 
 ### Tests for User Story 4
 
-- [ ] T025 [P] [US4] Add multi-node setup and independent update integration tests in `tests/integration/test_multi_node.py`
-- [ ] T026 [P] [US4] Add per-node coordinator error-isolation tests in `tests/test_coordinator.py`
+- [X] T025 [P] [US4] Add multi-node setup and independent update integration tests in `tests/integration/test_multi_node.py`
+- [X] T026 [P] [US4] Add per-node coordinator error-isolation tests in `tests/test_coordinator.py`
 
 ### Implementation for User Story 4
 
-- [ ] T027 [US4] Implement per-subentry coordinator update isolation and node-keyed storage in `custom_components/electricityinfo/coordinator.py`
-- [ ] T028 [US4] Implement per-node device/entity naming and unique-ID prefix rules in `custom_components/electricityinfo/sensor.py`
-- [ ] T029 [US4] Enforce one configured subentry per market node in flow validation in `custom_components/electricityinfo/config_flow.py`
+- [X] T027 [US4] Implement per-subentry coordinator update isolation and node-keyed storage in `custom_components/electricityinfo/coordinator.py`
+- [X] T028 [US4] Implement per-node device/entity naming and unique-ID prefix rules in `custom_components/electricityinfo/sensor.py`
+- [X] T029 [US4] Enforce one configured subentry per market node in flow validation in `custom_components/electricityinfo/config_flow.py`
 
 **Checkpoint**: US4 independently functional with multi-node behavior.
 
