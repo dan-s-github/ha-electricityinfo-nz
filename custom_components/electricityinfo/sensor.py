@@ -344,8 +344,19 @@ class ForecastSensorBase(MarketNodeSensorBase):
 
     async def async_added_to_hass(self) -> None:
         """Register coordinator listener when added to hass."""
-        _LOGGER.debug("%s: async_added_to_hass called", self._attr_name)
+        _LOGGER.debug(
+            "%s: async_added_to_hass called, coordinator.data=%s",
+            self._attr_name,
+            type(self.coordinator.data),
+        )
         await super().async_added_to_hass()
+        _LOGGER.debug(
+            "%s: super().async_added_to_hass() completed, "
+            "calling _handle_coordinator_update manually",
+            self._attr_name,
+        )
+        # Manually call to ensure state is set
+        self._handle_coordinator_update()
 
     @property
     def available(self) -> bool:
