@@ -423,6 +423,9 @@ class ForecastSensorBase(MarketNodeSensorBase):
         )
 
         self._native_value = future[0].price if future else None
+        # Ensure both forecast and history are sorted chronologically
+        sorted_future = sorted(future, key=lambda p: p.trading_datetime)
+        sorted_history = sorted(history, key=lambda p: p.trading_datetime)
         self._attributes = {
             "forecast": [
                 {
@@ -430,7 +433,7 @@ class ForecastSensorBase(MarketNodeSensorBase):
                     "trading_period": p.trading_period,
                     "price": p.price,
                 }
-                for p in future
+                for p in sorted_future
             ],
             "history": [
                 {
@@ -438,7 +441,7 @@ class ForecastSensorBase(MarketNodeSensorBase):
                     "trading_period": p.trading_period,
                     "price": p.price,
                 }
-                for p in history
+                for p in sorted_history
             ],
         }
         self.async_write_ha_state()
