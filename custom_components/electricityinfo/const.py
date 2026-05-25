@@ -84,7 +84,7 @@ FORECAST_TYPE_OPTIONS: list[SelectOptionDict] = [
 
 FORECAST_HORIZON_OPTIONS: list[SelectOptionDict] = [
     {"value": "day_ahead", "label": "Day-ahead (24h / 48 periods)"},
-    {"value": "intraday", "label": "Intraday (4h / 8 periods)"},
+    {"value": "intraday", "label": "Intraday (4h forward / 8 periods)"},
 ]
 
 FORECAST_RETENTION_OPTIONS_SELECT: list[SelectOptionDict] = [
@@ -94,7 +94,7 @@ FORECAST_RETENTION_OPTIONS_SELECT: list[SelectOptionDict] = [
 ]
 
 ACCOUNTING_RETENTION_OPTIONS_SELECT: list[SelectOptionDict] = [
-    {"value": "24", "label": "24 hours (minimum)"},
+    {"value": "24", "label": "24 hours"},
     {"value": "48", "label": "48 hours"},
 ]
 
@@ -167,4 +167,3 @@ NZD_PER_MWH_TO_NZD_PER_KWH = 0.001
 
 DAY_AHEAD_FORWARD_PERIODS = 48
 INTRADAY_FORWARD_PERIODS = 8
-ACCOUNTING_BACK_PERIODS = 48

@@ -15,7 +15,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from homeassistant.util import dt as dt_util
 
 from .const import (
-    ACCOUNTING_BACK_PERIODS,
+    CONF_ACCOUNTING_RETENTION_HOURS,
     CONF_CLIENT_ID,
     CONF_CLIENT_SECRET,
     CONF_ENABLE_ACCOUNTING,
@@ -198,6 +198,11 @@ class ElectricityInfoCoordinator(DataUpdateCoordinator):
             if config.get(CONF_ENABLE_FORECAST)
             else None
         )
+        accounting_back = (
+            int(config.get(CONF_ACCOUNTING_RETENTION_HOURS, 24)) * 2
+            if config.get(CONF_ENABLE_ACCOUNTING)
+            else None
+        )
 
         if config.get(CONF_ENABLE_LIVE_PRICE) or (
             config.get(CONF_ENABLE_FORECAST) and "day_ahead" in horizons
@@ -238,8 +243,9 @@ class ElectricityInfoCoordinator(DataUpdateCoordinator):
                 "market_type": "E",
                 "nodes": [node] if node else None,
                 "forward": INTRADAY_FORWARD_PERIODS,
-                "back": INTRADAY_FORWARD_PERIODS,
             }
+            if forecast_back is not None:
+                intraday_kwargs["back"] = forecast_back
             _LOGGER.debug(
                 "Fetching intraday prices for node %s with params: %s",
                 node,
@@ -264,8 +270,9 @@ class ElectricityInfoCoordinator(DataUpdateCoordinator):
                 "schedule": "Interim",
                 "market_type": "E",
                 "nodes": [node] if node else None,
-                "back": ACCOUNTING_BACK_PERIODS,
             }
+            if accounting_back is not None:
+                accounting_kwargs["back"] = accounting_back
             _LOGGER.debug(
                 "Fetching accounting prices for node %s with params: %s",
                 node,

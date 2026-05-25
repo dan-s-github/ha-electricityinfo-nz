@@ -65,8 +65,8 @@ def _make_accounting_schedule(price: float = 0.25) -> SimpleNamespace:
 
 
 @pytest.mark.asyncio
-async def test_accounting_fetch_uses_interim_back_48(hass) -> None:
-    """Accounting fetch uses Interim back=48 and returns settled fields."""
+async def test_accounting_fetch_uses_interim_back_from_config(hass) -> None:
+    """Accounting fetch back uses Interim schedule derived from retention config."""
     entry = _entry_with_market_node(
         {
             "node": "HAY2201",
@@ -88,10 +88,38 @@ async def test_accounting_fetch_uses_interim_back_48(hass) -> None:
 
     kwargs = client.get_schedule_prices.call_args.kwargs
     assert kwargs["schedule"] == "Interim"
-    assert kwargs["back"] == 48
+    assert kwargs["back"] == 48  # default 24h retention = 48 periods
     node_data = data["market_node_1"]
     assert node_data["settled_price"] == pytest.approx(0.00025, abs=1e-9)
     assert node_data["settled_trading_period"] == 24
+
+
+@pytest.mark.asyncio
+async def test_accounting_fetch_back_scales_with_retention_hours(hass) -> None:
+    """Accounting fetch back scales with accounting_retention_hours config."""
+    entry = _entry_with_market_node(
+        {
+            "node": "HAY2201",
+            "price_unit": "NZD/kWh",
+            "enable_live_price": False,
+            "enable_forecast": False,
+            "enable_accounting": True,
+            "accounting_retention_hours": 48,
+        }
+    )
+    coordinator = ElectricityInfoCoordinator(hass, entry)
+
+    with patch(CLIENT_PATH) as client_cls:
+        client = AsyncMock()
+        client.get_schedule_prices.side_effect = lambda **_kwargs: (
+            _make_accounting_schedule(0.25)
+        )
+        client_cls.return_value = client
+        await coordinator._async_update_data()
+
+    kwargs = client.get_schedule_prices.call_args.kwargs
+    assert kwargs["schedule"] == "Interim"
+    assert kwargs["back"] == 96  # 48h retention = 96 periods
 
 
 @pytest.mark.asyncio
@@ -322,8 +350,8 @@ async def test_forecast_fetch_uses_retention_back_window(hass) -> None:
 
 
 @pytest.mark.asyncio
-async def test_intraday_fetch_uses_back_8_matching_forward(hass) -> None:
-    """Intraday fetch uses back=8 to match forward intraday window."""
+async def test_intraday_fetch_back_derived_from_forecast_retention(hass) -> None:
+    """Intraday fetch back window is derived from forecast_retention_hours config."""
     entry = _entry_with_market_node(
         {
             "node": "HAY2201",
@@ -347,8 +375,8 @@ async def test_intraday_fetch_uses_back_8_matching_forward(hass) -> None:
     assert client.get_schedule_prices.call_count == 1
     kwargs = client.get_schedule_prices.call_args.kwargs
     assert kwargs["schedule"] == "PRSS"
-    assert kwargs["forward"] == 8
-    assert kwargs["back"] == 8
+    assert kwargs["forward"] == 8  # intraday forward is always 8 periods
+    assert kwargs["back"] == 48  # 24h retention = 48 periods
 
 
 @pytest.mark.asyncio
