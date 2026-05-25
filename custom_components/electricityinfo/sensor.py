@@ -338,6 +338,11 @@ class ForecastSensorBase(MarketNodeSensorBase):
 
         schedule_details = node_data.get(self._schedule_key)
         if not schedule_details or not getattr(schedule_details, "prices", None):
+            _LOGGER.debug(
+                "%s: No schedule details for %s",
+                self._attr_name,
+                self._schedule_key,
+            )
             self._native_value = None
             self._attributes = {}
             self.async_write_ha_state()
@@ -354,6 +359,18 @@ class ForecastSensorBase(MarketNodeSensorBase):
         history = [
             p for p in sorted_prices if p.trading_datetime < now and p.price is not None
         ][-retention_periods:]
+
+        _LOGGER.debug(
+            "%s: Processed %s total prices: %s future, %s history. "
+            "Now=%s, First price at %s, Last price at %s",
+            self._attr_name,
+            len(sorted_prices),
+            len(future),
+            len(history),
+            now.isoformat(),
+            sorted_prices[0].trading_datetime.isoformat() if sorted_prices else "N/A",
+            sorted_prices[-1].trading_datetime.isoformat() if sorted_prices else "N/A",
+        )
 
         self._native_value = future[0].price if future else None
         self._attributes = {
