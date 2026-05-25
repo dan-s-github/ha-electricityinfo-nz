@@ -796,7 +796,7 @@ async def test_restore_boundary_30_minutes_1_second_is_discarded(
 
 
 async def test_day_ahead_forecast_sensor_state_and_attributes(hass, mock_entry) -> None:
-    """Day-ahead sensor uses next period as state and keeps history."""
+    """Day-ahead sensor uses current trade period as state and keeps history."""
     subentry = create_mock_market_node_subentry(
         enable_live_price=False,
         enable_forecast=True,
@@ -841,9 +841,9 @@ async def test_day_ahead_forecast_sensor_state_and_attributes(hass, mock_entry) 
         ):
             entity._handle_coordinator_update()
 
-    assert entity.native_value == pytest.approx(9.0)
+    assert entity.native_value == pytest.approx(8.0)
     attrs = entity.extra_state_attributes
-    assert [p["trading_period"] for p in attrs["forecast"]] == [25, 26]
+    assert [p["trading_period"] for p in attrs["forecast"]] == [24, 25, 26]
     assert [p["trading_period"] for p in attrs["history"]] == [23]
 
 
@@ -896,6 +896,60 @@ async def test_intraday_forecast_sensor_uses_intraday_schedule(
     assert entity.native_value == pytest.approx(6.0)
     attrs = entity.extra_state_attributes
     assert [p["trading_period"] for p in attrs["forecast"]] == [24, 25]
+    assert [p["trading_period"] for p in attrs["history"]] == [23]
+
+
+async def test_intraday_current_period_not_duplicated_in_history(
+    hass, mock_entry
+) -> None:
+    """Current intraday trade period should be state/forecast only, not history."""
+    subentry = create_mock_market_node_subentry(
+        enable_live_price=False,
+        enable_forecast=True,
+        forecast_horizons=["intraday"],
+    )
+    current_start = datetime(2026, 5, 24, 12, 0, tzinfo=UTC)
+    now = current_start + timedelta(minutes=10)
+
+    def _make_price(dt, period, price) -> MagicMock:
+        p = MagicMock()
+        p.trading_datetime = dt
+        p.trading_period = period
+        p.node = "HAY2201"
+        p.schedule = "PRSS"
+        p.price = price
+        return p
+
+    intraday = MagicMock()
+    intraday.prices = [
+        _make_price(current_start - timedelta(minutes=30), 23, 5.0),
+        _make_price(current_start, 24, 6.0),
+        _make_price(current_start + timedelta(minutes=30), 25, 7.0),
+    ]
+
+    with patch("custom_components.electricityinfo.AsyncMarketPricesClient"):
+        coordinator = ElectricityInfoCoordinator(hass, mock_entry)
+        coordinator.last_update_success = True
+        coordinator.data = {
+            subentry.subentry_id: {
+                "day_ahead": None,
+                "intraday": intraday,
+                "accounting": None,
+                "config": dict(subentry.data),
+                "error": None,
+            }
+        }
+        entity = IntradayForecastSensor(coordinator, mock_entry, subentry)
+        with (
+            patch("homeassistant.util.dt.utcnow", return_value=now),
+            patch.object(entity, "async_write_ha_state", MagicMock()),
+        ):
+            entity._handle_coordinator_update()
+
+    assert entity.native_value == pytest.approx(6.0)
+    attrs = entity.extra_state_attributes
+    assert [p["trading_period"] for p in attrs["forecast"]] == [24, 25]
+    assert [p["trading_period"] for p in attrs["history"]] == [23]
 
 
 async def test_forecast_sensor_with_no_future_periods_stays_available(

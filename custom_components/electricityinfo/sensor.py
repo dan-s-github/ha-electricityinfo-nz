@@ -393,15 +393,37 @@ class ForecastSensorBase(MarketNodeSensorBase):
 
         now = dt_util.utcnow()
         sorted_prices = sorted(
-            schedule_details.prices, key=lambda p: p.trading_datetime
+            schedule_details.prices,
+            key=lambda p: (p.trading_datetime, p.trading_period),
         )
-        future = [
-            p for p in sorted_prices if p.trading_datetime > now and p.price is not None
-        ]
+        priced_points = [p for p in sorted_prices if p.price is not None]
+        current = next(
+            (
+                p
+                for p in priced_points
+                if p.trading_datetime
+                <= now
+                < p.trading_datetime + timedelta(minutes=30)
+            ),
+            None,
+        )
+        future = sorted(
+            (
+                p
+                for p in priced_points
+                if p.trading_datetime > now and p.price is not None
+            ),
+            key=lambda p: (p.trading_datetime, p.trading_period),
+        )
         retention_periods = int(self._config.get(CONF_FORECAST_RETENTION_HOURS, 24)) * 2
-        history = [
-            p for p in sorted_prices if p.trading_datetime < now and p.price is not None
-        ][-retention_periods:]
+        history = sorted(
+            (
+                p
+                for p in priced_points
+                if p.trading_datetime + timedelta(minutes=30) <= now
+            ),
+            key=lambda p: (p.trading_datetime, p.trading_period),
+        )[-retention_periods:]
 
         # Count prices by state for debugging
         with_price = [p for p in sorted_prices if p.price is not None]
@@ -409,12 +431,13 @@ class ForecastSensorBase(MarketNodeSensorBase):
 
         _LOGGER.debug(
             "%s: Processed %s total prices: %s with price, %s without price. "
-            "Future: %s, History: %s. "
+            "Current period found: %s. Future: %s, History: %s. "
             "Now=%s, First price at %s, Last price at %s",
             self._attr_name,
             len(sorted_prices),
             len(with_price),
             len(no_price),
+            current is not None,
             len(future),
             len(history),
             now.isoformat(),
@@ -422,26 +445,27 @@ class ForecastSensorBase(MarketNodeSensorBase):
             sorted_prices[-1].trading_datetime.isoformat() if sorted_prices else "N/A",
         )
 
-        self._native_value = future[0].price if future else None
-        # Ensure both forecast and history are sorted chronologically
-        sorted_future = sorted(future, key=lambda p: p.trading_datetime)
-        sorted_history = sorted(history, key=lambda p: p.trading_datetime)
+        forecast_points = [current, *future] if current is not None else future
+        if current is not None:
+            self._native_value = current.price
+        else:
+            self._native_value = future[0].price if future else None
         self._attributes = {
-            "forecast": [
-                {
-                    "period_start": p.trading_datetime.isoformat(),
-                    "trading_period": p.trading_period,
-                    "price": p.price,
-                }
-                for p in sorted_future
-            ],
             "history": [
                 {
                     "period_start": p.trading_datetime.isoformat(),
                     "trading_period": p.trading_period,
                     "price": p.price,
                 }
-                for p in sorted_history
+                for p in history
+            ],
+            "forecast": [
+                {
+                    "period_start": p.trading_datetime.isoformat(),
+                    "trading_period": p.trading_period,
+                    "price": p.price,
+                }
+                for p in forecast_points
             ],
         }
         self.async_write_ha_state()
@@ -507,6 +531,11 @@ class SettledPriceSensor(MarketNodeSensorBase):
             sensor_name="Settled Price",
         )
 
+    async def async_added_to_hass(self) -> None:
+        """Prime settled state from current coordinator data on entity add."""
+        await super().async_added_to_hass()
+        self._handle_coordinator_update()
+
     def _handle_coordinator_update(self) -> None:
         """Handle coordinator update for settled price."""
         node_data = (self.coordinator.data or {}).get(self._subentry_id)
@@ -530,14 +559,34 @@ class SettledPriceSensor(MarketNodeSensorBase):
             self.async_write_ha_state()
             return
 
-        latest = max(settled_prices, key=lambda p: p.trading_datetime)
+        now = dt_util.utcnow()
+        sorted_settled = sorted(settled_prices, key=lambda p: p.trading_datetime)
+        current = next(
+            (
+                p
+                for p in sorted_settled
+                if p.trading_datetime
+                <= now
+                < p.trading_datetime + timedelta(minutes=30)
+            ),
+            None,
+        )
+        if current is not None:
+            selected = current
+        else:
+            past = [p for p in sorted_settled if p.trading_datetime <= now]
+            selected = past[-1] if past else sorted_settled[0]
         retention = int(self._config.get(CONF_ACCOUNTING_RETENTION_HOURS, 24)) * 2
-        history = sorted(settled_prices, key=lambda p: p.trading_datetime)[-retention:]
-        self._native_value = latest.price
+        history = [
+            p
+            for p in sorted_settled
+            if p.trading_datetime + timedelta(minutes=30) <= now
+        ][-retention:]
+        self._native_value = selected.price
         self._attributes = {
-            "trading_period": latest.trading_period,
-            "timestamp": latest.trading_datetime.isoformat(),
-            "node": latest.node,
+            "trading_period": selected.trading_period,
+            "timestamp": selected.trading_datetime.isoformat(),
+            "node": selected.node,
             "history": [
                 {
                     "period_start": price.trading_datetime.isoformat(),

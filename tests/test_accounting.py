@@ -73,6 +73,47 @@ async def test_settled_price_sensor_uses_latest_and_history_retention(
     assert len(attrs["history"]) == 2
 
 
+async def test_settled_price_sensor_uses_current_period_and_excludes_from_history(
+    hass, mock_entry
+) -> None:
+    """Settled state uses current period; history includes only completed periods."""
+    subentry = create_mock_market_node_subentry(
+        enable_live_price=False,
+        enable_forecast=False,
+        enable_accounting=True,
+        accounting_retention_hours=24,
+    )
+    current_start = datetime(2026, 5, 24, 9, 30, tzinfo=UTC)
+    now = current_start + timedelta(minutes=10)
+    t_prev = current_start - timedelta(minutes=30)
+    t_next = current_start + timedelta(minutes=30)
+    schedule = _make_accounting_schedule(
+        [(t_prev, 19, 0.23), (current_start, 20, 0.25), (t_next, 21, 0.27)]
+    )
+
+    with patch("custom_components.electricityinfo.AsyncMarketPricesClient"):
+        coordinator = ElectricityInfoCoordinator(hass, mock_entry)
+        coordinator.last_update_success = True
+        coordinator.data = {
+            subentry.subentry_id: {
+                "accounting": schedule,
+                "config": dict(subentry.data),
+                "error": None,
+            }
+        }
+        entity = SettledPriceSensor(coordinator, mock_entry, subentry)
+        with (
+            patch("homeassistant.util.dt.utcnow", return_value=now),
+            patch.object(entity, "async_write_ha_state", MagicMock()),
+        ):
+            entity._handle_coordinator_update()
+
+    assert entity.native_value == pytest.approx(0.25, abs=1e-6)
+    attrs = entity.extra_state_attributes
+    assert attrs["trading_period"] == 20
+    assert [p["trading_period"] for p in attrs["history"]] == [19]
+
+
 async def test_import_and_export_sensors_use_coordinator_deltas(
     hass, mock_entry
 ) -> None:

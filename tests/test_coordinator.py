@@ -95,6 +95,60 @@ async def test_accounting_fetch_uses_interim_back_48(hass) -> None:
 
 
 @pytest.mark.asyncio
+async def test_accounting_metrics_select_current_period_over_future(hass) -> None:
+    """Accounting settled metrics prefer current period over future rows."""
+    entry = _entry_with_market_node(
+        {
+            "node": "HAY2201",
+            "price_unit": "NZD/kWh",
+            "enable_live_price": False,
+            "enable_forecast": False,
+            "enable_accounting": True,
+        }
+    )
+    coordinator = ElectricityInfoCoordinator(hass, entry)
+    now = datetime(2026, 5, 24, 12, 10, tzinfo=UTC)
+    accounting = SimpleNamespace(
+        prices=[
+            SimpleNamespace(
+                trading_datetime=datetime(2026, 5, 24, 11, 30, tzinfo=UTC),
+                trading_period=23,
+                node="HAY2201",
+                price=0.20,
+                schedule="Interim",
+                run_type="A",
+            ),
+            SimpleNamespace(
+                trading_datetime=datetime(2026, 5, 24, 12, 0, tzinfo=UTC),
+                trading_period=24,
+                node="HAY2201",
+                price=0.25,
+                schedule="Interim",
+                run_type="A",
+            ),
+            SimpleNamespace(
+                trading_datetime=datetime(2026, 5, 24, 12, 30, tzinfo=UTC),
+                trading_period=25,
+                node="HAY2201",
+                price=0.30,
+                schedule="Interim",
+                run_type="A",
+            ),
+        ]
+    )
+    node_data = {"accounting": accounting}
+    with patch("homeassistant.util.dt.utcnow", return_value=now):
+        coordinator._populate_accounting_metrics(
+            subentry_id="market_node_1",
+            config={"import_meter_entity_id": None, "export_meter_entity_id": None},
+            node_data=node_data,
+        )
+
+    assert node_data["settled_price"] == pytest.approx(0.25, abs=1e-9)
+    assert node_data["settled_trading_period"] == 24
+
+
+@pytest.mark.asyncio
 async def test_accounting_meter_delta_skips_first_poll_then_computes(hass) -> None:
     """First poll has no delta; second poll computes cost/revenue deltas."""
     hass.states.async_set(
@@ -265,6 +319,36 @@ async def test_forecast_fetch_uses_retention_back_window(hass) -> None:
     assert kwargs["schedule"] == "PRSL"
     assert kwargs["forward"] == 48
     assert kwargs["back"] == 24
+
+
+@pytest.mark.asyncio
+async def test_intraday_fetch_uses_back_8_matching_forward(hass) -> None:
+    """Intraday fetch uses back=8 to match forward intraday window."""
+    entry = _entry_with_market_node(
+        {
+            "node": "HAY2201",
+            "price_unit": "NZD/kWh",
+            "enable_live_price": False,
+            "enable_forecast": True,
+            "forecast_type": "price_responsive",
+            "forecast_horizons": ["intraday"],
+            "forecast_retention_hours": 24,
+            "enable_accounting": False,
+        }
+    )
+    coordinator = ElectricityInfoCoordinator(hass, entry)
+
+    with patch(CLIENT_PATH) as client_cls:
+        client = AsyncMock()
+        client.get_schedule_prices.return_value = _make_accounting_schedule(0.25)
+        client_cls.return_value = client
+        await coordinator._async_update_data()
+
+    assert client.get_schedule_prices.call_count == 1
+    kwargs = client.get_schedule_prices.call_args.kwargs
+    assert kwargs["schedule"] == "PRSS"
+    assert kwargs["forward"] == 8
+    assert kwargs["back"] == 8
 
 
 @pytest.mark.asyncio

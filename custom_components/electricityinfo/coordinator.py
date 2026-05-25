@@ -238,9 +238,8 @@ class ElectricityInfoCoordinator(DataUpdateCoordinator):
                 "market_type": "E",
                 "nodes": [node] if node else None,
                 "forward": INTRADAY_FORWARD_PERIODS,
+                "back": INTRADAY_FORWARD_PERIODS,
             }
-            if forecast_back is not None:
-                intraday_kwargs["back"] = forecast_back
             _LOGGER.debug(
                 "Fetching intraday prices for node %s with params: %s",
                 node,
@@ -325,11 +324,28 @@ class ElectricityInfoCoordinator(DataUpdateCoordinator):
         if not settled_prices:
             return
 
-        latest = max(settled_prices, key=lambda p: p.trading_datetime)
-        node_data["settled_price"] = latest.price
-        node_data["settled_timestamp"] = latest.trading_datetime
-        node_data["settled_trading_period"] = latest.trading_period
-        node_data["accounting_date_nzt"] = latest.trading_datetime.astimezone(
+        now = dt_util.utcnow()
+        sorted_settled = sorted(settled_prices, key=lambda p: p.trading_datetime)
+        current = next(
+            (
+                p
+                for p in sorted_settled
+                if p.trading_datetime
+                <= now
+                < p.trading_datetime + timedelta(minutes=30)
+            ),
+            None,
+        )
+        if current is not None:
+            selected = current
+        else:
+            past = [p for p in sorted_settled if p.trading_datetime <= now]
+            selected = past[-1] if past else sorted_settled[0]
+
+        node_data["settled_price"] = selected.price
+        node_data["settled_timestamp"] = selected.trading_datetime
+        node_data["settled_trading_period"] = selected.trading_period
+        node_data["accounting_date_nzt"] = selected.trading_datetime.astimezone(
             NZ_TZ
         ).date()
 
