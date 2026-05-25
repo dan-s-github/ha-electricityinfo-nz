@@ -69,6 +69,14 @@ async def async_setup_entry(
             continue
         config = dict(subentry.data)
         market_entities: list[MarketNodeSensorBase] = []
+        _LOGGER.debug(
+            "Setting up market_node sensors for %s: "
+            "enable_live_price=%s, enable_forecast=%s, enable_accounting=%s",
+            subentry.title,
+            config.get(CONF_ENABLE_LIVE_PRICE),
+            config.get(CONF_ENABLE_FORECAST),
+            config.get(CONF_ENABLE_ACCOUNTING),
+        )
         if config.get(CONF_ENABLE_LIVE_PRICE):
             market_entities.append(
                 LivePriceSensor(
@@ -79,6 +87,11 @@ async def async_setup_entry(
             )
         if config.get(CONF_ENABLE_FORECAST):
             horizons = set(config.get(CONF_FORECAST_HORIZONS, []))
+            _LOGGER.debug(
+                "Forecast enabled for %s with horizons: %s",
+                subentry.title,
+                horizons,
+            )
             if "day_ahead" in horizons:
                 market_entities.append(
                     DayAheadForecastSensor(
@@ -141,7 +154,17 @@ async def async_setup_entry(
                 for entity in market_entities
                 if entity.unique_id is not None
             )
+            _LOGGER.debug(
+                "Adding %s entities for %s",
+                len(market_entities),
+                subentry.title,
+            )
             async_add_entities(market_entities, config_subentry_id=subentry.subentry_id)
+        else:
+            _LOGGER.debug(
+                "No entities to add for %s (all features disabled)",
+                subentry.title,
+            )
 
     _remove_stale_market_node_entities(hass, entry.entry_id, expected_market_unique_ids)
 
