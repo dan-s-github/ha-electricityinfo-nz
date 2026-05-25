@@ -360,11 +360,18 @@ class ForecastSensorBase(MarketNodeSensorBase):
             p for p in sorted_prices if p.trading_datetime < now and p.price is not None
         ][-retention_periods:]
 
+        # Count prices by state for debugging
+        with_price = [p for p in sorted_prices if p.price is not None]
+        no_price = [p for p in sorted_prices if p.price is None]
+
         _LOGGER.debug(
-            "%s: Processed %s total prices: %s future, %s history. "
+            "%s: Processed %s total prices: %s with price, %s without price. "
+            "Future: %s, History: %s. "
             "Now=%s, First price at %s, Last price at %s",
             self._attr_name,
             len(sorted_prices),
+            len(with_price),
+            len(no_price),
             len(future),
             len(history),
             now.isoformat(),
