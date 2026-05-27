@@ -116,14 +116,14 @@
 
 ### Tests for User Story 5
 
-- [ ] T030 [P] [US5] Add reconfigure no-op vs changed-save tests in `tests/test_options_flow.py`
-- [ ] T031 [P] [US5] Add entity add/remove-on-reconfigure integration coverage in `tests/integration/test_sensor_lifecycle.py`
+- [X] T030 [P] [US5] Add reconfigure no-op vs changed-save tests in `tests/test_options_flow.py`
+- [X] T031 [P] [US5] Add entity add/remove-on-reconfigure integration coverage in `tests/integration/test_sensor_lifecycle.py`
 
 ### Implementation for User Story 5
 
-- [ ] T032 [US5] Implement reconfigure form population/update-and-abort path in `custom_components/electricityinfo/config_flow.py`
-- [ ] T033 [US5] Implement sensor delta reconciliation on config changes in `custom_components/electricityinfo/sensor.py`
-- [ ] T034 [US5] Preserve unaffected nodes during one-node reconfigure updates in `custom_components/electricityinfo/coordinator.py`
+- [X] T032 [US5] Implement reconfigure form population/update-and-abort path in `custom_components/electricityinfo/config_flow.py`
+- [X] T033 [US5] Implement sensor delta reconciliation on config changes in `custom_components/electricityinfo/sensor.py`
+- [X] T034 [US5] Preserve unaffected nodes during one-node reconfigure updates in `custom_components/electricityinfo/coordinator.py`
 
 **Checkpoint**: US5 reconfigure behavior independently testable.
 
@@ -155,10 +155,10 @@
 
 **Purpose**: Final consistency, docs, and full-suite confidence across all stories.
 
-- [ ] T041 [P] Update feature artifact alignment notes in `specs/003-multi-entity-market-node/quickstart.md`
-- [ ] T042 [P] Refresh plan-context summary for implemented behavior in `.github/copilot-instructions.md`
-- [ ] T043 Execute and fix full regression suite issues across `tests/` and `custom_components/electricityinfo/`; acceptance: all tests pass with zero failures, `ruff check` and `mypy custom_components/` clean
-- [ ] T044 [P] Add and run measurable acceptance checks for SC-002/SC-003/SC-005 (entity visibility within 3 minutes + 5-node save latency + one-cycle data freshness) in `tests/integration/test_performance_config_save.py`
+- [X] T041 [P] Update feature artifact alignment notes in `specs/003-multi-entity-market-node/quickstart.md`
+- [X] T042 [P] Refresh plan-context summary for implemented behavior in `.github/copilot-instructions.md`
+- [X] T043 Execute and fix full regression suite issues across `tests/` and `custom_components/electricityinfo/`; acceptance: all tests pass with zero failures, `ruff check` and `mypy custom_components/` clean
+- [X] T044 [P] Add and run measurable acceptance checks for SC-002/SC-003/SC-005 (entity visibility within 3 minutes + 5-node save latency + one-cycle data freshness) in `tests/integration/test_performance_config_save.py`
 
 ---
 

@@ -233,10 +233,7 @@ class MarketNodeSensorBase(CoordinatorEntity, SensorEntity):
     @property
     def available(self) -> bool:
         """Return whether entity has usable data."""
-        return (
-            self.coordinator.last_update_success
-            and self._native_value is not None
-        )
+        return self.coordinator.last_update_success and self._native_value is not None
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
@@ -516,8 +513,9 @@ class SettledPriceSensor(MarketNodeSensorBase):
         )
 
     async def async_added_to_hass(self) -> None:
-        """Register with coordinator; starts unavailable until first poll."""
+        """Register with coordinator and populate from existing data if available."""
         await super().async_added_to_hass()
+        self._handle_coordinator_update()
 
     def _handle_coordinator_update(self) -> None:
         """Handle coordinator update for settled price."""

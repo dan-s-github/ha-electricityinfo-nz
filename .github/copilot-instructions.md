@@ -54,8 +54,10 @@ Phase 1 (001-oauth-config-flow) completed: OAuth 2.0 authentication, token manag
 Phase 2 (002-price-schedules-sensor) replaced by Phase 3 (003): 002 config entries automatically migrated to 003.
 
 **Implementation Status (Current Branch)**:
-- Phases 1–8 are implemented for `003-multi-entity-market-node` (including accounting sensors and polish updates).
-- Regression baseline for the implemented state is `pytest tests/`, `ruff check custom_components/ tests/`, and `mypy custom_components/`.
+- All phases (1–8) fully implemented and verified for `003-multi-entity-market-node`.
+- T045–T051 remediation complete: legacy `PriceSensorEntity`/`SensorSubentryFlowHandler` removed; export meter `None` fix; `available` property corrected; forecast/history boundary fixed; startup prime-call restored in `SettledPriceSensor`.
+- Startup fetch clarified (2026-05-27): non-RestoreEntity sensors call `_handle_coordinator_update()` in `async_added_to_hass` to prime from coordinator data fetched during `async_config_entry_first_refresh()` — available immediately after entry setup.
+- Regression baseline: `pytest tests/` (72 tests), `ruff check custom_components/ tests/`, `mypy custom_components/` — all clean.
 
 **Pre-commit Note**: Repository has pre-commit hooks that auto-fix formatting (trailing whitespace, EOF).
 Changes made by hooks require re-staging and re-committing. This is expected behavior.

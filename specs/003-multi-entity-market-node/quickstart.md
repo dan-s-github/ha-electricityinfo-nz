@@ -110,7 +110,7 @@ Update `translations/en.json`:
 
 ---
 
-## Phase 8 Alignment Notes (As Implemented)
+## Phase 8 Alignment Notes (As Implemented — 2026-05-27)
 
 - Migration coverage and VERSION 1→2 behavior are verified in `tests/test_init.py` (including duplicate-by-node migration handling).
 - Coordinator behavior (routing, isolation, accounting deltas, bidirectional/fallback) is verified in `tests/test_coordinator.py`.
@@ -118,6 +118,9 @@ Update `translations/en.json`:
 - Reconfigure lifecycle and entity add/remove behavior are verified in `tests/test_options_flow.py` and `tests/integration/test_sensor_lifecycle.py`.
 - Multi-node isolation and independent updates are verified in `tests/integration/test_multi_node.py`.
 - Measurable acceptance criteria coverage is verified in `tests/integration/test_performance_config_save.py` (SC-002 visibility within 3 minutes, SC-003 p95 save latency under 10 seconds with 5 nodes, SC-005 one-cycle data freshness).
+- `ForecastSensorBase` and `SettledPriceSensor` prime from coordinator data in `async_added_to_hass` — sensors become available immediately after entry setup without waiting for the next 30-min scheduled poll.
+- `_remove_stale_market_node_entities` is called in `async_setup_entry` — newly disabled sensor types are removed on every reload without requiring a full entry delete/recreate.
+- Legacy `PriceSensorEntity` and `SensorSubentryFlowHandler` removed; only `MarketNodeSubentryFlow` is registered under `"market_node"`.
 - Final regression gate for this feature is `pytest tests/`, with lint/type checks from `ruff check custom_components/ tests/` and `mypy custom_components/`.
 
 ---
@@ -172,18 +175,18 @@ def mock_day_ahead_data():
 
 ## Acceptance Checklist (before merge)
 
-- [ ] `ruff check --fix` passes with 0 errors
-- [ ] `mypy custom_components/` passes with 0 errors
-- [ ] All unit + integration tests pass (`pytest tests/ -v`)
-- [ ] `ConfigFlow.VERSION = 2` and `async_migrate_entry` implemented
-- [ ] Migration test covers all 002 schedule type variants
-- [ ] `manifest.json` version bumped to 2.0.0
-- [ ] `translations/en.json` updated for all new form fields and errors
-- [ ] Entity IDs follow `electricityinfo_<entry_id>_<subentry_id>_<sensor_type>` convention
-- [ ] No `NZD/MWh` values stored in sensor state (all converted at ingest)
-- [ ] `RestoreEntity` used on `LivePriceSensor`, `DailyImportCostSensor`, and `DailyExportRevenueSensor`
-- [ ] Staleness guard (30 min) present on `LivePriceSensor.async_added_to_hass` only
-- [ ] Daily total sensors reset accumulated total on midnight NZT date advance
-- [ ] Two separate energy meter entity selectors (`import_meter_entity_id`, `export_meter_entity_id`) in config flow
-- [ ] Bidirectional meter mode active when both fields point to same entity_id
-- [ ] Export fallback mode active when `export_meter_entity_id` is unset and `import_meter_entity_id` is set
+- [x] `ruff check --fix` passes with 0 errors
+- [x] `mypy custom_components/` passes with 0 errors
+- [x] All unit + integration tests pass (`pytest tests/ -v`)
+- [x] `ConfigFlow.VERSION = 2` and `async_migrate_entry` implemented
+- [x] Migration test covers all 002 schedule type variants
+- [x] `manifest.json` version bumped to 2.0.0
+- [x] `translations/en.json` updated for all new form fields and errors
+- [x] Entity IDs follow `electricityinfo_<entry_id>_<subentry_id>_<sensor_type>` convention
+- [x] No `NZD/MWh` values stored in sensor state (all converted at ingest)
+- [x] `RestoreEntity` used on `LivePriceSensor`, `DailyImportCostSensor`, and `DailyExportRevenueSensor`
+- [x] Staleness guard (30 min) present on `LivePriceSensor.async_added_to_hass` only
+- [x] Daily total sensors reset accumulated total on midnight NZT date advance
+- [x] Two separate energy meter entity selectors (`import_meter_entity_id`, `export_meter_entity_id`) in config flow
+- [x] Bidirectional meter mode active when both fields point to same entity_id
+- [x] Export fallback mode active when `export_meter_entity_id` is unset and `import_meter_entity_id` is set

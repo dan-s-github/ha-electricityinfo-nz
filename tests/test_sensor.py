@@ -186,7 +186,6 @@ async def test_live_sensor_fallback_splits_forecast_and_history_by_now(
     assert "history" not in attrs
 
 
-
 async def test_live_sensor_restores_recent_state(hass, mock_entry) -> None:
     """LivePriceSensor restores recent state."""
     subentry = create_mock_market_node_subentry()
