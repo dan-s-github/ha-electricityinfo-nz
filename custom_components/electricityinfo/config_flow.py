@@ -14,9 +14,6 @@ from homeassistant.helpers.selector import (
     BooleanSelector,
     EntitySelector,
     EntitySelectorConfig,
-    NumberSelector,
-    NumberSelectorConfig,
-    NumberSelectorMode,
     SelectSelector,
     SelectSelectorConfig,
     TextSelector,
@@ -37,16 +34,11 @@ from .const import (
     CONF_FORECAST_HORIZONS,
     CONF_FORECAST_RETENTION_HOURS,
     CONF_FORECAST_TYPE,
-    CONF_FORWARD_PRICES_COUNT,
     CONF_IMPORT_METER_ENTITY_ID,
-    CONF_MARKET_TYPE,
     CONF_NODE,
     CONF_PRICE_UNIT,
-    CONF_SCHEDULE_TYPE,
-    CONF_SENSOR_NAME,
     DEFAULT_ACCOUNTING_RETENTION_HOURS,
     DEFAULT_FORECAST_RETENTION_HOURS,
-    DEFAULT_FORWARD_PRICES_COUNT,
     DEVELOPER_PORTAL_URL,
     DOMAIN,
     FORECAST_HORIZON_OPTIONS,
@@ -57,13 +49,9 @@ from .const import (
     FORECAST_TYPES,
     MARKET_NODE_OPTIONS,
     MARKET_NODES,
-    MARKET_TYPE_OPTIONS,
-    MARKET_TYPES,
     MAX_VALIDATION_ATTEMPTS,
     PRICE_UNIT_OPTIONS,
     PRICE_UNITS,
-    SCHEDULE_TYPE_OPTIONS,
-    SCHEDULE_TYPES,
     SUBENTRY_TYPE,
 )
 
@@ -72,83 +60,6 @@ if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
 
 _LOGGER = logging.getLogger(__name__)
-
-
-def _sensor_title(data: dict[str, Any]) -> str:
-    """Derive a display title from sensor form data."""
-    name = (data.get(CONF_SENSOR_NAME) or "").strip()
-    node = data.get(CONF_NODE, "")
-    schedule = data.get(CONF_SCHEDULE_TYPE, "")
-    market = data.get(CONF_MARKET_TYPE, "")
-    config_label = f"{node} {schedule} ({market})"
-    if name:
-        return f"{name} · {config_label}"
-    return config_label
-
-
-def _build_sensor_form_schema(
-    defaults: dict[str, Any] | None = None,
-) -> vol.Schema:
-    """Build the voluptuous schema for the legacy add/edit sensor form."""
-    d = defaults or {}
-    return vol.Schema(
-        {
-            vol.Optional(
-                CONF_SENSOR_NAME,
-                default=d.get(CONF_SENSOR_NAME, ""),
-            ): str,
-            vol.Required(
-                CONF_SCHEDULE_TYPE,
-                **(
-                    {"default": d[CONF_SCHEDULE_TYPE]}
-                    if CONF_SCHEDULE_TYPE in d
-                    else {}
-                ),
-            ): SelectSelector(SelectSelectorConfig(options=SCHEDULE_TYPE_OPTIONS)),
-            vol.Required(
-                CONF_MARKET_TYPE,
-                **({"default": d[CONF_MARKET_TYPE]} if CONF_MARKET_TYPE in d else {}),
-            ): SelectSelector(SelectSelectorConfig(options=MARKET_TYPE_OPTIONS)),
-            vol.Required(
-                CONF_NODE,
-                **({"default": d[CONF_NODE]} if CONF_NODE in d else {}),
-            ): SelectSelector(SelectSelectorConfig(options=MARKET_NODE_OPTIONS)),
-            vol.Optional(
-                CONF_FORWARD_PRICES_COUNT,
-                default=d.get(CONF_FORWARD_PRICES_COUNT, DEFAULT_FORWARD_PRICES_COUNT),
-            ): NumberSelector(
-                NumberSelectorConfig(min=1, max=84, mode=NumberSelectorMode.SLIDER)
-            ),
-        }
-    )
-
-
-def _validate_sensor_fields(user_input: dict[str, Any]) -> dict[str, str]:
-    """Validate legacy sensor form fields and return a dict of field → error key."""
-    errors: dict[str, str] = {}
-    if user_input.get(CONF_SCHEDULE_TYPE) not in SCHEDULE_TYPES:
-        errors[CONF_SCHEDULE_TYPE] = "schedule_type_invalid"
-    if user_input.get(CONF_MARKET_TYPE) not in MARKET_TYPES:
-        errors[CONF_MARKET_TYPE] = "market_type_invalid"
-    if user_input.get(CONF_NODE) not in MARKET_NODES:
-        errors[CONF_NODE] = "node_invalid"
-    return errors
-
-
-def _build_sensor_data(user_input: dict[str, Any]) -> dict[str, Any]:
-    """Build legacy sensor data dict from validated user input."""
-    data: dict[str, Any] = {
-        CONF_SCHEDULE_TYPE: user_input[CONF_SCHEDULE_TYPE],
-        CONF_MARKET_TYPE: user_input[CONF_MARKET_TYPE],
-        CONF_NODE: user_input[CONF_NODE],
-        CONF_FORWARD_PRICES_COUNT: int(
-            user_input.get(CONF_FORWARD_PRICES_COUNT, DEFAULT_FORWARD_PRICES_COUNT)
-        ),
-    }
-    name = (user_input.get(CONF_SENSOR_NAME) or "").strip()
-    if name:
-        data[CONF_SENSOR_NAME] = name
-    return data
 
 
 def _node_title(data: dict[str, Any]) -> str:
@@ -339,9 +250,7 @@ def _build_node_data(user_input: dict[str, Any]) -> dict[str, Any]:
             user_input.get(CONF_IMPORT_METER_ENTITY_ID) or None
         )
         data[CONF_EXPORT_METER_ENTITY_ID] = (
-            user_input.get(CONF_EXPORT_METER_ENTITY_ID)
-            or user_input.get(CONF_IMPORT_METER_ENTITY_ID)
-            or None
+            user_input.get(CONF_EXPORT_METER_ENTITY_ID) or None
         )
 
     return data
@@ -382,10 +291,8 @@ class ElectricityInfoConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         config_entry: config_entries.ConfigEntry,  # noqa: ARG003
     ) -> dict[str, type[config_entries.ConfigSubentryFlow]]:
         """Return supported subentry types."""
-        # Keep legacy sensor flow for backward compatibility while 003 is implemented.
         return {
             SUBENTRY_TYPE: MarketNodeSubentryFlow,
-            "sensor": SensorSubentryFlowHandler,
         }
 
     async def async_step_user(
@@ -548,52 +455,5 @@ class MarketNodeSubentryFlow(config_entries.ConfigSubentryFlow):
         return self.async_show_form(
             step_id="reconfigure",
             data_schema=_build_node_form_schema(dict(subentry.data)),
-            errors=errors,
-        )
-
-
-class SensorSubentryFlowHandler(config_entries.ConfigSubentryFlow):
-    """Handle legacy sensor subentry flows (add / reconfigure)."""
-
-    async def async_step_user(
-        self, user_input: dict[str, Any] | None = None
-    ) -> config_entries.SubentryFlowResult:
-        """Create a new price sensor subentry."""
-        errors: dict[str, str] = {}
-
-        if user_input is not None:
-            errors = _validate_sensor_fields(user_input)
-            if not errors:
-                return self.async_create_entry(
-                    title=_sensor_title(user_input),
-                    data=_build_sensor_data(user_input),
-                )
-
-        return self.async_show_form(
-            step_id="user",
-            data_schema=_build_sensor_form_schema(),
-            errors=errors,
-        )
-
-    async def async_step_reconfigure(
-        self, user_input: dict[str, Any] | None = None
-    ) -> config_entries.SubentryFlowResult:
-        """Edit an existing sensor subentry."""
-        subentry = self._get_reconfigure_subentry()
-        errors: dict[str, str] = {}
-
-        if user_input is not None:
-            errors = _validate_sensor_fields(user_input)
-            if not errors:
-                return self.async_update_and_abort(
-                    self._get_entry(),
-                    subentry,
-                    title=_sensor_title(user_input),
-                    data=_build_sensor_data(user_input),
-                )
-
-        return self.async_show_form(
-            step_id="reconfigure",
-            data_schema=_build_sensor_form_schema(dict(subentry.data)),
             errors=errors,
         )

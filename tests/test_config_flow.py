@@ -528,10 +528,10 @@ async def test_market_node_accounting_import_meter_must_be_energy(
     assert result2["errors"]["import_meter_entity_id"] == "entity_not_energy_import"
 
 
-async def test_market_node_accounting_export_falls_back_to_import(
+async def test_market_node_accounting_export_stored_as_none_when_omitted(
     hass: HomeAssistant,
 ) -> None:
-    """When export meter omitted, accounting normalizes export to import meter."""
+    """Export meter omitted: stored as None; coordinator applies fallback at runtime."""
     hass.states.async_set(
         "sensor.import_meter",
         "456.0",
@@ -561,4 +561,5 @@ async def test_market_node_accounting_export_falls_back_to_import(
     )
     assert result2["type"] is FlowResultType.CREATE_ENTRY
     assert result2["data"]["import_meter_entity_id"] == "sensor.import_meter"
-    assert result2["data"]["export_meter_entity_id"] == "sensor.import_meter"
+    # Export stored as None; coordinator uses import meter as fallback at runtime
+    assert result2["data"]["export_meter_entity_id"] is None

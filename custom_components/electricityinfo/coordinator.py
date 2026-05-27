@@ -26,10 +26,8 @@ from .const import (
     CONF_FORECAST_RETENTION_HOURS,
     CONF_FORECAST_TYPE,
     CONF_IMPORT_METER_ENTITY_ID,
-    CONF_MARKET_TYPE,
     CONF_NODE,
     CONF_PRICE_UNIT,
-    CONF_SCHEDULE_TYPE,
     DAY_AHEAD_FORWARD_PERIODS,
     FORECAST_SCHEDULE_MAP,
     INTRADAY_FORWARD_PERIODS,
@@ -144,24 +142,6 @@ class ElectricityInfoCoordinator(DataUpdateCoordinator):
             msg = "API client is not initialized"
             raise ConfigEntryAuthFailed(msg)
         return self.client
-
-    async def _fetch_legacy_sensor_data(self, subentry: Any) -> dict[str, Any]:
-        """Fetch data for legacy 002 sensor subentry type."""
-        client = self._get_client()
-        sensor_config = dict(subentry.data)
-        node = sensor_config.get(CONF_NODE)
-        schedule_type = sensor_config.get(CONF_SCHEDULE_TYPE)
-        market_type = sensor_config.get(CONF_MARKET_TYPE)
-        forward_hours = sensor_config.get("forward_prices_count", 24)
-        forward_prices = int(forward_hours) * 2
-
-        schedule_details = await client.get_schedule_prices(
-            schedule=schedule_type,
-            market_type=market_type,
-            nodes=[node] if node else None,
-            forward=forward_prices,
-        )
-        return {"prices": schedule_details, "config": sensor_config}
 
     async def _fetch_market_node_data(self, subentry: Any) -> dict[str, Any]:
         """Fetch data for 003 market_node subentry."""
@@ -411,11 +391,7 @@ class ElectricityInfoCoordinator(DataUpdateCoordinator):
             for subentry in subentries:
                 subentry_id = subentry.subentry_id
                 try:
-                    if subentry.subentry_type == "sensor":
-                        data[subentry_id] = await self._fetch_legacy_sensor_data(
-                            subentry
-                        )
-                    elif subentry.subentry_type == SUBENTRY_TYPE:
+                    if subentry.subentry_type == SUBENTRY_TYPE:
                         data[subentry_id] = await self._fetch_market_node_data(subentry)
                     else:
                         continue
