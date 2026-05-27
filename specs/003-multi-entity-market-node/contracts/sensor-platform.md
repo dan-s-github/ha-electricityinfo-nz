@@ -56,7 +56,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
 1. For each `"market_node"` subentry:
    - If `enable_live_price` or day-ahead forecast enabled → `get_schedule_prices(PRSL/NRSL, forward=48, back=forecast_retention_hours × 2)`
    - If intraday forecast enabled → `get_schedule_prices(PRSS/NRSS, forward=8, back=forecast_retention_hours × 2)`
-   - If accounting enabled → `get_schedule_prices("Interim", back=48)`
+   - If accounting enabled → `get_schedule_prices("Interim", back=accounting_retention_hours × 2)` (range: 48–96 depending on configured retention)
 2. Errors are caught per-node and stored in `NodeData["error"]` — other nodes continue updating
 3. On full success: reset `_retry_count`, restore `update_interval = 30 min`
 4. On `AuthenticationError`: raise `ConfigEntryAuthFailed` (triggers HA re-auth flow)

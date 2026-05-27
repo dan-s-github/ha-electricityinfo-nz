@@ -137,15 +137,15 @@
 
 ### Tests for User Story 3
 
-- [ ] T035 [P] [US3] Add accounting flow validation tests for meter selectors and fallback rules in `tests/test_config_flow.py`
-- [ ] T036 [P] [US3] Add coordinator accounting tests (Interim `back=48`, meter delta, bidirectional, export fallback) in `tests/test_coordinator.py`
-- [ ] T037 [P] [US3] Add accounting sensor tests for settled/import/export/daily restore/reset behavior in `tests/test_accounting.py`
+- [X] T035 [P] [US3] Add accounting flow validation tests for meter selectors and fallback rules in `tests/test_config_flow.py`
+- [X] T036 [P] [US3] Add coordinator accounting tests (Interim `back=48`, meter delta, bidirectional, export fallback) in `tests/test_coordinator.py`
+- [X] T037 [P] [US3] Add accounting sensor tests for settled/import/export/daily restore/reset behavior in `tests/test_accounting.py`
 
 ### Implementation for User Story 3
 
-- [ ] T038 [US3] Implement accounting fetch, meter delta tracking, and export fallback computation in `custom_components/electricityinfo/coordinator.py`
-- [ ] T039 [US3] Implement `SettledPriceSensor`, `ImportCostSensor`, `ExportRevenueSensor`, `DailyImportCostSensor`, and `DailyExportRevenueSensor` in `custom_components/electricityinfo/sensor.py`
-- [ ] T040 [US3] Implement accounting section schema (retention + two optional selectors + fallback normalization) in `custom_components/electricityinfo/config_flow.py`
+- [X] T038 [US3] Implement accounting fetch, meter delta tracking, and export fallback computation in `custom_components/electricityinfo/coordinator.py`
+- [X] T039 [US3] Implement `SettledPriceSensor`, `ImportCostSensor`, `ExportRevenueSensor`, `DailyImportCostSensor`, and `DailyExportRevenueSensor` in `custom_components/electricityinfo/sensor.py`
+- [X] T040 [US3] Implement accounting section schema (retention + two optional selectors + fallback normalization) in `custom_components/electricityinfo/config_flow.py`
 
 **Checkpoint**: US3 accounting behavior independently functional.
 
@@ -157,8 +157,22 @@
 
 - [ ] T041 [P] Update feature artifact alignment notes in `specs/003-multi-entity-market-node/quickstart.md`
 - [ ] T042 [P] Refresh plan-context summary for implemented behavior in `.github/copilot-instructions.md`
-- [ ] T043 Execute and fix full regression suite issues across `tests/` and `custom_components/electricityinfo/`
+- [ ] T043 Execute and fix full regression suite issues across `tests/` and `custom_components/electricityinfo/`; acceptance: all tests pass with zero failures, `ruff check` and `mypy custom_components/` clean
 - [ ] T044 [P] Add and run measurable acceptance checks for SC-002/SC-003/SC-005 (entity visibility within 3 minutes + 5-node save latency + one-cycle data freshness) in `tests/integration/test_performance_config_save.py`
+
+---
+
+## Remediation: Implementation Drift (2026-05-27)
+
+**Purpose**: Close gaps identified in speckit-analyze session. These tasks address code that diverges from the spec, legacy code that should be removed, and contract mismatches.
+
+- [ ] T045 [P] Remove `"sensor": SensorSubentryFlowHandler` registration from `async_get_supported_subentry_types` in `custom_components/electricityinfo/config_flow.py`; add test asserting only `"market_node"` is returned in `tests/test_config_flow.py` [Sync: Gap Report]
+- [ ] T046 [P] Remove `PriceSensorEntity` legacy class, `_fetch_legacy_sensor_data`, and all associated tests (~12) from `custom_components/electricityinfo/sensor.py` and `tests/test_sensor.py` [Sync: Gap Report]
+- [ ] T047 Remove `self._handle_coordinator_update()` prime call from `SettledPriceSensor.async_added_to_hass` so the sensor starts unavailable until first coordinator poll, matching the spec contract in `custom_components/electricityinfo/sensor.py` [Sync: Gap Report]
+- [ ] T048 Fix `_build_node_data` to store `None` for `CONF_EXPORT_METER_ENTITY_ID` when unset (not the import meter value); move bidirectional fallback logic exclusively to coordinator `_populate_accounting_metrics` in `custom_components/electricityinfo/config_flow.py` and `custom_components/electricityinfo/coordinator.py` [Sync: Gap Report]
+- [ ] T049 Fix `MarketNodeSensorBase.available` to return `False` when `_native_value is None`, and remove the `ForecastSensorBase.available` override so it inherits the corrected base behaviour; align with `contracts/sensor-platform.md` contract in `custom_components/electricityinfo/sensor.py` [Sync: Gap Report]
+- [ ] T050 [P] Fix `ForecastSensorBase._handle_coordinator_update()` to move the currently active trade period from `forecast_points` into `history`: `history` MUST contain elapsed + active periods; `forecast` MUST contain only strictly future (not-yet-started) periods; `native_value` remains `current.price` in `custom_components/electricityinfo/sensor.py` [Sync: Gap Report]
+- [ ] T051 [P] Update forecast sensor tests to assert: (a) `forecast` contains zero entries with `trading_datetime ≤ now`; (b) active period appears as last entry in `history`; (c) `native_value` equals the active period's price — in `tests/test_sensor.py` and `tests/test_sensor_multiple.py` [Sync: Gap Report]
 
 ---
 

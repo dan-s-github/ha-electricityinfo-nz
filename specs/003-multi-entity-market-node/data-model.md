@@ -145,10 +145,10 @@ Inherits: `CoordinatorEntity`, `RestoreEntity`, `SensorEntity`
 | `device_class` | `SensorDeviceClass.MONETARY` |
 | `state_class` | `None` |
 | `native_value` | Current trade period price (converted from NZD/MWh at ingest) |
-| `extra_state_attributes` | `timestamp`, `trading_period`, `node`, `schedule`, `forecast: list[PeriodPrice]` |
+| `extra_state_attributes` | `timestamp`, `trading_period`, `node`, `schedule` (no `forecast` attribute — forecast data is owned by `DayAheadForecastSensor`) |
 | RestoreEntity | ✅ Yes — single float + minimal attrs, safe to restore on restart |
 
-**Current period detection**: From `day_ahead` data, select the `PriceDetail` with the largest `trading_datetime ≤ utcnow()`. Remaining entries (future periods) populate `forecast`.
+**Current period detection**: From `day_ahead` data, select the `PriceDetail` with the largest `trading_datetime ≤ utcnow()`. That period's price becomes the sensor state. No `forecast` attribute is set; remaining future periods are handled by `DayAheadForecastSensor`.
 
 ### DayAheadForecastSensor
 
@@ -158,8 +158,8 @@ Inherits: `CoordinatorEntity`, `SensorEntity`
 |-----------|-------|
 | `native_unit_of_measurement` | `price_unit` from subentry config |
 | `device_class` | `SensorDeviceClass.MONETARY` |
-| `native_value` | Price of the next upcoming trade period |
-| `extra_state_attributes` | `forecast: list[PeriodPrice]` (up to 48 future periods), `history: list[PeriodPrice]` (all prior periods returned by retention-defined API `back` window; typically `forecast_retention_hours × 2` periods) |
+| `native_value` | Price of the current trade period (largest `trading_datetime ≤ utcnow()`; same period used by `LivePriceSensor`) |
+| `extra_state_attributes` | `forecast: list[PeriodPrice]` (strictly future periods only — periods not yet started, up to 48 entries); `history: list[PeriodPrice]` (the currently active trade period plus all fully elapsed periods returned by the retention-defined API `back` window; typically `forecast_retention_hours × 2` periods total including active) |
 | RestoreEntity | ❌ No — start unavailable on restart |
 
 ### IntradayForecastSensor

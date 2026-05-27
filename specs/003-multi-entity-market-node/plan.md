@@ -16,7 +16,7 @@ Replace 002 single-sensor subentries with 003 `market_node` subentries that can 
 **Target Platform**: Home Assistant custom integration runtime (async Python)
 **Project Type**: Integration/library-wrapper client (single project)
 **Performance Goals**: With 5 configured market nodes, save/reconfigure completes <10s in 95% of attempts; selected entities become visible within 3 minutes of save; values reflect provider data within one 30-minute coordinator cycle
-**Constraints**: OAuth-only auth; no direct HTTP in integration; single 30-minute coordinator per config entry; ingest-time unit conversion only; one migrated subentry per market node; runtime entity setup uses `market_node` only (no legacy `sensor` entity creation); forecast retention drives forecast history API lookback (`back`) and all returned prior periods are stored in history
+**Constraints**: OAuth-only auth; no direct HTTP in integration; single 30-minute coordinator per config entry; ingest-time unit conversion only; one migrated subentry per market node; runtime entity setup uses `market_node` only (no legacy `sensor` entity creation); the `"sensor"` subentry type MUST NOT be registered in `async_get_supported_subentry_types` (only `"market_node"` is valid post-migration); forecast retention drives forecast history API lookback (`back`) and all returned prior periods are stored in history
 **Scale/Scope**: Up to 5 market node subentries per config entry; up to 8 sensors per node; accounting history 24h/48h; day-ahead forward 48 periods; intraday forward 8 periods
 
 ## Constitution Check
@@ -97,9 +97,11 @@ Design outputs are captured in:
 
 Design clarifications captured:
 - Migration keeps first legacy subentry per node, skips duplicates with warnings.
-- Runtime entity creation path post-migration uses only `market_node` subentries.
-- Forecast history retention setting drives API lookback (`back`) and all returned prior periods are stored in history.
+- Runtime entity creation path post-migration uses only `market_node` subentries; the legacy `"sensor"` subentry type MUST NOT be registered.
+- `LivePriceSensor` exposes only `{timestamp, trading_period, node, schedule}` — no `forecast` attribute; forecast data is owned exclusively by `DayAheadForecastSensor`.
+- Forecast attribute boundary: the currently active trade period (started ≤ now, ends > now) belongs in `history`, not `forecast`. `DayAheadForecastSensor` / `IntradayForecastSensor` `forecast` attribute MUST contain only strictly future (not-yet-started) periods; `history` contains elapsed periods plus the currently active period. `native_value` remains the current period's price regardless.
 - Export fallback: when export meter is unset and import meter is set, import is used as signed bidirectional source.
+- Accounting Interim fetch uses `back=accounting_retention_hours × 2` (not a fixed 48).
 - Acceptance checks explicitly validate SC-002/SC-003/SC-005 in integration tests.
 
 ## Agent Context Update
@@ -109,3 +111,11 @@ Plan reference between `<!-- SPECKIT START -->` and `<!-- SPECKIT END -->` in `.
 ## Complexity Tracking
 
 No constitution violations requiring justification.
+
+### Revision: Implementation Sync 2026-05-27
+
+- **FR-003 / LivePriceSensor**: Clarified that `LivePriceSensor` does NOT expose a `forecast` attribute; forecast data is owned by `DayAheadForecastSensor`. Spec, data-model, and plan updated.
+- **FR-019 / Legacy flow**: Clarified that the `"sensor"` subentry type MUST NOT be registered in `async_get_supported_subentry_types` post-migration. Spec and plan updated; code removal tracked in T045.
+- **Accounting retention back-value**: Corrected `contracts/sensor-platform.md` to show `back=accounting_retention_hours × 2` (not fixed 48).
+- **Task status drift**: T035–T040 (Phase 7 / US3 accounting) were marked incomplete but fully implemented; corrected to `[X]` in tasks.md.
+- **Remediation tasks**: T045–T049 added to tasks.md to close remaining implementation drift (legacy flow removal, PriceSensorEntity removal, SettledPriceSensor startup fix, export meter None fix, available property fix); T050–T051 added to fix ForecastSensorBase forecast/history boundary.
