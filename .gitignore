@@ -6,6 +6,7 @@ configuration.yaml
 # Python
 __pycache__/
 *.py[cod]
+*.pyc
 *$py.class
 *.so
 .Python
@@ -70,3 +71,5 @@ logs/
 *.temp
 Thumbs.db
 todo/
+tests/live/
+tests/test_coordinator.py

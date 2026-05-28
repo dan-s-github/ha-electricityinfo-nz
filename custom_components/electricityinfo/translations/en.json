@@ -32,6 +32,63 @@
     }
   },
   "config_subentries": {
+    "market_node": {
+      "initiate_flow": {
+        "user": "Add market node"
+      },
+      "entry_type": "Market Node",
+      "abort": {
+        "reconfigure_successful": "Market node updated successfully"
+      },
+      "error": {
+        "node_invalid": "The selected market node is not valid.",
+        "node_already_configured": "This market node is already configured.",
+        "price_unit_invalid": "The selected price unit is not valid.",
+        "forecast_type_invalid": "The selected forecast type is not valid.",
+        "forecast_horizons_empty": "Select at least one forecast horizon when forecasting is enabled.",
+        "forecast_horizons_invalid": "One or more selected forecast horizons are invalid.",
+        "forecast_retention_invalid": "Forecast history retention must be 6, 12, or 24 hours.",
+        "accounting_retention_invalid": "Accounting retention must be 24 or 48 hours.",
+        "entity_not_energy_import": "The selected import meter is not an energy meter (device_class: energy).",
+        "entity_not_energy_export": "The selected export meter is not an energy meter (device_class: energy).",
+        "no_sensor_type_enabled": "At least one sensor type must be enabled."
+      },
+      "step": {
+        "user": {
+          "title": "Add Market Node",
+          "description": "Configure live, forecast, and accounting sensors for a market node.",
+          "data": {
+            "node": "Market Node",
+            "price_unit": "Price Unit",
+            "enable_live_price": "Enable live price sensor",
+            "enable_forecast": "Enable forecast sensors",
+            "forecast_type": "Forecast type",
+            "forecast_horizons": "Forecast horizons",
+            "forecast_retention_hours": "Forecast history retention",
+            "enable_accounting": "Enable accounting sensors",
+            "accounting_retention_hours": "Accounting retention",
+            "import_meter_entity_id": "Import energy meter",
+            "export_meter_entity_id": "Export energy meter"
+          }
+        },
+        "reconfigure": {
+          "title": "Edit Market Node",
+          "data": {
+            "node": "Market Node",
+            "price_unit": "Price Unit",
+            "enable_live_price": "Enable live price sensor",
+            "enable_forecast": "Enable forecast sensors",
+            "forecast_type": "Forecast type",
+            "forecast_horizons": "Forecast horizons",
+            "forecast_retention_hours": "Forecast history retention",
+            "enable_accounting": "Enable accounting sensors",
+            "accounting_retention_hours": "Accounting retention",
+            "import_meter_entity_id": "Import energy meter",
+            "export_meter_entity_id": "Export energy meter"
+          }
+        }
+      }
+    },
     "sensor": {
       "initiate_flow": {
         "user": "Add price sensor"

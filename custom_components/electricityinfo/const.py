@@ -36,8 +36,23 @@ CONF_MARKET_TYPE = "market_type"
 CONF_NODE = "node"
 CONF_FORWARD_PRICES_COUNT = "forward_prices_count"
 
+# 003 market node subentry configuration
+SUBENTRY_TYPE = "market_node"
+CONF_PRICE_UNIT = "price_unit"
+CONF_ENABLE_LIVE_PRICE = "enable_live_price"
+CONF_ENABLE_FORECAST = "enable_forecast"
+CONF_FORECAST_TYPE = "forecast_type"
+CONF_FORECAST_HORIZONS = "forecast_horizons"
+CONF_FORECAST_RETENTION_HOURS = "forecast_retention_hours"
+CONF_ENABLE_ACCOUNTING = "enable_accounting"
+CONF_ACCOUNTING_RETENTION_HOURS = "accounting_retention_hours"
+CONF_IMPORT_METER_ENTITY_ID = "import_meter_entity_id"
+CONF_EXPORT_METER_ENTITY_ID = "export_meter_entity_id"
+
 # Default Sensor Configuration
 DEFAULT_FORWARD_PRICES_COUNT = 24
+DEFAULT_FORECAST_RETENTION_HOURS = 24
+DEFAULT_ACCOUNTING_RETENTION_HOURS = 24
 
 # Allowed Schedule Types (WITS API codes)
 SCHEDULE_TYPES = [
@@ -50,6 +65,43 @@ SCHEDULE_TYPES = [
     "RTD",
     "WDS",
 ]
+
+FORECAST_TYPES = ["price_responsive", "non_responsive"]
+FORECAST_HORIZONS = ["day_ahead", "intraday"]
+FORECAST_RETENTION_OPTIONS = [6, 12, 24]
+ACCOUNTING_RETENTION_OPTIONS = [24, 48]
+
+PRICE_UNITS = ["c/kWh", "NZD/kWh"]
+PRICE_UNIT_OPTIONS: list[SelectOptionDict] = [
+    {"value": "c/kWh", "label": "c/kWh (cents per kilowatt-hour)"},
+    {"value": "NZD/kWh", "label": "NZD/kWh (dollars per kilowatt-hour)"},
+]
+
+FORECAST_TYPE_OPTIONS: list[SelectOptionDict] = [
+    {"value": "price_responsive", "label": "Price-responsive (PRSL/PRSS)"},
+    {"value": "non_responsive", "label": "Non-responsive (NRSL/NRSS)"},
+]
+
+FORECAST_HORIZON_OPTIONS: list[SelectOptionDict] = [
+    {"value": "day_ahead", "label": "Day-ahead (24h / 48 periods)"},
+    {"value": "intraday", "label": "Intraday (4h forward / 8 periods)"},
+]
+
+FORECAST_RETENTION_OPTIONS_SELECT: list[SelectOptionDict] = [
+    {"value": "6", "label": "6 hours"},
+    {"value": "12", "label": "12 hours"},
+    {"value": "24", "label": "24 hours"},
+]
+
+ACCOUNTING_RETENTION_OPTIONS_SELECT: list[SelectOptionDict] = [
+    {"value": "24", "label": "24 hours"},
+    {"value": "48", "label": "48 hours"},
+]
+
+FORECAST_SCHEDULE_MAP: dict[str, dict[str, str]] = {
+    "price_responsive": {"day_ahead": "PRSL", "intraday": "PRSS"},
+    "non_responsive": {"day_ahead": "NRSL", "intraday": "NRSS"},
+}
 
 # UI label/value pairs for schedule type selector
 # Note: Final and Interim schedule types are not yet supported
@@ -111,3 +163,7 @@ MARKET_NODE_OPTIONS: list[SelectOptionDict] = [
 # Price Unit Conversion (1 NZD/MWh = 0.1 c/kWh)
 NZD_PER_MWH_TO_C_PER_KWH = 0.1
 C_PER_KWH_TO_NZD_PER_MWH = 10.0
+NZD_PER_MWH_TO_NZD_PER_KWH = 0.001
+
+DAY_AHEAD_FORWARD_PERIODS = 48
+INTRADAY_FORWARD_PERIODS = 8
