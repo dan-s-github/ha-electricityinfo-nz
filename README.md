@@ -94,7 +94,7 @@ Each market node device creates up to eight entities depending on which features
 
 | Entity | Unit | Description |
 |---|---|---|
-| `sensor.<node>_live_price` | c/kWh or NZD/kWh | Current 30-minute RTD trading period price |
+| `sensor.<node>_live_price` | c/kWh or NZD/kWh | Current trading period price (extracted from the day-ahead schedule) |
 
 **Attributes:**
 
@@ -140,7 +140,7 @@ Requires **Enable accounting** to be turned on.
 
 | Entity | Unit | Description |
 |---|---|---|
-| `sensor.<node>_settled_price` | c/kWh or NZD/kWh | Most recent settled RTD price; includes `history` attribute |
+| `sensor.<node>_settled_price` | c/kWh or NZD/kWh | Most recent settled price (Interim schedule); includes `history` attribute |
 | `sensor.<node>_import_cost` | c or NZD | Electricity cost for the current settled period (import energy × settled price) |
 | `sensor.<node>_export_revenue` | c or NZD | Export revenue for the current settled period (export energy × settled price) |
 | `sensor.<node>_daily_import_cost` | c or NZD | Running daily total import cost (resets at midnight NZT) |
@@ -159,7 +159,7 @@ The integration automatically selects the correct WITS API schedule based on you
 | Price-responsive | PRSL (48 periods) | PRSS (8 periods) |
 | Non-responsive | NRSL (48 periods) | NRSS (8 periods) |
 
-The **live price sensor** always uses RTD (real-time dispatch) regardless of forecast settings.
+The **live price sensor** uses the day-ahead schedule (same API call as the day-ahead forecast). If only live price is enabled, the forecast type setting (`Price-responsive` → PRSL, `Non-responsive` → NRSL) still controls which schedule is used.
 
 ---
 
