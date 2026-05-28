@@ -41,20 +41,28 @@ History Retention
 
 
 ====================================================
- ACCOUNTING / ANALYTICS
+ ACCOUNTING
 ====================================================
 
-[x] Final settled prices
+[x] Enable accounting sensors (interim settled prices)
 
 History Retention
 ( ) 6h
 ( ) 12h
 (•) 24h
 
+Import meter entity (optional)
+[ sensor.my_import_meter            ▼ ]
+
+Export meter entity (optional)
+[ (none)                            ▼ ]
+
 Creates:
-- import cost sensors
-- export revenue sensors
-- arbitrage analytics
+- settled price sensor
+- import cost delta sensor (if import meter configured)
+- export revenue delta sensor (if export meter configured)
+- daily import cost sensor (if import meter configured)
+- daily export revenue sensor (if export meter configured)
 
                 [ CANCEL ] [ SUBMIT ]
 ```
@@ -65,11 +73,14 @@ Creates:
 ----------------------------------------------------
 
 ```
-sensor.<node>_current_price
+sensor.<node>_live_price
 
-sensor.<node>_price_forecast_prsl
-sensor.<node>_price_forecast_prss
+sensor.<node>_day_ahead_forecast
+sensor.<node>_intraday_forecast
 
-sensor.<node>_final_price
+sensor.<node>_settled_price
+sensor.<node>_import_cost
+sensor.<node>_export_revenue
+sensor.<node>_daily_import_cost
+sensor.<node>_daily_export_revenue
 ```
-

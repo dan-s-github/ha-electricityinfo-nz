@@ -241,7 +241,7 @@ class MarketNodeSensorBase(CoordinatorEntity, SensorEntity):
         return dict(self._attributes)
 
 
-class LivePriceSensor(MarketNodeSensorBase, RestoreEntity):
+class LivePriceSensor(RestoreEntity, MarketNodeSensorBase):
     """Live price sensor for market node."""
 
     def __init__(
@@ -671,7 +671,7 @@ class ExportRevenueSensor(AccountingDeltaSensorBase):
         )
 
 
-class DailyAccountingSensorBase(AccountingDeltaSensorBase, RestoreEntity):
+class DailyAccountingSensorBase(RestoreEntity, AccountingDeltaSensorBase):
     """Base class for daily accumulated accounting sensors."""
 
     _attr_state_class = SensorStateClass.TOTAL

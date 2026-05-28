@@ -20,6 +20,7 @@ ruff check --fix custom_components/ tests/
 mypy custom_components/
 
 # Run live API tests (requires .env with ELECTRICITY_CLIENT_ID + ELECTRICITY_CLIENT_SECRET)
+# Note: tests/live/ is git-ignored; create it locally and mark tests with @pytest.mark.live_api
 pytest tests/live/ -v -m live_api
 ```
 
