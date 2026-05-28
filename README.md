@@ -16,11 +16,12 @@ Home Assistant custom integration for [Electricityinfo NZ](https://electricityin
 
 ## Features
 
-- **Current price sensor** — state is the current 30-minute trading period price
-- **Forecast attribute** — upcoming prices as a time-series list (compatible with the `forecast_solar` convention)
-- **Two unit entities per sensor** — NZD/MWh and c/kWh, created automatically
-- **Multiple sensors** — add as many node/schedule combinations as you need
-- **30-minute refresh cycle** — prices update every half-hour; state is restored on restart
+- **Live price sensor** — current 30-minute trading period price, restored on restart
+- **Forecast sensors** — day-ahead (24 h / 48 periods) and intraday (4 h / 8 periods), each with `forecast` and `history` attributes
+- **Accounting sensors** — settled price, per-period import cost & export revenue, and daily accumulated totals (requires energy meter entities)
+- **Multiple market nodes** — add as many nodes as you need, each independently configured
+- **Choice of price unit** — c/kWh or NZD/kWh per market node
+- **30-minute refresh cycle** — prices update every half-hour
 - **HACS installable**
 
 > **Note:** Price schedules update at `:00` and `:30` each hour. After a Home Assistant restart, this integration continues refreshing every 30 minutes from startup time. To realign refreshes with schedule boundaries, reload the integration at `:02` or `:32` (or use the automation example below).
@@ -61,87 +62,104 @@ Go to **Settings → Devices & Services → Add Integration** and search for **E
 
 Enter your **Client ID** and **Client Secret**. Home Assistant will validate the credentials against the API before saving.
 
-### 2. Add price sensors
+### 2. Add a market node
 
-After the integration is set up, add price sensors via **Settings → Devices & Services → Electricityinfo NZ → Add sensor**.
+After the integration is set up, add market nodes via **Settings → Devices & Services → Electricityinfo NZ → Add market node**.
 
-Each sensor requires:
+Each market node creates a **device** containing the sensor entities you enable:
 
 | Field | Description | Required |
 |---|---|---|
-| **Name** | Optional friendly name (e.g. "Haywards Energy") | No |
-| **Schedule type** | The price schedule to track (see below) | Yes |
-| **Market type** | Energy (`E`) or Reserve (`R`) | Yes |
 | **Node** | Grid reference node (see below) | Yes |
-| **Hours of forecast** | How many hours of forward prices to fetch (1–84 h) | No (default: 24 h) |
+| **Price unit** | `c/kWh` or `NZD/kWh` | Yes |
+| **Enable live price** | Real-time dispatch price sensor | No (default: on) |
+| **Enable forecast** | Day-ahead and/or intraday forecast sensors | No (default: off) |
+| **Forecast type** | `Price-responsive` (PRSL/PRSS) or `Non-responsive` (NRSL/NRSS) | If forecast on |
+| **Forecast horizons** | `Day-ahead` (24 h / 48 periods), `Intraday` (4 h / 8 periods), or both | If forecast on |
+| **Forecast retention** | Hours of history to keep in the `history` attribute (6, 12, or 24 h) | No (default: 24 h) |
+| **Enable accounting** | Settled price and import/export cost sensors | No (default: off) |
+| **Accounting retention** | Hours of settled-price history to keep (24 or 48 h) | No (default: 24 h) |
+| **Import meter** | Energy sensor entity for import kWh (e.g. your smart meter) | If accounting on |
+| **Export meter** | Energy sensor entity for export kWh (optional, defaults to import meter) | No |
 
-Each sensor you add creates a **device** with two entities — one in NZD/MWh and one in c/kWh.
-
-To edit or remove a sensor, go to its device page and use the **⋮ → Reconfigure** or **Delete** options.
+To edit or remove a market node, go to its device page and use **⋮ → Reconfigure** or **Delete**.
 
 ---
 
 ## Sensor Entities
 
-### State
+Each market node device creates up to eight entities depending on which features are enabled.
 
-The sensor state is the **current trading period price** (the most recent 30-minute period returned by the API).
+### Live Price
 
-| Entity | Unit | Example state |
+| Entity | Unit | Description |
 |---|---|---|
-| `sensor.<name> NZD/MWh` | NZD/MWh | `87.45` |
-| `sensor.<name> c/kWh` | c/kWh | `8.745` |
+| `sensor.<node>_live_price` | c/kWh or NZD/kWh | Current 30-minute RTD trading period price |
 
-### Attributes
+**Attributes:**
 
-| Attribute | Description | Example |
+| Attribute | Description |
+|---|---|
+| `timestamp` | ISO 8601 datetime of the current period |
+| `trading_period` | WITS trading period number (1–48) |
+| `node` | Grid reference node code |
+| `schedule` | Schedule type code |
+
+State is restored across Home Assistant restarts (discarded if older than 30 minutes).
+
+### Forecast Sensors
+
+One sensor per enabled horizon: **Day Ahead Forecast** (`day_ahead_forecast`) and/or **Intraday Forecast** (`intraday_forecast`).
+
+| Entity | Unit | Description |
 |---|---|---|
-| `timestamp` | ISO 8601 datetime of the current period | `2026-05-09T12:00:00+12:00` |
-| `trading_period` | WITS trading period number (1–48) | `24` |
-| `node` | Grid reference node code | `HAY2201` |
-| `schedule` | Schedule type code | `RTD` |
-| `run_type` | API run type | `actual` |
-| `forecast` | List of upcoming prices (see below) | — |
+| `sensor.<node>_day_ahead_forecast` | c/kWh or NZD/kWh | Current period price from day-ahead schedule (PRSL or NRSL) |
+| `sensor.<node>_intraday_forecast` | c/kWh or NZD/kWh | Current period price from intraday schedule (PRSS or NRSS) |
 
-### Forecast attribute
+**Attributes** (both sensors):
 
-The `forecast` attribute is a list of future trading periods in the same format used by [forecast_solar](https://www.home-assistant.io/integrations/forecast_solar/):
+| Attribute | Description |
+|---|---|
+| `forecast` | List of future periods: `{period_start, trading_period, price}` |
+| `history` | List of past periods within the retention window: `{period_start, trading_period, price}` |
 
+Example:
 ```yaml
 forecast:
   - period_start: "2026-05-09T12:30:00+12:00"
-    price: 91.20
+    trading_period: 25
+    price: 9.12
   - period_start: "2026-05-09T13:00:00+12:00"
-    price: 88.50
-  - period_start: "2026-05-09T13:30:00+12:00"
-    price: 84.10
+    trading_period: 26
+    price: 8.85
 ```
 
-- `period_start` — ISO 8601 datetime with timezone
-- `price` — price in the entity's unit (NZD/MWh or c/kWh)
-- The **current period is not included** — only future periods appear here
-- The number of entries is controlled by **Hours of forecast** (default 24 h = up to 48 entries)
+### Accounting Sensors
+
+Requires **Enable accounting** to be turned on.
+
+| Entity | Unit | Description |
+|---|---|---|
+| `sensor.<node>_settled_price` | c/kWh or NZD/kWh | Most recent settled RTD price; includes `history` attribute |
+| `sensor.<node>_import_cost` | c or NZD | Electricity cost for the current settled period (import energy × settled price) |
+| `sensor.<node>_export_revenue` | c or NZD | Export revenue for the current settled period (export energy × settled price) |
+| `sensor.<node>_daily_import_cost` | c or NZD | Running daily total import cost (resets at midnight NZT) |
+| `sensor.<node>_daily_export_revenue` | c or NZD | Running daily total export revenue (resets at midnight NZT) |
+
+`import_cost` and `export_revenue` require a meter entity to be configured. `export_revenue` uses the export meter if set, otherwise falls back to the import meter.
 
 ---
 
-## Schedule Types
+## Forecast Schedules
 
-| Code | Name | Description |
+The integration automatically selects the correct WITS API schedule based on your **Forecast type** setting:
+
+| Forecast type | Day-ahead | Intraday |
 |---|---|---|
-| `RTD` | Real-time dispatch | 5-minute dispatch prices from the current hour |
-| `Final` | Final | Final settled prices (after settlement) |
-| `Interim` | Interim | Interim prices before final settlement |
-| `PRSL` | Price-responsive long | Long-run price-responsive schedule — best for market price forecasts |
-| `PRSS` | Price-responsive short | Short-run price-responsive schedule |
-| `NRSL` | Non-responsive long | Long-run non-responsive schedule |
-| `NRSS` | Non-responsive short | Short-run non-responsive schedule |
-| `WDS` | Weekly dispatch | Weekly dispatch schedule |
+| Price-responsive | PRSL (48 periods) | PRSS (8 periods) |
+| Non-responsive | NRSL (48 periods) | NRSS (8 periods) |
 
-> **Note:** Only schedules that support forward prices are currently implemented. `Final` and `Interim` are not supported.
->
-> `NRSS` and `PRSS` schedules only return 8 trading periods (current + 7 forward).
-
-For most users, **RTD** (real-time dispatch) gives the most up-to-date prices.
+The **live price sensor** always uses RTD (real-time dispatch) regardless of forecast settings.
 
 ---
 
@@ -169,16 +187,16 @@ Nodes are the grid injection/offtake points used by the WITS market. Choose the 
 
 ## Usage Examples
 
-### Lovelace — current price card
+### Lovelace — current live price card
 
 ```yaml
 type: entity
-entity: sensor.ota2201_prsl_e_nzd_mwh
+entity: sensor.ota2201_live_price
 name: Spot Price
 icon: mdi:flash
 ```
 
-### Lovelace — forecast chart (ApexCharts)
+### Lovelace — day-ahead forecast chart (ApexCharts)
 
 With [ApexCharts Card](https://github.com/RomRider/apexcharts-card):
 
@@ -196,14 +214,14 @@ now:
   label: now
   color: red
 series:
-  - entity: sensor.ota2201_prsl_e_c_kwh
+  - entity: sensor.ota2201_day_ahead_forecast
     name: Current
     unit: " c/kWh"
     float_precision: 3
     show:
       in_chart: false
       in_header: true
-  - entity: sensor.ota2201_prsl_e_c_kwh
+  - entity: sensor.ota2201_day_ahead_forecast
     name: Forecast
     type: column
     show:
@@ -275,15 +293,20 @@ Find `YOUR_CONFIG_ENTRY_ID` under **Settings -> Devices & Services -> Electricit
 - Check Home Assistant has internet access
 - Check the integration logs: **Settings → System → Logs**, filter for `electricityinfo`
 
-### Forecast is empty
+### Forecast attribute is empty
 
-- The API may not have published forward prices for the selected node/schedule yet — this is normal for `Final` and `Interim` schedules which are published after settlement
-- Try switching to `RTD` for the most consistently available forecast data
+- The API may not have published forward prices for the selected node yet — retry after the next `:00` or `:30`
+- Check the forecast horizons selected in the market node configuration
+
+### Accounting sensors show "Unavailable"
+
+- Confirm your import/export meter entities are `energy` device class sensors with `kWh` unit of measurement
+- The settled price sensor requires the RTD schedule to have published a settled price for the current period
 
 ### Prices seem wrong
 
-- Wholesale spot prices are not retail prices — they are WITS market prices in NZD/MWh
-- Divide by 1000 to get NZD/kWh, or use the c/kWh entity (NZD/MWh × 0.1)
+- These are wholesale WITS spot prices, not retail prices
+- The integration uses c/kWh or NZD/kWh — if a price looks 1000× too high, you may be comparing c/kWh with NZD/MWh from another source
 
 ---
 
