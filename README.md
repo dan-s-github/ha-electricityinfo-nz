@@ -214,14 +214,14 @@ now:
   label: now
   color: red
 series:
-  - entity: sensor.ota2201_day_ahead_forecast
+  - entity: sensor.ota2201_c_kwh_day_ahead_forecast
     name: Current
     unit: " c/kWh"
     float_precision: 3
     show:
       in_chart: false
       in_header: true
-  - entity: sensor.ota2201_day_ahead_forecast
+  - entity: sensor.ota2201_c_kwh_day_ahead_forecast
     name: Forecast
     type: column
     show:
@@ -244,14 +244,14 @@ Use this automation if Home Assistant restarts just after a schedule boundary an
 ```yaml
 alias: Reload Electricityinfo After HA Start
 description: >-
-  Wait until xx:02 or xx:32 within the first hour after Home Assistant starts,
+  Wait until xx:01 or xx:31 within the first hour after Home Assistant starts,
   then reload the Electricityinfo config entry.
 triggers:
   - trigger: homeassistant
     event: start
 conditions: []
 actions:
-  - wait_template: "{{ now().minute == 2 or now().minute == 32 }}"
+  - wait_template: "{{ now().minute == 1 or now().minute == 31 }}"
     continue_on_timeout: true
     timeout: "01:00:00"
   - choose:
