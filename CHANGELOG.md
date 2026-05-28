@@ -15,6 +15,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - State persistence with config entry
 - Full type checking and test coverage
 
+## v1.0.0rc1 (2026-05-28)
+
+### Feat
+
+- complete Phase 6-8 implementation (T030-T044)
+- ensure forecast and history arrays are sorted
+- manually call _handle_coordinator_update on setup
+- add async_added_to_hass logging to forecast sensor
+- add initial handler log to forecast sensor
+- add setup diagnostics logging to sensor platform
+- enhance forecast sensor price diagnostics
+- add detailed price filtering logs to forecast sensor
+- add debug logging for forecast sensor API calls
+- complete phase 4 forecast sensors
+- complete phase 3 live price setup
+- complete phase 2 foundational tasks
+- implement phase 7 accounting sensors
+- implement phase 6 reconfigure lifecycle
+- implement phases 1-5 for multi-entity market-node
+
+### Fix
+
+- resolve PR review issues in syntax, MRO, and docs
+- derive forecast and accounting back window from retention config
+- align period handling across forecast and accounting sensors
+
 ## v1.0.0rc0 (2026-05-11)
 
 ### Feat
