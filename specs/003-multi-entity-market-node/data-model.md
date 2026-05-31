@@ -145,10 +145,10 @@ Inherits: `CoordinatorEntity`, `RestoreEntity`, `SensorEntity`
 | `device_class` | `SensorDeviceClass.MONETARY` |
 | `state_class` | `None` |
 | `native_value` | Current trade period price (converted from NZD/MWh at ingest) |
-| `extra_state_attributes` | `timestamp`, `trading_period`, `node`, `schedule` (no `forecast` attribute — forecast data is owned by `DayAheadForecastSensor`) |
+| `extra_state_attributes` | `timestamp`, `trading_period`, `node`, `schedule`, `history: list[PeriodPrice]` (all RTD periods from `back` call, sorted chronologically; present only when live data is available) |
 | RestoreEntity | ✅ Yes — single float + minimal attrs, safe to restore on restart |
 
-**Current period detection**: From `day_ahead` data, select the `PriceDetail` with the largest `trading_datetime ≤ utcnow()`. That period's price becomes the sensor state. No `forecast` attribute is set; remaining future periods are handled by `DayAheadForecastSensor`.
+**Current period detection**: From `rtd` data, select the `PriceDetail` with the largest `trading_datetime ≤ utcnow()`. That period's price becomes the sensor state. All RTD periods are also exposed as `history`. No `forecast` attribute is set; forecast data is handled by `DayAheadForecastSensor`.
 
 ### DayAheadForecastSensor
 

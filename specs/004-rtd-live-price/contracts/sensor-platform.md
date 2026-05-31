@@ -78,6 +78,7 @@ Full `LivePriceSensor` state contract (004):
 | `extra_state_attributes.trading_period` | `int` | Period number (1–48) |
 | `extra_state_attributes.node` | `str` | Market node code |
 | `extra_state_attributes.schedule` | `str` | Always `"RTD"` (SC-002) |
+| `extra_state_attributes.history` | `list[dict]` | All RTD periods from `back=3` call, sorted chronologically. Each entry: `{timestamp, trading_period, price, node, schedule}`. Present only when `live_current` is populated. |
 
 > **Note**: The `forecast` attribute (list of future periods) present in 003 is no longer populated by the live price sensor in 004, as the RTD call has no forward window. Forecast data is available via the `DayAheadForecastSensor` and `IntradayForecastSensor` entities.
 

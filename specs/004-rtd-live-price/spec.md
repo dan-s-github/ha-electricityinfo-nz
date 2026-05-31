@@ -78,7 +78,7 @@ As a home energy manager, I want my day-ahead forecast, intraday forecast, and a
 - **FR-002**: The coordinator MUST poll the electricity price API every 5 minutes whenever any market-node subentry is configured and active, regardless of whether the live price sensor is enabled for any individual subentry.
 - **FR-003**: The live price sensor MUST display the `price` field from the most recently dispatched RTD trading period for the configured market node (not `price6s` or `price60s`).
 - **FR-004**: The live price sensor MUST become unavailable if no RTD price data is returned by the API for a given update cycle, and recover automatically when RTD data is available again.
-- **FR-005**: The live price sensor's state attributes MUST include the trading period identifier and the trading datetime of the RTD price it is currently showing, so users can verify data freshness.
+- **FR-005**: The live price sensor's state attributes MUST include the trading period identifier and the trading datetime of the RTD price it is currently showing, so users can verify data freshness. The sensor MUST also expose a `history` list attribute containing all RTD periods returned by the `back=3` API call, sorted chronologically, enabling automations and dashboards to display recent price trends without a separate forecast sensor.
 - **FR-006**: All other enabled sensor types (day-ahead forecast, intraday forecast, settled price, daily cost/revenue) MUST continue to function correctly at the new 5-minute poll cadence.
 - **FR-007**: The RTD API request MUST be made only when the live price sensor is enabled for a subentry; subentries with live price disabled MUST NOT trigger an RTD fetch. The RTD call is always a separate, dedicated API call — it does not replace or share the existing PRSL/NRSL day-ahead call used by forecast sensors. When both live price and day-ahead forecast are enabled for a subentry, the coordinator makes two independent API calls: one RTD call (for live price) and one PRSL/NRSL call (for forecast data).
 - **FR-008**: On coordinator retry after an API error, the system MUST resume the 5-minute poll interval once the error clears.
@@ -98,6 +98,7 @@ As a home energy manager, I want my day-ahead forecast, intraday forecast, and a
 - **SC-003**: All existing sensor types (forecast, settled, accounting) continue to produce valid, non-errored states after migration to the 5-minute coordinator cadence — zero regressions in the automated test suite.
 - **SC-004**: The live price sensor recovers from RTD unavailability within one polling cycle (≤ 5 minutes) of RTD data becoming available again.
 - **SC-005**: The coordinator completes each 5-minute update cycle without increasing the average number of API calls per hour beyond what is proportionate to the new cadence (i.e., RTD fetches occur only for subentries with live price enabled).
+- **SC-006**: The live price sensor's `history` attribute contains all RTD periods returned by the `back=3` API call, sorted chronologically. Each entry includes `timestamp`, `trading_period`, `price`, `node`, and `schedule`. The attribute is absent when the sensor is unavailable (no RTD data).
 
 ## Assumptions
 
