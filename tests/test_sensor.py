@@ -12,6 +12,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.electricityinfo.const import (
     DOMAIN,
+    LIVE_PRICE_RESTORE_STALENESS_MINUTES,
 )
 from custom_components.electricityinfo.coordinator import ElectricityInfoCoordinator
 from custom_components.electricityinfo.sensor import (
@@ -136,54 +137,28 @@ async def test_live_sensor_uses_coordinator_live_payload(hass, mock_entry) -> No
     assert "history" not in attrs
 
 
-async def test_live_sensor_fallback_splits_forecast_and_history_by_now(
-    hass, mock_entry
-) -> None:
-    """Fallback day-ahead parsing sets only current-period live attributes."""
+async def test_live_sensor_unavailable_when_no_rtd_data(hass, mock_entry) -> None:
+    """LivePriceSensor is unavailable when coordinator has no RTD data."""
     subentry = create_mock_market_node_subentry(
         enable_live_price=True, enable_forecast=False, enable_accounting=False
     )
-    now = datetime(2026, 5, 24, 12, 0, tzinfo=UTC)
-
-    def _make_price(dt, period, price) -> MagicMock:
-        p = MagicMock()
-        p.trading_datetime = dt
-        p.trading_period = period
-        p.node = "HAY2201"
-        p.schedule = "PRSL"
-        p.price = price
-        return p
-
-    day_ahead = MagicMock()
-    day_ahead.prices = [
-        _make_price(now - timedelta(minutes=60), 22, 7.0),
-        _make_price(now - timedelta(minutes=30), 23, 8.0),
-        _make_price(now + timedelta(minutes=30), 25, 9.0),
-        _make_price(now + timedelta(minutes=60), 26, 10.0),
-    ]
 
     with patch("custom_components.electricityinfo.AsyncMarketPricesClient"):
         coordinator = ElectricityInfoCoordinator(hass, mock_entry)
         coordinator.last_update_success = True
         coordinator.data = {
             subentry.subentry_id: {
-                "day_ahead": day_ahead,
                 "live_current": None,
+                "day_ahead": None,
                 "error": None,
             }
         }
         entity = LivePriceSensor(coordinator, mock_entry, subentry)
-        with (
-            patch("homeassistant.util.dt.utcnow", return_value=now),
-            patch.object(entity, "async_write_ha_state", MagicMock()),
-        ):
+        with patch.object(entity, "async_write_ha_state", MagicMock()):
             entity._handle_coordinator_update()
 
-    attrs = entity.extra_state_attributes
-    assert entity.native_value == pytest.approx(8.0)
-    assert attrs["trading_period"] == 23
-    assert "forecast" not in attrs
-    assert "history" not in attrs
+    assert entity.native_value is None
+    assert not entity.available
 
 
 async def test_live_sensor_restores_recent_state(hass, mock_entry) -> None:
@@ -451,3 +426,54 @@ async def test_forecast_sensor_unavailable_when_no_current_or_future_prices(
 
     assert not entity.available
     assert entity.native_value is None
+
+
+async def test_live_sensor_staleness_guard_threshold_is_30_minutes(
+    hass, mock_entry
+) -> None:
+    """LivePriceSensor staleness guard uses 30-minute threshold, not poll interval."""
+    assert LIVE_PRICE_RESTORE_STALENESS_MINUTES == 30
+
+    subentry = create_mock_market_node_subentry()
+    with patch("custom_components.electricityinfo.AsyncMarketPricesClient"):
+        coordinator = ElectricityInfoCoordinator(hass, mock_entry)
+        coordinator.data = None
+        coordinator.last_update_success = True
+        coordinator.async_request_refresh = AsyncMock()
+        entity = LivePriceSensor(coordinator, mock_entry, subentry)
+
+        base_ts = datetime(2026, 5, 9, 12, 0, tzinfo=UTC)
+        mock_state = MagicMock()
+        mock_state.state = "4.523"
+        mock_state.attributes = {"timestamp": base_ts.isoformat()}
+
+        # 29 minutes old — should be restored (not stale)
+        with (
+            patch.object(CoordinatorEntity, "async_added_to_hass", AsyncMock()),
+            patch.object(
+                entity, "async_get_last_state", AsyncMock(return_value=mock_state)
+            ),
+            patch(
+                "homeassistant.util.dt.utcnow",
+                return_value=base_ts + timedelta(minutes=29),
+            ),
+        ):
+            await entity.async_added_to_hass()
+
+        assert entity.native_value == pytest.approx(4.523, abs=0.001)
+
+        # 31 minutes old — should be discarded (stale)
+        entity2 = LivePriceSensor(coordinator, mock_entry, subentry)
+        with (
+            patch.object(CoordinatorEntity, "async_added_to_hass", AsyncMock()),
+            patch.object(
+                entity2, "async_get_last_state", AsyncMock(return_value=mock_state)
+            ),
+            patch(
+                "homeassistant.util.dt.utcnow",
+                return_value=base_ts + timedelta(minutes=31),
+            ),
+        ):
+            await entity2.async_added_to_hass()
+
+        assert entity2.native_value is None

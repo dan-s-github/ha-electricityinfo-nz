@@ -35,6 +35,7 @@ from .const import (
     NZD_PER_MWH_TO_C_PER_KWH,
     NZD_PER_MWH_TO_NZD_PER_KWH,
     RETRY_INTERVAL_MINUTES,
+    RTD_BACK_PERIODS,
     SUBENTRY_TYPE,
     UPDATE_INTERVAL_MINUTES,
 )
@@ -143,7 +144,7 @@ class ElectricityInfoCoordinator(DataUpdateCoordinator):
             raise ConfigEntryAuthFailed(msg)
         return self.client
 
-    async def _fetch_market_node_data(self, subentry: Any) -> dict[str, Any]:
+    async def _fetch_market_node_data(self, subentry: Any) -> dict[str, Any]:  # noqa: PLR0912, PLR0915
         """Fetch data for 003 market_node subentry."""
         client = self._get_client()
         config = dict(subentry.data)
@@ -152,6 +153,7 @@ class ElectricityInfoCoordinator(DataUpdateCoordinator):
 
         node_data: dict[str, Any] = {
             "node": node,
+            "rtd": None,
             "day_ahead": None,
             "intraday": None,
             "accounting": None,
@@ -184,9 +186,21 @@ class ElectricityInfoCoordinator(DataUpdateCoordinator):
             else None
         )
 
-        if config.get(CONF_ENABLE_LIVE_PRICE) or (
-            config.get(CONF_ENABLE_FORECAST) and "day_ahead" in horizons
-        ):
+        if config.get(CONF_ENABLE_LIVE_PRICE):
+            _LOGGER.debug("Fetching RTD prices for node %s", node)
+            rtd = await client.get_schedule_prices(
+                schedule="RTD",
+                back=RTD_BACK_PERIODS,
+                market_type="E",
+                nodes=[node] if node else None,
+            )
+            if rtd:
+                for p in rtd.prices:
+                    p.price = _convert_price(p.price, price_unit)
+            node_data["rtd"] = rtd
+            node_data["live_current"] = _extract_live_price_payload(rtd)
+
+        if config.get(CONF_ENABLE_FORECAST) and "day_ahead" in horizons:
             day_ahead_kwargs: dict[str, Any] = {
                 "schedule": schedule_map["day_ahead"],
                 "market_type": "E",
@@ -215,7 +229,6 @@ class ElectricityInfoCoordinator(DataUpdateCoordinator):
                 for p in day_ahead.prices:
                     p.price = _convert_price(p.price, price_unit)
             node_data["day_ahead"] = day_ahead
-            node_data["live_current"] = _extract_live_price_payload(day_ahead)
 
         if config.get(CONF_ENABLE_FORECAST) and "intraday" in horizons:
             intraday_kwargs: dict[str, Any] = {
