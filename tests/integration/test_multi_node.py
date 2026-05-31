@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -12,17 +12,15 @@ from custom_components.electricityinfo.const import DOMAIN
 from custom_components.electricityinfo.coordinator import ElectricityInfoCoordinator
 
 
-def _schedule_for_now(node: str, price: float) -> MagicMock:
-    """Create a minimal day-ahead schedule aligned to current period."""
-    period = MagicMock()
-    period.trading_datetime = datetime.now(UTC) - timedelta(minutes=5)
-    period.trading_period = 24
-    period.node = node
-    period.schedule = "PRSL"
-    period.price = price
-    schedule = MagicMock()
-    schedule.prices = [period]
-    return schedule
+def _live_current_for_now(node: str, price: float) -> dict:
+    """Create a minimal live_current dict for the current trade period."""
+    return {
+        "timestamp": (datetime.now(UTC) - timedelta(minutes=5)).isoformat(),
+        "trading_period": 24,
+        "node": node,
+        "schedule": "RTD",
+        "price": price,
+    }
 
 
 async def test_multi_node_live_sensors_created_with_independent_values(hass) -> None:
@@ -71,7 +69,8 @@ async def test_multi_node_live_sensors_created_with_independent_values(hass) -> 
             price = 5.25 if node == "HAY2201" else 7.75
             data[subentry_id] = {
                 "node": node,
-                "day_ahead": _schedule_for_now(node, price),
+                "live_current": _live_current_for_now(node, price),
+                "day_ahead": None,
                 "intraday": None,
                 "accounting": None,
                 "config": subentry.data,

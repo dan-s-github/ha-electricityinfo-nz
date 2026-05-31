@@ -25,9 +25,15 @@ MAX_VALIDATION_ATTEMPTS = 3
 VALIDATION_TIMEOUT = 10  # seconds
 
 # Coordinator update / retry configuration
-UPDATE_INTERVAL_MINUTES = 30
+UPDATE_INTERVAL_MINUTES = 5
 RETRY_INTERVAL_MINUTES = 1
 MAX_RETRIES = 2
+
+# RTD fetch configuration
+RTD_BACK_PERIODS = 3  # fetch 3 x 30-min trading periods of RTD history (~90 min)
+
+# Staleness guard for LivePriceSensor restore — kept at 30 min regardless of poll
+LIVE_PRICE_RESTORE_STALENESS_MINUTES = 30
 
 # Sensor Configuration Options
 CONF_SENSOR_NAME = "name"

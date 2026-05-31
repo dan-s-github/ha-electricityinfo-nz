@@ -239,7 +239,7 @@ async def test_daily_export_revenue_accumulates(hass, mock_entry) -> None:
 
 
 async def test_coordinator_live_routing_and_c_kwh_conversion(hass, mock_entry) -> None:
-    """Coordinator routes live fetch to day-ahead and converts at ingest."""
+    """Coordinator routes live fetch to RTD and converts at ingest."""
     subentry = create_mock_market_node_subentry(
         subentry_id="market_node_1",
         node="HAY2201",
@@ -259,7 +259,7 @@ async def test_coordinator_live_routing_and_c_kwh_conversion(hass, mock_entry) -
                 trading_period=24,
                 node="HAY2201",
                 price=100.0,
-                schedule="PRSL",
+                schedule="RTD",
                 run_type="A",
             )
         ]
@@ -271,11 +271,10 @@ async def test_coordinator_live_routing_and_c_kwh_conversion(hass, mock_entry) -
     data = await coordinator._async_update_data()
 
     kwargs = client.get_schedule_prices.call_args.kwargs
-    assert kwargs["schedule"] == "PRSL"
-    assert kwargs["forward"] == 48
-    assert data[subentry.subentry_id]["day_ahead"].prices[0].price == pytest.approx(
-        10.0
-    )
+    assert kwargs["schedule"] == "RTD"
+    assert "forward" not in kwargs
+    assert data[subentry.subentry_id]["live_current"]["schedule"] == "RTD"
+    assert data[subentry.subentry_id]["live_current"]["price"] == pytest.approx(10.0)
 
 
 async def test_coordinator_retry_backoff_on_client_error(hass, mock_entry) -> None:

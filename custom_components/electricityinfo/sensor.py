@@ -37,8 +37,8 @@ from .const import (
     CONF_NODE,
     CONF_PRICE_UNIT,
     DOMAIN,
+    LIVE_PRICE_RESTORE_STALENESS_MINUTES,
     SUBENTRY_TYPE,
-    UPDATE_INTERVAL_MINUTES,
 )
 
 if TYPE_CHECKING:
@@ -268,7 +268,7 @@ class LivePriceSensor(RestoreEntity, MarketNodeSensorBase):
             if timestamp_str:
                 restored_time = dt_util.parse_datetime(timestamp_str)
                 if restored_time and dt_util.utcnow() - restored_time > timedelta(
-                    minutes=UPDATE_INTERVAL_MINUTES
+                    minutes=LIVE_PRICE_RESTORE_STALENESS_MINUTES
                 ):
                     await self.coordinator.async_request_refresh()
                     return
@@ -295,38 +295,23 @@ class LivePriceSensor(RestoreEntity, MarketNodeSensorBase):
                 "node": live_current.get("node"),
                 "schedule": live_current.get("schedule"),
             }
+            rtd = node_data.get("rtd")
+            if rtd and getattr(rtd, "prices", None):
+                self._attributes["history"] = [
+                    {
+                        "timestamp": p.trading_datetime.isoformat(),
+                        "trading_period": p.trading_period,
+                        "price": p.price,
+                        "node": p.node,
+                        "schedule": p.schedule,
+                    }
+                    for p in sorted(rtd.prices, key=lambda p: p.trading_datetime)
+                ]
             self.async_write_ha_state()
             return
 
-        day_ahead = node_data.get("day_ahead")
-        if not day_ahead or not getattr(day_ahead, "prices", None):
-            self._native_value = None
-            self._attributes = {}
-            self.async_write_ha_state()
-            return
-
-        now = dt_util.utcnow()
-        sorted_prices = sorted(day_ahead.prices, key=lambda p: p.trading_datetime)
-        current = None
-        for price in sorted_prices:
-            if (
-                price.trading_datetime
-                <= now
-                < price.trading_datetime + timedelta(minutes=30)
-            ):
-                current = price
-                break
-        if current is None:
-            past = [p for p in sorted_prices if p.trading_datetime <= now]
-            current = past[-1] if past else sorted_prices[0]
-
-        self._native_value = current.price
-        self._attributes = {
-            "timestamp": current.trading_datetime.isoformat(),
-            "trading_period": current.trading_period,
-            "node": current.node,
-            "schedule": current.schedule,
-        }
+        self._native_value = None
+        self._attributes = {}
         self.async_write_ha_state()
 
 
