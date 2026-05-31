@@ -52,8 +52,9 @@ specs/004-rtd-live-price/
 
 ```text
 custom_components/electricityinfo/
-├── const.py             # UPDATE_INTERVAL_MINUTES: 30 → 5; add RTD_BACK_PERIODS = 3
-├── coordinator.py       # New RTD fetch block; decouple live price from day-ahead fetch
+├── const.py             # UPDATE_INTERVAL_MINUTES: 30 → 5; add RTD_BACK_PERIODS = 3; add LIVE_PRICE_RESTORE_STALENESS_MINUTES = 30
+├── coordinator.py       # New RTD fetch block; decouple live price from day-ahead fetch; _extract_live_price_payload updated to max() selection
+├── sensor.py            # Remove day_ahead fallback; update staleness guard constant; add history attribute to LivePriceSensor
 └── manifest.json        # MINOR version bump
 
 tests/
@@ -63,3 +64,6 @@ tests/
 ```
 
 **Structure Decision**: Single HA custom integration project. Changes are surgical: two source files modified (`const.py`, `coordinator.py`), tests updated to match.
+
+### Revision: Implementation Sync 2026-05-31
+- Reason: Project structure updated to include `sensor.py` as a modified file (removed day_ahead fallback, staleness guard constant update, `history` attribute addition). `_extract_live_price_payload` was changed from a 30-minute window lookup to `max(past, key=trading_datetime)` — reflected in tasks.md Invariant 1.

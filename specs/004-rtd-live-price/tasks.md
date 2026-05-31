@@ -16,7 +16,7 @@
 
 **Purpose**: Confirm clean baseline before any changes.
 
-- [ ] T001 Run full test suite and confirm 72 tests pass, ruff clean, mypy clean — `pytest tests/`, `ruff check custom_components/ tests/`, `mypy custom_components/`
+- [x] T001 Run full test suite and confirm 72 tests pass, ruff clean, mypy clean — `pytest tests/`, `ruff check custom_components/ tests/`, `mypy custom_components/`
 
 ---
 
@@ -26,7 +26,7 @@
 
 **⚠️ CRITICAL**: Both coordinator and sensor changes depend on the new constants. Complete this phase before any US1–US3 work.
 
-- [ ] T002 Update `custom_components/electricityinfo/const.py`: change `UPDATE_INTERVAL_MINUTES = 30` → `5`; add `RTD_BACK_PERIODS = 3` (below `UPDATE_INTERVAL_MINUTES`); add `LIVE_PRICE_RESTORE_STALENESS_MINUTES = 30` (below `RTD_BACK_PERIODS`) — staleness guard must stay at 30 min even though poll interval drops to 5 min (spec Assumption 6)
+- [x] T002 Update `custom_components/electricityinfo/const.py`: change `UPDATE_INTERVAL_MINUTES = 30` → `5`; add `RTD_BACK_PERIODS = 3` (below `UPDATE_INTERVAL_MINUTES`); add `LIVE_PRICE_RESTORE_STALENESS_MINUTES = 30` (below `RTD_BACK_PERIODS`) — staleness guard must stay at 30 min even though poll interval drops to 5 min (spec Assumption 6)
 
 **Checkpoint**: `const.py` exports three constants: `UPDATE_INTERVAL_MINUTES=5`, `RTD_BACK_PERIODS=3`, `LIVE_PRICE_RESTORE_STALENESS_MINUTES=30`
 
@@ -40,14 +40,14 @@
 
 ### Tests for User Story 1 ⚠️ Write FIRST — confirm they FAIL before T005/T006
 
-- [ ] T003 [P] [US1] Rename `test_live_fetch_routes_day_ahead_and_converts_units` → `test_live_fetch_uses_rtd_schedule`; rewrite to assert `get_schedule_prices` is called with `schedule="RTD"`, `back=3`, no `forward` kwarg; assert `data["market_node_1"]["live_current"]["schedule"] == "RTD"` and price is unit-converted — `tests/test_coordinator.py`
-- [ ] T004 [P] [US1] Replace `test_live_sensor_fallback_splits_forecast_and_history_by_now` with `test_live_sensor_unavailable_when_no_rtd_data`: coordinator data has `live_current=None` (no RTD response); assert `entity.native_value is None` and `entity.available is False` — `tests/test_sensor.py`
+- [x] T003 [P] [US1] Rename `test_live_fetch_routes_day_ahead_and_converts_units` → `test_live_fetch_uses_rtd_schedule`; rewrite to assert `get_schedule_prices` is called with `schedule="RTD"`, `back=3`, no `forward` kwarg; assert `data["market_node_1"]["live_current"]["schedule"] == "RTD"` and price is unit-converted — `tests/test_coordinator.py`
+- [x] T004 [P] [US1] Replace `test_live_sensor_fallback_splits_forecast_and_history_by_now` with `test_live_sensor_unavailable_when_no_rtd_data`: coordinator data has `live_current=None` (no RTD response); assert `entity.native_value is None` and `entity.available is False` — `tests/test_sensor.py`
 
 ### Implementation for User Story 1
 
-- [ ] T005 [US1] Update `custom_components/electricityinfo/coordinator.py`: (a) import `RTD_BACK_PERIODS` from `.const`; (b) add RTD fetch block after accounting block — `if config.get(CONF_ENABLE_LIVE_PRICE): rtd = await client.get_schedule_prices(schedule="RTD", back=RTD_BACK_PERIODS, market_type="E", nodes=[node])` → convert prices → `node_data["rtd"] = rtd; node_data["live_current"] = _extract_live_price_payload(rtd)`; (c) change day-ahead guard from `if config.get(CONF_ENABLE_LIVE_PRICE) or (config.get(CONF_ENABLE_FORECAST) and "day_ahead" in horizons)` → `if config.get(CONF_ENABLE_FORECAST) and "day_ahead" in horizons`; (d) remove the `node_data["live_current"] = _extract_live_price_payload(day_ahead)` line from the day-ahead block
-- [ ] T006 [US1] Remove dead-code fallback from `LivePriceSensor._handle_coordinator_update` in `custom_components/electricityinfo/sensor.py` (lines ~301–330): the branch that reads from `node_data["day_ahead"]` when `live_current` is `None`; after removal, `live_current=None` must result in `self._attr_native_value = None` and sensor becoming unavailable (FR-004)
-- [ ] T007 [US1] Run `pytest tests/test_coordinator.py tests/test_sensor.py` — confirm T003 and T004 now pass; confirm no regressions in those files
+- [x] T005 [US1] Update `custom_components/electricityinfo/coordinator.py`: (a) import `RTD_BACK_PERIODS` from `.const`; (b) add RTD fetch block after accounting block — `if config.get(CONF_ENABLE_LIVE_PRICE): rtd = await client.get_schedule_prices(schedule="RTD", back=RTD_BACK_PERIODS, market_type="E", nodes=[node])` → convert prices → `node_data["rtd"] = rtd; node_data["live_current"] = _extract_live_price_payload(rtd)`; (c) change day-ahead guard from `if config.get(CONF_ENABLE_LIVE_PRICE) or (config.get(CONF_ENABLE_FORECAST) and "day_ahead" in horizons)` → `if config.get(CONF_ENABLE_FORECAST) and "day_ahead" in horizons`; (d) remove the `node_data["live_current"] = _extract_live_price_payload(day_ahead)` line from the day-ahead block
+- [x] T006 [US1] Remove dead-code fallback from `LivePriceSensor._handle_coordinator_update` in `custom_components/electricityinfo/sensor.py` (lines ~301–330): the branch that reads from `node_data["day_ahead"]` when `live_current` is `None`; after removal, `live_current=None` must result in `self._attr_native_value = None` and sensor becoming unavailable (FR-004)
+- [x] T007 [US1] Run `pytest tests/test_coordinator.py tests/test_sensor.py` — confirm T003 and T004 now pass; confirm no regressions in those files
 
 **Checkpoint**: US1 fully functional — live price sourced from RTD; fallback path removed; tests green.
 
@@ -61,13 +61,13 @@
 
 ### Tests for User Story 2 ⚠️ Write FIRST — confirm they FAIL before T010
 
-- [ ] T008 [P] [US2] Add `test_coordinator_default_update_interval`: construct `ElectricityInfoCoordinator` with any valid entry; assert `coordinator.update_interval == timedelta(minutes=5)` — `tests/test_coordinator.py`
-- [ ] T009 [P] [US2] Add `test_live_sensor_staleness_guard_threshold_is_30_minutes`: mock utcnow to be exactly 31 minutes after restored timestamp; assert state is discarded (unavailable); mock utcnow to be exactly 29 minutes after; assert state is restored — `tests/test_sensor.py`
+- [x] T008 [P] [US2] Add `test_coordinator_default_update_interval`: construct `ElectricityInfoCoordinator` with any valid entry; assert `coordinator.update_interval == timedelta(minutes=5)` — `tests/test_coordinator.py`
+- [x] T009 [P] [US2] Add `test_live_sensor_staleness_guard_threshold_is_30_minutes`: mock utcnow to be exactly 31 minutes after restored timestamp; assert state is discarded (unavailable); mock utcnow to be exactly 29 minutes after; assert state is restored — `tests/test_sensor.py`
 
 ### Implementation for User Story 2
 
-- [ ] T010 [US2] Update `custom_components/electricityinfo/sensor.py`: add `LIVE_PRICE_RESTORE_STALENESS_MINUTES` to the `from .const import` block; replace `UPDATE_INTERVAL_MINUTES` with `LIVE_PRICE_RESTORE_STALENESS_MINUTES` in the `timedelta(minutes=...)` call inside `LivePriceSensor.async_added_to_hass` staleness guard (line ~271); remove `UPDATE_INTERVAL_MINUTES` from the import if no longer used
-- [ ] T011 [US2] Run `pytest tests/test_coordinator.py tests/test_sensor.py` — confirm T008 and T009 now pass; confirm `test_live_sensor_discards_stale_state` (45 min elapsed) still passes
+- [x] T010 [US2] Update `custom_components/electricityinfo/sensor.py`: add `LIVE_PRICE_RESTORE_STALENESS_MINUTES` to the `from .const import` block; replace `UPDATE_INTERVAL_MINUTES` with `LIVE_PRICE_RESTORE_STALENESS_MINUTES` in the `timedelta(minutes=...)` call inside `LivePriceSensor.async_added_to_hass` staleness guard (line ~271); remove `UPDATE_INTERVAL_MINUTES` from the import if no longer used
+- [x] T011 [US2] Run `pytest tests/test_coordinator.py tests/test_sensor.py` — confirm T008 and T009 now pass; confirm `test_live_sensor_discards_stale_state` (45 min elapsed) still passes
 
 **Checkpoint**: US2 fully functional — poll at 5 min; staleness guard still at 30 min; tests green.
 
@@ -81,14 +81,14 @@
 
 ### Tests for User Story 3 ⚠️ Write FIRST — confirm they FAIL before T014
 
-- [ ] T012 [P] [US3] Add `test_live_and_forecast_enabled_makes_two_api_calls`: subentry has `enable_live_price=True, enable_forecast=True, forecast_horizons=["day_ahead"]`; assert `client.get_schedule_prices` is called twice — once with `schedule="RTD"` and once with `schedule="PRSL"` (or "NRSL"); assert both `node_data["live_current"]` and `node_data["day_ahead"]` are populated — `tests/test_coordinator.py`
-- [ ] T013 [P] [US3] Add `test_forecast_only_does_not_call_rtd`: subentry has `enable_live_price=False, enable_forecast=True`; assert no call with `schedule="RTD"` is made; assert `node_data["live_current"]` is absent or `None` — `tests/test_coordinator.py`
+- [x] T012 [P] [US3] Add `test_live_and_forecast_enabled_makes_two_api_calls`: subentry has `enable_live_price=True, enable_forecast=True, forecast_horizons=["day_ahead"]`; assert `client.get_schedule_prices` is called twice — once with `schedule="RTD"` and once with `schedule="PRSL"` (or "NRSL"); assert both `node_data["live_current"]` and `node_data["day_ahead"]` are populated — `tests/test_coordinator.py`
+- [x] T013 [P] [US3] Add `test_forecast_only_does_not_call_rtd`: subentry has `enable_live_price=False, enable_forecast=True`; assert no call with `schedule="RTD"` is made; assert `node_data["live_current"]` is absent or `None` — `tests/test_coordinator.py`
 
 ### Implementation for User Story 3
 
 > **Note**: The coordinator changes in T005 already implement the decoupling needed for US3. If T012/T013 pass after T005, no additional implementation is needed here — only verification.
 
-- [ ] T014 [US3] Run full `pytest tests/` — confirm T012 and T013 pass; confirm all existing forecast, accounting, and multi-node integration tests continue to pass (zero regressions)
+- [x] T014 [US3] Run full `pytest tests/` — confirm T012 and T013 pass; confirm all existing forecast, accounting, and multi-node integration tests continue to pass (zero regressions)
 
 **Checkpoint**: US3 verified — forecast/accounting work at 5-minute cadence; RTD not called for non-live subentries; full suite green.
 
@@ -98,10 +98,10 @@
 
 **Purpose**: Version bump, final linting, and full validation.
 
-- [ ] T015 Bump minor version in `custom_components/electricityinfo/manifest.json` — e.g. `"2.0.0"` → `"2.1.0"` (MINOR bump: behaviour change, no config schema change, no `async_migrate_entry` needed)
-- [ ] T016 [P] Run `ruff check --fix custom_components/ tests/` — resolve any lint issues introduced during implementation
-- [ ] T017 [P] Run `mypy custom_components/` — resolve any type errors introduced during implementation (pay attention to `RTD_BACK_PERIODS` int type in `get_schedule_prices` call and `node_data["rtd"]` optional type)
-- [ ] T018 Run full `pytest tests/` — confirm ALL tests pass (expected: ≥ 72 tests); if count increased, confirm new tests are included in the passing set
+- [x] T015 Bump minor version in `custom_components/electricityinfo/manifest.json` — e.g. `"2.0.0"` → `"2.1.0"` (MINOR bump: behaviour change, no config schema change, no `async_migrate_entry` needed)
+- [x] T016 [P] Run `ruff check --fix custom_components/ tests/` — resolve any lint issues introduced during implementation
+- [x] T017 [P] Run `mypy custom_components/` — resolve any type errors introduced during implementation (pay attention to `RTD_BACK_PERIODS` int type in `get_schedule_prices` call and `node_data["rtd"]` optional type)
+- [x] T018 Run full `pytest tests/` — confirm ALL tests pass (expected: ≥ 72 tests); if count increased, confirm new tests are included in the passing set
 
 **Checkpoint**: Implementation complete — version bumped, lint/type clean, all tests green. Ready for commit.
 
@@ -139,8 +139,17 @@ T001 (baseline)
 **Full delivery**: All phases — additionally delivers FR-002, FR-005, FR-006, FR-008 (US2 + US3).
 
 **Key invariants to preserve throughout**:
-1. `_extract_live_price_payload` is schedule-agnostic — pass RTD data, no changes needed.
+1. `_extract_live_price_payload` was changed during implementation: the 30-minute window lookup was replaced with `max(past, key=lambda p: p.trading_datetime)` to correctly select the most recently dispatched RTD interval. The parameter was also renamed from `day_ahead` to `rtd`.
 2. `node_data["day_ahead"]` remains the key for forecast sensors; only its guard condition changes.
 3. `LIVE_PRICE_RESTORE_STALENESS_MINUTES = 30` decouples RestoreEntity staleness from poll interval.
 4. The RTD block must be inside `if config.get(CONF_ENABLE_LIVE_PRICE)` to satisfy FR-007 (SC-005).
 5. Pre-commit hooks auto-fix trailing whitespace/EOF — re-stage and re-commit if hooks modify files.
+
+---
+
+## Remediation: Gaps (Implementation Sync 2026-05-31)
+
+These tasks were identified post-implementation during reconciliation. Both were completed and committed as part of the feature branch.
+
+- [x] T019 [US1] Add `history` attribute to `LivePriceSensor._handle_coordinator_update` in `custom_components/electricityinfo/sensor.py`: when `live_current` is set, serialise all RTD periods from `node_data["rtd"].prices` sorted chronologically as `list[{timestamp, trading_period, price, node, schedule}]`; add `test_live_sensor_exposes_rtd_history_attribute` in `tests/test_sensor.py` verifying 3-period history with correct sort order [Sync: Gap Report]
+- [x] T020 [US1] Fix `_extract_live_price_payload` in `custom_components/electricityinfo/coordinator.py`: replace 30-minute window lookup with `max(past, key=lambda p: p.trading_datetime)` to always select the most recently dispatched RTD interval; rename parameter `day_ahead` → `rtd`; add regression test `test_live_fetch_picks_most_recent_rtd_period` in `tests/test_coordinator.py` with 3 periods in same 30-min window asserting most recent is selected [Sync: Gap Report]
