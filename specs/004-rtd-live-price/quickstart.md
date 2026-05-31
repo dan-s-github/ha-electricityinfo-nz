@@ -45,7 +45,7 @@ Export `RTD_BACK_PERIODS` from `const.py` (add to `__all__` if used, or just ens
 Write tests **before** modifying `coordinator.py`:
 
 **In `tests/conftest.py`**:
-- Add `mock_rtd_response` fixture: a `ScheduleDetails` object with `schedule="RTD"` and 3–4 `PriceDetail` entries spanning the last 15 minutes, with `price` values set (not `price6s`/`price60s`).
+- Add `mock_rtd_response` fixture: a `ScheduleDetails` object with `schedule="RTD"` and 3–4 `PriceDetail` entries spanning the last 90 minutes, with `price` values set (not `price6s`/`price60s`).
 
 **In `tests/test_coordinator.py`** (add new test cases):
 - `test_live_price_fetches_rtd`: given `enable_live_price=True`, assert `get_schedule_prices` is called with `schedule="RTD"`, `back=3`, and no `forward` kwarg; assert `node_data["live_current"]["schedule"] == "RTD"`.

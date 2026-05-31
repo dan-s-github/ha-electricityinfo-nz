@@ -23,7 +23,7 @@
 **Decision**: `schedule="RTD"`, `market_type="E"`, `nodes=[node]`, `back=3`, `forward` omitted (None).
 
 **Rationale**:
-- `back=3`: Covers last 3 × 5-minute RTD dispatch intervals (~15 min). Guarantees the most recently dispatched RTD period is present even if the poll lands mid-period before the latest dispatch is published. Library validates `1 ≤ back ≤ 48`.
+- `back=3`: Covers last 3 × 30-minute trading periods (~90 min). Guarantees the most recently dispatched RTD period is present even if the poll lands mid-period before the latest dispatch is published. Library validates `1 ≤ back ≤ 48`.
 - `forward=None`: RTD is back-looking by definition. The library validates `1 ≤ forward ≤ 48` — zero is invalid — so `forward` must be entirely omitted (not set to 0) for RTD calls.
 - `market_type="E"`: Consistent with all existing schedule calls in the integration.
 

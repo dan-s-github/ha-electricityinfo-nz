@@ -38,7 +38,7 @@ pytest tests/live/ -v -m live_api # Optional: live API tests (requires .env)
 - **Live price from RTD**: `LivePriceSensor` state = current trade period price from RTD `schedule="RTD"`, `back=3` response; `forward` omitted
 - **RTD decoupled from day-ahead**: RTD call fires only when `enable_live_price=True`; day-ahead PRSL/NRSL call fires only when `enable_forecast=True` with day-ahead horizon (no longer shared)
 - **RTD price field**: `PriceDetail.price` (not `price6s` or `price60s`)
-- **`RTD_BACK_PERIODS = 3`**: new constant; covers ~15 min of history (3 × 5-min RTD dispatch intervals); never inline the literal
+- **`RTD_BACK_PERIODS = 3`**: new constant; covers ~90 min of history (3 × 30-min trading periods); never inline the literal
 - **`live_current` shape unchanged**: same dict structure (`timestamp`, `trading_period`, `node`, `schedule`, `price`); `schedule` value changes from `"PRSL"/"NRSL"` to `"RTD"`
 - **MINOR version bump**: e.g. `2.0.0` → `2.1.0`; no breaking schema changes
 - **Unit conversion at ingest**: unchanged from 003

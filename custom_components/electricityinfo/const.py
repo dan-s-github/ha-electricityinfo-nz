@@ -30,7 +30,7 @@ RETRY_INTERVAL_MINUTES = 1
 MAX_RETRIES = 2
 
 # RTD fetch configuration
-RTD_BACK_PERIODS = 3  # fetch 3 x 5-min RTD dispatch intervals (~15 min of history)
+RTD_BACK_PERIODS = 3  # fetch 3 x 30-min trading periods of RTD history (~90 min)
 
 # Staleness guard for LivePriceSensor restore — kept at 30 min regardless of poll
 LIVE_PRICE_RESTORE_STALENESS_MINUTES = 30
