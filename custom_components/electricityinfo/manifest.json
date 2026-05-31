@@ -14,5 +14,5 @@
     "electricityinfo-nz==1.0.0rc2"
   ],
   "single_config_entry": true,
-  "version": "1.1.0"
+  "version": "1.0.0"
 }
