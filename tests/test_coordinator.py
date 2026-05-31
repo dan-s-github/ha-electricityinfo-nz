@@ -322,6 +322,61 @@ async def test_live_fetch_uses_rtd_schedule(hass) -> None:
 
 
 @pytest.mark.asyncio
+async def test_live_fetch_picks_most_recent_rtd_period(hass) -> None:
+    """live_current picks the most recently dispatched RTD period, not the oldest."""
+    entry = _entry_with_market_node(
+        {
+            "node": "HAY2201",
+            "price_unit": "c/kWh",
+            "enable_live_price": True,
+            "enable_forecast": False,
+            "enable_accounting": False,
+        }
+    )
+    coordinator = ElectricityInfoCoordinator(hass, entry)
+
+    now = datetime.now(UTC).replace(second=0, microsecond=0)
+    mock_rtd = SimpleNamespace(
+        prices=[
+            SimpleNamespace(
+                trading_datetime=now - timedelta(minutes=15),
+                trading_period=32,
+                node="HAY2201",
+                price=10.0,
+                schedule="RTD",
+                run_type="A",
+            ),
+            SimpleNamespace(
+                trading_datetime=now - timedelta(minutes=10),
+                trading_period=32,
+                node="HAY2201",
+                price=12.0,
+                schedule="RTD",
+                run_type="A",
+            ),
+            SimpleNamespace(
+                trading_datetime=now - timedelta(minutes=5),
+                trading_period=32,
+                node="HAY2201",
+                price=14.0,
+                schedule="RTD",
+                run_type="A",
+            ),
+        ]
+    )
+    with patch(CLIENT_PATH) as client_cls:
+        client = AsyncMock()
+        client.get_schedule_prices.return_value = mock_rtd
+        client_cls.return_value = client
+        data = await coordinator._async_update_data()
+
+    live = data["market_node_1"]["live_current"]
+    # API prices are NZD/MWh; 14.0 * 0.1 = 1.4 c/kWh after conversion
+    assert live["price"] == pytest.approx(1.4)
+    assert live["trading_period"] == 32
+
+
+@pytest.mark.asyncio
 async def test_forecast_fetch_uses_retention_back_window(hass) -> None:
     """Forecast-enabled fetch includes retention-derived back and forward windows."""
     entry = _entry_with_market_node(

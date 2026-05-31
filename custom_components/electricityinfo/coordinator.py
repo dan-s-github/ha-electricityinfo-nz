@@ -69,26 +69,17 @@ def _normalized_horizons(raw_horizons: Any) -> set[str]:
 
 
 def _extract_live_price_payload(
-    day_ahead: Any,
+    rtd: Any,
 ) -> dict[str, Any] | None:
-    """Extract current trade period and future forecast entries from day-ahead data."""
-    if not day_ahead or not getattr(day_ahead, "prices", None):
+    """Extract the most recently dispatched RTD period from RTD data."""
+    if not rtd or not getattr(rtd, "prices", None):
         return None
 
-    sorted_prices = sorted(day_ahead.prices, key=lambda p: p.trading_datetime)
     now = dt_util.utcnow()
-    current = None
-    for price in sorted_prices:
-        if (
-            price.trading_datetime
-            <= now
-            < (price.trading_datetime + timedelta(minutes=30))
-        ):
-            current = price
-            break
+    past = [p for p in rtd.prices if p.trading_datetime <= now]
+    current = max(past, key=lambda p: p.trading_datetime) if past else None
     if current is None:
-        past = [p for p in sorted_prices if p.trading_datetime <= now]
-        current = past[-1] if past else sorted_prices[0]
+        return None
 
     return {
         "timestamp": current.trading_datetime.isoformat(),
