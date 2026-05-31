@@ -149,6 +149,7 @@ async def test_live_sensor_unavailable_when_no_rtd_data(hass, mock_entry) -> Non
         coordinator.data = {
             subentry.subentry_id: {
                 "live_current": None,
+                "rtd": None,
                 "day_ahead": None,
                 "error": None,
             }
@@ -159,6 +160,60 @@ async def test_live_sensor_unavailable_when_no_rtd_data(hass, mock_entry) -> Non
 
     assert entity.native_value is None
     assert not entity.available
+
+
+async def test_live_sensor_exposes_rtd_history_attribute(hass, mock_entry) -> None:
+    """LivePriceSensor includes history list from RTD back-periods."""
+    subentry = create_mock_market_node_subentry(
+        enable_live_price=True, enable_forecast=False, enable_accounting=False
+    )
+    now = datetime(2026, 5, 9, 12, 0, tzinfo=UTC)
+
+    def _make_rtd(dt, period, price) -> MagicMock:
+        p = MagicMock()
+        p.trading_datetime = dt
+        p.trading_period = period
+        p.node = "HAY2201"
+        p.schedule = "RTD"
+        p.price = price
+        return p
+
+    rtd = MagicMock()
+    rtd.prices = [
+        _make_rtd(now - timedelta(minutes=60), 22, 3.50),
+        _make_rtd(now - timedelta(minutes=30), 23, 4.05),
+        _make_rtd(now, 24, 4.23),
+    ]
+
+    with patch("custom_components.electricityinfo.AsyncMarketPricesClient"):
+        coordinator = ElectricityInfoCoordinator(hass, mock_entry)
+        coordinator.last_update_success = True
+        coordinator.data = {
+            subentry.subentry_id: {
+                "live_current": {
+                    "timestamp": now.isoformat(),
+                    "trading_period": 24,
+                    "node": "HAY2201",
+                    "schedule": "RTD",
+                    "price": 4.23,
+                },
+                "rtd": rtd,
+                "day_ahead": None,
+                "error": None,
+            }
+        }
+        entity = LivePriceSensor(coordinator, mock_entry, subentry)
+        with patch.object(entity, "async_write_ha_state", MagicMock()):
+            entity._handle_coordinator_update()
+
+    assert entity.native_value == pytest.approx(4.23)
+    attrs = entity.extra_state_attributes
+    assert "history" in attrs
+    assert len(attrs["history"]) == 3
+    assert attrs["history"][0]["trading_period"] == 22
+    assert attrs["history"][1]["trading_period"] == 23
+    assert attrs["history"][2]["trading_period"] == 24
+    assert attrs["history"][2]["schedule"] == "RTD"
 
 
 async def test_live_sensor_restores_recent_state(hass, mock_entry) -> None:

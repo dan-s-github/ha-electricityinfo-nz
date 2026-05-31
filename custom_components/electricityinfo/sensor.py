@@ -295,6 +295,18 @@ class LivePriceSensor(RestoreEntity, MarketNodeSensorBase):
                 "node": live_current.get("node"),
                 "schedule": live_current.get("schedule"),
             }
+            rtd = node_data.get("rtd")
+            if rtd and getattr(rtd, "prices", None):
+                self._attributes["history"] = [
+                    {
+                        "timestamp": p.trading_datetime.isoformat(),
+                        "trading_period": p.trading_period,
+                        "price": p.price,
+                        "node": p.node,
+                        "schedule": p.schedule,
+                    }
+                    for p in sorted(rtd.prices, key=lambda p: p.trading_datetime)
+                ]
             self.async_write_ha_state()
             return
 
