@@ -613,3 +613,51 @@ async def test_forecast_only_does_not_call_rtd(hass) -> None:
     kwargs = client.get_schedule_prices.call_args.kwargs
     assert kwargs["schedule"] == "PRSL"
     assert data["market_node_1"]["live_current"] is None
+
+
+@pytest.mark.asyncio
+async def test_rtd_failure_does_not_abort_forecast_fetch(hass) -> None:
+    """RTD API failure leaves live_current None but does not prevent forecast fetch."""
+    entry = _entry_with_market_node(
+        {
+            "node": "HAY2201",
+            "price_unit": "c/kWh",
+            "enable_live_price": True,
+            "enable_forecast": True,
+            "forecast_type": "price_responsive",
+            "forecast_horizons": ["day_ahead"],
+            "forecast_retention_hours": 6,
+            "enable_accounting": False,
+        }
+    )
+    coordinator = ElectricityInfoCoordinator(hass, entry)
+
+    now = datetime.now(UTC).replace(minute=0, second=0, microsecond=0)
+    mock_forecast = SimpleNamespace(
+        prices=[
+            SimpleNamespace(
+                trading_datetime=now,
+                trading_period=24,
+                node="HAY2201",
+                price=100.0,
+                schedule="PRSL",
+                run_type="A",
+            )
+        ]
+    )
+
+    def _side_effect(**kwargs) -> SimpleNamespace:
+        if kwargs.get("schedule") == "RTD":
+            msg = "RTD unavailable"
+            raise MarketPricesAPIError(msg)
+        return mock_forecast
+
+    with patch(CLIENT_PATH) as client_cls:
+        client = AsyncMock()
+        client.get_schedule_prices.side_effect = _side_effect
+        client_cls.return_value = client
+        data = await coordinator._async_update_data()
+
+    assert data["market_node_1"]["live_current"] is None
+    assert data["market_node_1"]["rtd"] is None
+    assert data["market_node_1"]["day_ahead"] is not None

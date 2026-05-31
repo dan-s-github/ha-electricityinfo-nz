@@ -16,6 +16,7 @@ Feature 004 introduces **no config schema changes**. The `MarketNodeSubentry` da
 |----------|-----------|-----------|-------|
 | `UPDATE_INTERVAL_MINUTES` | `30` | `5` | Poll interval reduced to match RTD publication cadence |
 | `RTD_BACK_PERIODS` | _(not present)_ | `3` | New constant; `back` parameter for RTD API call |
+| `LIVE_PRICE_RESTORE_STALENESS_MINUTES` | _(not present)_ | `30` | New constant; staleness guard for LivePriceSensor restore |
 
 No other constants are added or removed.
 
@@ -47,7 +48,7 @@ The dict stored in `node_data["live_current"]` retains the same shape as in 003 
 | `schedule` | `str` | `"PRSL"` | `"RTD"` |
 | `price` | `float \| None` | `12.3456` | `12.3456` (from `PriceDetail.price`) |
 
-**Extraction logic** (`_extract_live_price_payload`): unchanged — finds the `PriceDetail` whose `trading_datetime` window contains `utcnow()`; falls back to most recent past period. Now receives RTD data instead of day-ahead data.
+**Extraction logic** (`_extract_live_price_payload`): selects `max(past, key=trading_datetime)` — the most recently dispatched RTD period at or before `utcnow()`. Now receives RTD data instead of day-ahead data.
 
 ---
 

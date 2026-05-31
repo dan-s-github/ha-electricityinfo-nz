@@ -45,7 +45,7 @@ Export `RTD_BACK_PERIODS` from `const.py` (add to `__all__` if used, or just ens
 Write tests **before** modifying `coordinator.py`:
 
 **In `tests/conftest.py`**:
-- Add `mock_rtd_response` fixture: a `ScheduleDetails` object with `schedule="RTD"` and 3–4 `PriceDetail` entries spanning the last 90 minutes, with `price` values set (not `price6s`/`price60s`).
+- Add `mock_rtd_response` fixture: a `ScheduleDetails` object with `schedule="RTD"` and 3–4 `PriceDetail` entries spanning the last 15 minutes, with `price` values set (not `price6s`/`price60s`).
 
 **In `tests/test_coordinator.py`** (add new test cases):
 - `test_live_price_fetches_rtd`: given `enable_live_price=True`, assert `get_schedule_prices` is called with `schedule="RTD"`, `back=3`, and no `forward` kwarg; assert `node_data["live_current"]["schedule"] == "RTD"`.
@@ -87,6 +87,6 @@ mypy custom_components/    # No type errors
 
 - `RTD_BACK_PERIODS = 3` is a constant — do not inline the literal `3` in `coordinator.py`.
 - `forward` is **never passed** to the RTD `get_schedule_prices` call (omit, do not pass `None` explicitly or `0`).
-- The `_extract_live_price_payload` function is **reused unchanged** — it is schedule-agnostic.
+- The `_extract_live_price_payload` function selects `max(past, key=trading_datetime)` — the most recently dispatched RTD period at or before `utcnow()`. It is schedule-agnostic.
 - The `day_ahead` coordinator key is now **forecast-only**. Do not read it for live price anywhere.
 - The `live_current` dict structure (`timestamp`, `trading_period`, `node`, `schedule`, `price`) is **unchanged** — sensors read it identically.

@@ -179,17 +179,22 @@ class ElectricityInfoCoordinator(DataUpdateCoordinator):
 
         if config.get(CONF_ENABLE_LIVE_PRICE):
             _LOGGER.debug("Fetching RTD prices for node %s", node)
-            rtd = await client.get_schedule_prices(
-                schedule="RTD",
-                back=RTD_BACK_PERIODS,
-                market_type="E",
-                nodes=[node] if node else None,
-            )
-            if rtd:
-                for p in rtd.prices:
-                    p.price = _convert_price(p.price, price_unit)
-            node_data["rtd"] = rtd
-            node_data["live_current"] = _extract_live_price_payload(rtd)
+            try:
+                rtd = await client.get_schedule_prices(
+                    schedule="RTD",
+                    back=RTD_BACK_PERIODS,
+                    market_type="E",
+                    nodes=[node] if node else None,
+                )
+                if rtd:
+                    for p in rtd.prices:
+                        p.price = _convert_price(p.price, price_unit)
+                node_data["rtd"] = rtd
+                node_data["live_current"] = _extract_live_price_payload(rtd)
+            except AuthenticationError:
+                raise
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.warning("RTD fetch failed for node %s: %s", node, err)
 
         if config.get(CONF_ENABLE_FORECAST) and "day_ahead" in horizons:
             day_ahead_kwargs: dict[str, Any] = {

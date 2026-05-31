@@ -33,12 +33,12 @@ pytest tests/live/ -v -m live_api # Optional: live API tests (requires .env)
 ```
 
 **Key Design Decisions**:
-- **004 is a surgical change**: only `const.py`, `coordinator.py`, and `manifest.json` are modified; no config schema change
+- **004 is a surgical change**: only `const.py`, `coordinator.py`, `sensor.py`, and `manifest.json` are modified; no config schema change
 - **Single 5-min coordinator**: `UPDATE_INTERVAL_MINUTES = 5` (was 30); applies unconditionally to all config entries with any active subentry
 - **Live price from RTD**: `LivePriceSensor` state = current trade period price from RTD `schedule="RTD"`, `back=3` response; `forward` omitted
 - **RTD decoupled from day-ahead**: RTD call fires only when `enable_live_price=True`; day-ahead PRSL/NRSL call fires only when `enable_forecast=True` with day-ahead horizon (no longer shared)
 - **RTD price field**: `PriceDetail.price` (not `price6s` or `price60s`)
-- **`RTD_BACK_PERIODS = 3`**: new constant; covers ~90 min of history; never inline the literal
+- **`RTD_BACK_PERIODS = 3`**: new constant; covers ~15 min of history (3 × 5-min RTD dispatch intervals); never inline the literal
 - **`live_current` shape unchanged**: same dict structure (`timestamp`, `trading_period`, `node`, `schedule`, `price`); `schedule` value changes from `"PRSL"/"NRSL"` to `"RTD"`
 - **MINOR version bump**: e.g. `2.0.0` → `2.1.0`; no breaking schema changes
 - **Unit conversion at ingest**: unchanged from 003
@@ -51,9 +51,8 @@ Phase 2 (002-price-schedules-sensor) replaced by Phase 3 (003): 002 config entri
 Phase 3 (003-multi-entity-market-node) completed: all 72 tests passing; clean ruff + mypy baseline.
 
 **Implementation Status (Current Branch)**:
-- Planning complete (research.md, data-model.md, contracts/, quickstart.md generated).
-- Implementation not yet started.
-- Baseline from 003: `pytest tests/` (72 tests), `ruff check custom_components/ tests/`, `mypy custom_components/` — all clean.
+- Implementation complete: `const.py`, `coordinator.py`, `sensor.py` updated; all tests passing.
+- All 80 tests green; clean ruff + mypy baseline.
 
 **Pre-commit Note**: Repository has pre-commit hooks that auto-fix formatting (trailing whitespace, EOF).
 Changes made by hooks require re-staging and re-committing. This is expected behavior.
