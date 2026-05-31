@@ -16,15 +16,15 @@ Home Assistant custom integration for [Electricityinfo NZ](https://electricityin
 
 ## Features
 
-- **Live price sensor** — current 30-minute trading period price, restored on restart
+- **Live price sensor** — real-time RTD (Real-Time Dispatch) price, updated every 5 minutes, restored on restart; includes `history` attribute with recent RTD periods
 - **Forecast sensors** — day-ahead (24 h / 48 periods) and intraday (4 h / 8 periods), each with `forecast` and `history` attributes
 - **Accounting sensors** — settled price, per-period import cost & export revenue, and daily accumulated totals (requires energy meter entities)
 - **Multiple market nodes** — add as many nodes as you need, each independently configured
 - **Choice of price unit** — c/kWh or NZD/kWh per market node
-- **30-minute refresh cycle** — prices update every half-hour
+- **5-minute refresh cycle** — live price updates every 5 minutes; forecast and accounting data also refreshes at the same cadence
 - **HACS installable**
 
-> **Note:** Price schedules update at `:00` and `:30` each hour. After a Home Assistant restart, this integration continues refreshing every 30 minutes from startup time. To realign refreshes with schedule boundaries, reload the integration at `:02` or `:32` (or use the automation example below).
+> **Note:** RTD prices are published approximately every 5 minutes. Forecast and accounting schedules update at `:00` and `:30` each hour. After a Home Assistant restart, the integration resumes its 5-minute polling cycle from startup time. To realign forecast/accounting refreshes with schedule boundaries, reload the integration at `:02` or `:32` (or use the automation example below).
 
 ---
 
@@ -94,16 +94,17 @@ Each market node device creates up to eight entities depending on which features
 
 | Entity | Unit | Description |
 |---|---|---|
-| `sensor.<node>_live_price` | c/kWh or NZD/kWh | Current trading period price (extracted from the day-ahead schedule) |
+| `sensor.<node>_live_price` | c/kWh or NZD/kWh | Most recently dispatched RTD price |
 
 **Attributes:**
 
 | Attribute | Description |
 |---|---|
-| `timestamp` | ISO 8601 datetime of the current period |
+| `timestamp` | ISO 8601 datetime of the dispatched RTD period |
 | `trading_period` | WITS trading period number (1–48) |
 | `node` | Grid reference node code |
-| `schedule` | Schedule type code |
+| `schedule` | Always `RTD` |
+| `history` | List of recent RTD periods (up to `back=3`), sorted oldest→newest: `{timestamp, trading_period, price, node, schedule}` |
 
 State is restored across Home Assistant restarts (discarded if older than 30 minutes).
 
@@ -159,7 +160,7 @@ The integration automatically selects the correct WITS API schedule based on you
 | Price-responsive | PRSL (48 periods) | PRSS (8 periods) |
 | Non-responsive | NRSL (48 periods) | NRSS (8 periods) |
 
-The **live price sensor** uses the day-ahead schedule (same API call as the day-ahead forecast). If only live price is enabled, the forecast type setting (`Price-responsive` → PRSL, `Non-responsive` → NRSL) still controls which schedule is used.
+The **live price sensor** uses the dedicated RTD (Real-Time Dispatch) schedule — a separate API call made only when `Enable live price` is on. RTD prices reflect actual dispatched prices, not forecasts.
 
 ---
 
@@ -279,8 +280,8 @@ Find `YOUR_CONFIG_ENTRY_ID` under **Settings -> Devices & Services -> Electricit
 
 ## Update Behaviour
 
-- Prices refresh every **30 minutes**, aligned with WITS trading periods
-- On Home Assistant restart, the last known price is **restored immediately** (no waiting for first fetch) — provided the saved price is less than 30 minutes old
+- Prices refresh every **5 minutes**
+- On Home Assistant restart, the last known live price is **restored immediately** (no waiting for first fetch) — provided the saved price is less than 30 minutes old
 - If the API is unreachable, the integration retries after 1 minute, then marks sensors **unavailable** after a second failure; they recover automatically when the API returns
 
 ---
