@@ -15,6 +15,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - State persistence with config entry
 - Full type checking and test coverage
 
+## v1.0.0rc2 (2026-05-31)
+
+### Feat
+
+- Implement RTD-based Live Price Sensor with 5-Minute Polling (#9)
+
 ## v1.0.0rc1 (2026-05-28)
 
 ### Feat
