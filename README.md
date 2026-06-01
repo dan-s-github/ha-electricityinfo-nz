@@ -18,7 +18,7 @@ Home Assistant custom integration for [Electricityinfo NZ](https://electricityin
 
 - **Live price sensor** — real-time RTD (Real-Time Dispatch) price, updated every 5 minutes, restored on restart; includes `history` attribute with recent RTD periods
 - **Forecast sensors** — day-ahead (24 h / 48 periods) and intraday (4 h / 8 periods), each with `forecast` and `history` attributes
-- **Accounting sensors** — settled price, per-period import cost & export revenue, and daily accumulated totals (requires energy meter entities)
+- **Accounting sensors** — settled price, per-period import cost & export revenue, daily accumulated totals, and previous-day totals (requires energy meter entities; utility meter helpers not supported)
 - **Multiple market nodes** — add as many nodes as you need, each independently configured
 - **Choice of price unit** — c/kWh or NZD/kWh per market node
 - **5-minute refresh cycle** — live price updates every 5 minutes; forecast and accounting data also refreshes at the same cadence
@@ -79,8 +79,8 @@ Each market node creates a **device** containing the sensor entities you enable:
 | **Forecast retention** | Hours of history to keep in the `history` attribute (6, 12, or 24 h) | No (default: 24 h) |
 | **Enable accounting** | Settled price and import/export cost sensors | No (default: off) |
 | **Accounting retention** | Hours of settled-price history to keep (24 or 48 h) | No (default: 24 h) |
-| **Import meter** | Energy sensor entity for import kWh (e.g. your smart meter) | If accounting on |
-| **Export meter** | Energy sensor entity for export kWh (optional, defaults to import meter) | No |
+| **Import meter** | Energy sensor entity for import kWh (e.g. your smart meter or Riemann sum helper) | If accounting on |
+| **Export meter** | Energy sensor entity for export kWh (must differ from import meter) | No |
 
 To edit or remove a market node, go to its device page and use **⋮ → Reconfigure** or **Delete**.
 
@@ -146,8 +146,19 @@ Requires **Enable accounting** to be turned on.
 | `sensor.<node>_export_revenue` | c or NZD | Export revenue for the current settled period (export energy × settled price) |
 | `sensor.<node>_daily_import_cost` | c or NZD | Running daily total import cost (resets at midnight NZT) |
 | `sensor.<node>_daily_export_revenue` | c or NZD | Running daily total export revenue (resets at midnight NZT) |
+| `sensor.<node>_previous_day_import_cost` | c or NZD | Total import cost for the previous day (snapshot at midnight NZT) |
+| `sensor.<node>_previous_day_export_revenue` | c or NZD | Total export revenue for the previous day (snapshot at midnight NZT) |
 
-`import_cost` and `export_revenue` require a meter entity to be configured. `export_revenue` uses the export meter if set, otherwise falls back to the import meter.
+`import_cost` and `export_revenue` require a meter entity to be configured. Import and export meters must be **different entities**.
+
+#### Meter entity requirements
+
+The import and export meter entities must satisfy all of the following:
+- `device_class` = `energy`
+- `unit_of_measurement` = `kWh`
+- **No** `last_reset` attribute — utility meter helpers with a fixed reset period are not supported; use a monotonically increasing cumulative sensor or a [Riemann Sum helper](https://www.home-assistant.io/integrations/integration/) instead
+
+> **Note:** Utility meter helpers (created via **Settings → Helpers → Add helper → Utility meter**) add a `last_reset` attribute and are rejected. Riemann sum integral helpers built from a power (W) sensor are accepted and recommended.
 
 ---
 
@@ -301,8 +312,10 @@ Find `YOUR_CONFIG_ENTRY_ID` under **Settings -> Devices & Services -> Electricit
 
 ### Accounting sensors show "Unavailable"
 
-- Confirm your import/export meter entities are `energy` device class sensors with `kWh` unit of measurement
-- The settled price sensor requires the RTD schedule to have published a settled price for the current period
+- Confirm your import/export meter entities are `energy` device class sensors with `kWh` unit of measurement and **no** `last_reset` attribute (utility meter helpers are not supported — use a Riemann sum integral helper instead)
+- Import and export meters must be different entities; configuring the same entity for both is rejected at setup
+- The settled price sensor requires the Interim schedule to have published a settled price for the current period
+- Previous-day sensors show the snapshot taken at midnight NZT — they will be unavailable until the first midnight rollover after the integration is set up
 
 ### Prices seem wrong
 

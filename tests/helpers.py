@@ -66,9 +66,7 @@ def create_mock_market_node_subentry(
     if enable_accounting:
         data["accounting_retention_hours"] = accounting_retention_hours
         data["import_meter_entity_id"] = import_meter_entity_id
-        data["export_meter_entity_id"] = (
-            export_meter_entity_id or import_meter_entity_id
-        )
+        data["export_meter_entity_id"] = export_meter_entity_id
 
     return ConfigSubentry(
         data=MappingProxyType(data),

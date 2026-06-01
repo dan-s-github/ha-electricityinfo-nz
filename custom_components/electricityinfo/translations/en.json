@@ -51,6 +51,7 @@
         "accounting_retention_invalid": "Accounting retention must be 24 or 48 hours.",
         "entity_not_energy_import": "The selected import meter is not an energy meter (device_class: energy).",
         "entity_not_energy_export": "The selected export meter is not an energy meter (device_class: energy).",
+        "same_entity_import_export": "Import and export meter must be different entities.",
         "no_sensor_type_enabled": "At least one sensor type must be enabled."
       },
       "step": {
@@ -69,6 +70,10 @@
             "accounting_retention_hours": "Accounting retention",
             "import_meter_entity_id": "Import energy meter",
             "export_meter_entity_id": "Export energy meter"
+          },
+          "data_description": {
+            "import_meter_entity_id": "A cumulative energy sensor without a 'last_reset' attribute (e.g. Riemann sum integration helper or native total_increasing sensor). Utility meter helpers are not supported.",
+            "export_meter_entity_id": "A cumulative energy sensor for exported electricity (optional). Must be a different entity from the import meter."
           }
         },
         "reconfigure": {
@@ -85,6 +90,10 @@
             "accounting_retention_hours": "Accounting retention",
             "import_meter_entity_id": "Import energy meter",
             "export_meter_entity_id": "Export energy meter"
+          },
+          "data_description": {
+            "import_meter_entity_id": "A cumulative energy sensor without a 'last_reset' attribute (e.g. Riemann sum integration helper or native total_increasing sensor). Utility meter helpers are not supported.",
+            "export_meter_entity_id": "A cumulative energy sensor for exported electricity (optional). Must be a different entity from the import meter."
           }
         }
       }

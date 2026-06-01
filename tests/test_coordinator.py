@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -240,8 +241,10 @@ async def test_accounting_meter_delta_skips_first_poll_then_computes(hass) -> No
 
 
 @pytest.mark.asyncio
-async def test_accounting_bidirectional_and_export_fallback(hass) -> None:
-    """Fallback to import meter enables bidirectional signed-delta behavior."""
+async def test_coordinator_same_entity_skips_accounting_with_warning(
+    hass, caplog
+) -> None:
+    """Same import/export entity emits a warning and skips accounting metrics."""
     hass.states.async_set(
         "sensor.grid_meter",
         "100.0",
@@ -267,18 +270,74 @@ async def test_accounting_bidirectional_and_export_fallback(hass) -> None:
         )
         client_cls.return_value = client
         await coordinator._async_update_data()
-
         hass.states.async_set(
             "sensor.grid_meter",
             "98.0",
             {"device_class": "energy", "unit_of_measurement": "kWh"},
         )
+        logger = "custom_components.electricityinfo.coordinator"
+        with caplog.at_level(logging.WARNING, logger=logger):
+            second = await coordinator._async_update_data()
+
+    node_data = second["market_node_1"]
+    assert node_data.get("import_cost_delta") is None
+    assert node_data.get("export_revenue_delta") is None
+    assert "same" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_coordinator_independent_import_export_meters_compute_separately(
+    hass,
+) -> None:
+    """Independent import and export meters compute independent deltas."""
+    hass.states.async_set(
+        "sensor.import_energy",
+        "10.0",
+        {"device_class": "energy", "unit_of_measurement": "kWh"},
+    )
+    hass.states.async_set(
+        "sensor.export_energy",
+        "5.0",
+        {"device_class": "energy", "unit_of_measurement": "kWh"},
+    )
+    entry = _entry_with_market_node(
+        {
+            "node": "HAY2201",
+            "price_unit": "NZD/kWh",
+            "enable_live_price": False,
+            "enable_forecast": False,
+            "enable_accounting": True,
+            "import_meter_entity_id": "sensor.import_energy",
+            "export_meter_entity_id": "sensor.export_energy",
+        }
+    )
+    coordinator = ElectricityInfoCoordinator(hass, entry)
+
+    with patch(CLIENT_PATH) as client_cls:
+        client = AsyncMock()
+        client.get_schedule_prices.side_effect = lambda **_kwargs: (
+            _make_accounting_schedule(0.5)
+        )
+        client_cls.return_value = client
+        await coordinator._async_update_data()
+
+        hass.states.async_set(
+            "sensor.import_energy",
+            "11.2",
+            {"device_class": "energy", "unit_of_measurement": "kWh"},
+        )
+        hass.states.async_set(
+            "sensor.export_energy",
+            "5.8",
+            {"device_class": "energy", "unit_of_measurement": "kWh"},
+        )
         second = await coordinator._async_update_data()
 
     node_data = second["market_node_1"]
-    assert node_data["import_energy_delta"] == pytest.approx(0.0, abs=1e-6)
-    assert node_data["export_energy_delta"] == pytest.approx(2.0, abs=1e-6)
-    assert node_data["export_revenue_delta"] == pytest.approx(0.001, abs=1e-9)
+    assert node_data["import_energy_delta"] == pytest.approx(1.2, abs=1e-6)
+    assert node_data["export_energy_delta"] == pytest.approx(0.8, abs=1e-6)
+    assert node_data["import_cost_delta"] == pytest.approx(0.0005 * 1.2, abs=1e-9)
+    assert node_data["export_revenue_delta"] == pytest.approx(0.0005 * 0.8, abs=1e-9)
 
 
 @pytest.mark.asyncio

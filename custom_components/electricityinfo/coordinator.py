@@ -336,7 +336,9 @@ class ElectricityInfoCoordinator(DataUpdateCoordinator):
             selected = current
         else:
             past = [p for p in sorted_settled if p.trading_datetime <= now]
-            selected = past[-1] if past else sorted_settled[0]
+            if not past:
+                return  # No settled periods; accounting sensors remain unavailable
+            selected = past[-1]
 
         node_data["settled_price"] = selected.price
         node_data["settled_timestamp"] = selected.trading_datetime
@@ -346,10 +348,16 @@ class ElectricityInfoCoordinator(DataUpdateCoordinator):
         ).date()
 
         import_meter = config.get(CONF_IMPORT_METER_ENTITY_ID)
-        export_meter = config.get(CONF_EXPORT_METER_ENTITY_ID) or import_meter
-        bidirectional = bool(
-            import_meter and export_meter and import_meter == export_meter
-        )
+        export_meter = config.get(CONF_EXPORT_METER_ENTITY_ID)
+
+        if import_meter and export_meter and import_meter == export_meter:
+            _LOGGER.warning(
+                "Subentry %s: import and export meter are the same entity (%s). "
+                "Accounting skipped until configuration is corrected.",
+                subentry_id,
+                import_meter,
+            )
+            return
 
         import_current = self._read_energy_meter(import_meter)
         export_current = self._read_energy_meter(export_meter)
@@ -360,23 +368,14 @@ class ElectricityInfoCoordinator(DataUpdateCoordinator):
         self._meter_prev_import[subentry_id] = import_current
         self._meter_prev_export[subentry_id] = export_current
 
-        import_delta: float | None
-        export_delta: float | None
-        if import_meter and bidirectional:
-            delta = self._compute_delta(import_previous, import_current)
-            if delta is None:
-                return
-            import_delta = max(delta, 0.0)
-            export_delta = abs(min(delta, 0.0))
-        else:
-            import_delta_raw = self._compute_delta(import_previous, import_current)
-            export_delta_raw = self._compute_delta(export_previous, export_current)
-            import_delta = (
-                max(import_delta_raw, 0.0) if import_delta_raw is not None else None
-            )
-            export_delta = (
-                max(export_delta_raw, 0.0) if export_delta_raw is not None else None
-            )
+        import_delta_raw = self._compute_delta(import_previous, import_current)
+        export_delta_raw = self._compute_delta(export_previous, export_current)
+        import_delta: float | None = (
+            max(import_delta_raw, 0.0) if import_delta_raw is not None else None
+        )
+        export_delta: float | None = (
+            max(export_delta_raw, 0.0) if export_delta_raw is not None else None
+        )
 
         settled_price = node_data.get("settled_price")
         node_data["import_energy_delta"] = import_delta

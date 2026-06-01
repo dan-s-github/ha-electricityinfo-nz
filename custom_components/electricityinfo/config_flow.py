@@ -145,6 +145,7 @@ def _validate_meter_entity(hass: HomeAssistant, entity_id: str | None) -> bool:
     return (
         state.attributes.get("device_class") == "energy"
         and state.attributes.get("unit_of_measurement") == "kWh"
+        and "last_reset" not in state.attributes
     )
 
 
@@ -213,6 +214,14 @@ def _validate_node_fields(
             errors[CONF_IMPORT_METER_ENTITY_ID] = "entity_not_energy_import"
         if export_meter and not _validate_meter_entity(hass, export_meter):
             errors[CONF_EXPORT_METER_ENTITY_ID] = "entity_not_energy_export"
+        if (
+            import_meter
+            and export_meter
+            and import_meter == export_meter
+            and not errors.get(CONF_IMPORT_METER_ENTITY_ID)
+            and not errors.get(CONF_EXPORT_METER_ENTITY_ID)
+        ):
+            errors["base"] = "same_entity_import_export"
 
     return errors
 
