@@ -33,6 +33,8 @@
 
 [Gates determined based on constitution file]
 
+- [ ] **Principle VI — Documentation Synchronization**: Does this feature change any user-facing behaviour (new sensors, config options, setup steps, entity names, removed features)? If yes, a README update MUST be included as an explicit task in the implementation plan. *(Block merge if README not updated.)*
+
 ## Project Structure
 
 ### Documentation (this feature)

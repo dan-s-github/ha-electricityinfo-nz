@@ -84,6 +84,58 @@ async def test_sensor_platform_sets_up(hass) -> None:
         assert entity.state_class is None
 
 
+async def test_sensor_platform_sets_up_accounting_entities(hass) -> None:
+    """Accounting setup registers settled, delta, daily, and previous-day sensors."""
+    subentry = create_mock_market_node_subentry(
+        subentry_id="market_node_1",
+        title="HAY2201 [c/kWh]",
+        node="HAY2201",
+        price_unit="c/kWh",
+        enable_live_price=False,
+        enable_forecast=False,
+        enable_accounting=True,
+        import_meter_entity_id="sensor.import_meter",
+        export_meter_entity_id="sensor.export_meter",
+    )
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Main",
+        data={
+            "client_id": "test_client",
+            "client_secret": "test_secret",
+        },
+        subentries_data=[
+            {
+                "data": dict(subentry.data),
+                "subentry_type": "market_node",
+                "title": subentry.title,
+                "unique_id": None,
+            }
+        ],
+    )
+    entry.add_to_hass(hass)
+
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    sensor_ids = [state.entity_id for state in hass.states.async_all("sensor")]
+    expected_suffixes = [
+        "settled_price",
+        "import_cost",
+        "daily_import_cost",
+        "previous_day_import_cost",
+        "export_revenue",
+        "daily_export_revenue",
+        "previous_day_export_revenue",
+    ]
+    for suffix in expected_suffixes:
+        assert any(suffix in entity_id for entity_id in sensor_ids), (
+            f"Missing accounting sensor containing '{suffix}'. "
+            f"Current sensor IDs: {sensor_ids}"
+        )
+
+
 async def test_live_sensor_uses_coordinator_live_payload(hass, mock_entry) -> None:
     """Live sensor consumes coordinator-provided current period payload."""
     subentry = create_mock_market_node_subentry(

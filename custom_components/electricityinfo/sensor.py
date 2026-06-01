@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
 from datetime import date, datetime, timedelta
 from typing import TYPE_CHECKING, Any
@@ -115,8 +116,13 @@ async def async_setup_entry(
                 )
             )
             import_meter = config.get(CONF_IMPORT_METER_ENTITY_ID)
-            export_meter = config.get(CONF_EXPORT_METER_ENTITY_ID) or import_meter
+            export_meter = config.get(CONF_EXPORT_METER_ENTITY_ID)
             if import_meter:
+                daily_import = DailyImportCostSensor(
+                    coordinator=coordinator,
+                    entry=entry,
+                    subentry=subentry,
+                )
                 market_entities.append(
                     ImportCostSensor(
                         coordinator=coordinator,
@@ -124,14 +130,21 @@ async def async_setup_entry(
                         subentry=subentry,
                     )
                 )
+                market_entities.append(daily_import)
                 market_entities.append(
-                    DailyImportCostSensor(
+                    PreviousDayImportCostSensor(
                         coordinator=coordinator,
                         entry=entry,
                         subentry=subentry,
+                        daily_sensor=daily_import,
                     )
                 )
             if export_meter:
+                daily_export = DailyExportRevenueSensor(
+                    coordinator=coordinator,
+                    entry=entry,
+                    subentry=subentry,
+                )
                 market_entities.append(
                     ExportRevenueSensor(
                         coordinator=coordinator,
@@ -139,11 +152,13 @@ async def async_setup_entry(
                         subentry=subentry,
                     )
                 )
+                market_entities.append(daily_export)
                 market_entities.append(
-                    DailyExportRevenueSensor(
+                    PreviousDayExportRevenueSensor(
                         coordinator=coordinator,
                         entry=entry,
                         subentry=subentry,
+                        daily_sensor=daily_export,
                     )
                 )
         if market_entities:
@@ -511,48 +526,38 @@ class SettledPriceSensor(MarketNodeSensorBase):
             self.async_write_ha_state()
             return
 
+        settled_price = node_data.get("settled_price")
+        settled_timestamp: datetime | None = node_data.get("settled_timestamp")
+        settled_period = node_data.get("settled_trading_period")
         accounting = node_data.get("accounting")
-        if not accounting or not getattr(accounting, "prices", None):
-            self._native_value = None
-            self._attributes = {}
-            self.async_write_ha_state()
-            return
-
-        settled_prices = [p for p in accounting.prices if p.price is not None]
-        if not settled_prices:
+        if (
+            settled_price is None
+            or settled_timestamp is None
+            or settled_period is None
+            or not accounting
+            or not getattr(accounting, "prices", None)
+        ):
             self._native_value = None
             self._attributes = {}
             self.async_write_ha_state()
             return
 
         now = dt_util.utcnow()
-        sorted_settled = sorted(settled_prices, key=lambda p: p.trading_datetime)
-        current = next(
-            (
-                p
-                for p in sorted_settled
-                if p.trading_datetime
-                <= now
-                < p.trading_datetime + timedelta(minutes=30)
-            ),
-            None,
+        settled_prices = sorted(
+            (p for p in accounting.prices if p.price is not None),
+            key=lambda p: p.trading_datetime,
         )
-        if current is not None:
-            selected = current
-        else:
-            past = [p for p in sorted_settled if p.trading_datetime <= now]
-            selected = past[-1] if past else sorted_settled[0]
         retention = int(self._config.get(CONF_ACCOUNTING_RETENTION_HOURS, 24)) * 2
         history = [
             p
-            for p in sorted_settled
+            for p in settled_prices
             if p.trading_datetime + timedelta(minutes=30) <= now
         ][-retention:]
-        self._native_value = selected.price
+        self._native_value = settled_price
         self._attributes = {
-            "trading_period": selected.trading_period,
-            "timestamp": selected.trading_datetime.isoformat(),
-            "node": selected.node,
+            "trading_period": settled_period,
+            "timestamp": settled_timestamp.isoformat(),
+            "node": node_data.get("node"),
             "history": [
                 {
                     "period_start": price.trading_datetime.isoformat(),
@@ -681,9 +686,20 @@ class DailyAccountingSensorBase(RestoreEntity, AccountingDeltaSensorBase):
         )
         self._accumulated_total: float = 0.0
         self._accumulation_date: date | None = None
+        self._previous_day_total: float | None = None
+
+    @property
+    def previous_day_total(self) -> float | None:
+        """Return the previous day's accumulated total."""
+        return self._previous_day_total
+
+    @previous_day_total.setter
+    def previous_day_total(self, value: float | None) -> None:
+        """Set the previous day's accumulated total."""
+        self._previous_day_total = value
 
     async def async_added_to_hass(self) -> None:
-        """Restore previously accumulated total and date."""
+        """Restore accumulated total, date, and previous-day snapshot."""
         await super().async_added_to_hass()
         last_state = await self.async_get_last_state()
         if last_state and last_state.state not in ("unknown", "unavailable"):
@@ -692,6 +708,10 @@ class DailyAccountingSensorBase(RestoreEntity, AccountingDeltaSensorBase):
             if isinstance(date_str, str):
                 parsed = dt_util.parse_date(date_str)
                 self._accumulation_date = parsed
+            prev_str = last_state.attributes.get("previous_day_total")
+            if prev_str is not None:
+                with contextlib.suppress(ValueError, TypeError):
+                    self._previous_day_total = float(prev_str)
 
         today_nzt = dt_util.utcnow().astimezone(NZ_TZ).date()
         if self._accumulation_date and self._accumulation_date < today_nzt:
@@ -702,6 +722,7 @@ class DailyAccountingSensorBase(RestoreEntity, AccountingDeltaSensorBase):
         self._native_value = self._accumulated_total
         self._attributes = {
             "accumulation_date": self._accumulation_date.isoformat(),
+            "previous_day_total": self._previous_day_total,
             self._daily_meter_key: self._config.get(self._daily_meter_key),
         }
 
@@ -716,6 +737,7 @@ class DailyAccountingSensorBase(RestoreEntity, AccountingDeltaSensorBase):
 
         accounting_date: date | None = node_data.get("accounting_date_nzt")
         if accounting_date and accounting_date != self._accumulation_date:
+            self._previous_day_total = self._accumulated_total
             self._accumulated_total = 0.0
             self._accumulation_date = accounting_date
 
@@ -729,6 +751,7 @@ class DailyAccountingSensorBase(RestoreEntity, AccountingDeltaSensorBase):
         self._native_value = self._accumulated_total
         self._attributes = {
             "accumulation_date": self._accumulation_date.isoformat(),
+            "previous_day_total": self._previous_day_total,
             self._daily_meter_key: self._config.get(self._daily_meter_key),
         }
         self.async_write_ha_state()
@@ -775,4 +798,94 @@ class DailyExportRevenueSensor(DailyAccountingSensorBase):
             subentry=subentry,
             sensor_type="daily_export_revenue",
             sensor_name="Daily Export Revenue",
+        )
+
+
+class PreviousDayAccountingSensorBase(RestoreEntity, MarketNodeSensorBase):
+    """Base for previous-day sensors that mirror a daily sensor's prior-day snapshot."""
+
+    _attr_state_class = SensorStateClass.TOTAL
+
+    def __init__(  # noqa: PLR0913
+        self,
+        coordinator: ElectricityInfoCoordinator,
+        entry: ConfigEntry,
+        subentry: ConfigSubentry,
+        sensor_type: str,
+        sensor_name: str,
+        daily_sensor: DailyAccountingSensorBase,
+    ) -> None:
+        """Initialize previous-day accounting sensor."""
+        super().__init__(
+            coordinator=coordinator,
+            entry=entry,
+            subentry=subentry,
+            sensor_type=sensor_type,
+            sensor_name=sensor_name,
+        )
+        self._daily_sensor = daily_sensor
+
+    @property
+    def native_unit_of_measurement(self) -> str:
+        """Return currency unit based on configured price unit."""
+        return "c" if self._config.get(CONF_PRICE_UNIT) == "c/kWh" else "NZD"
+
+    async def async_added_to_hass(self) -> None:
+        """Restore previous-day total; seed daily sensor if it has no prior value."""
+        await super().async_added_to_hass()
+        last_state = await self.async_get_last_state()
+        if last_state and last_state.state not in ("unknown", "unavailable"):
+            with contextlib.suppress(ValueError, TypeError):
+                restored = float(last_state.state)
+                if self._daily_sensor.previous_day_total is None:
+                    self._daily_sensor.previous_day_total = restored
+        self._native_value = self._daily_sensor.previous_day_total
+
+    def _handle_coordinator_update(self) -> None:
+        """Reflect daily sensor's previous-day snapshot whenever it changes."""
+        prev = self._daily_sensor.previous_day_total
+        if prev != self._native_value:
+            self._native_value = prev
+            self.async_write_ha_state()
+
+
+class PreviousDayImportCostSensor(PreviousDayAccountingSensorBase):
+    """Previous-day import cost sensor."""
+
+    def __init__(
+        self,
+        coordinator: ElectricityInfoCoordinator,
+        entry: ConfigEntry,
+        subentry: ConfigSubentry,
+        daily_sensor: DailyAccountingSensorBase,
+    ) -> None:
+        """Initialize previous-day import cost sensor."""
+        super().__init__(
+            coordinator=coordinator,
+            entry=entry,
+            subentry=subentry,
+            sensor_type="previous_day_import_cost",
+            sensor_name="Previous Day Import Cost",
+            daily_sensor=daily_sensor,
+        )
+
+
+class PreviousDayExportRevenueSensor(PreviousDayAccountingSensorBase):
+    """Previous-day export revenue sensor."""
+
+    def __init__(
+        self,
+        coordinator: ElectricityInfoCoordinator,
+        entry: ConfigEntry,
+        subentry: ConfigSubentry,
+        daily_sensor: DailyAccountingSensorBase,
+    ) -> None:
+        """Initialize previous-day export revenue sensor."""
+        super().__init__(
+            coordinator=coordinator,
+            entry=entry,
+            subentry=subentry,
+            sensor_type="previous_day_export_revenue",
+            sensor_name="Previous Day Export Revenue",
+            daily_sensor=daily_sensor,
         )

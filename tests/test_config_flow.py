@@ -531,7 +531,7 @@ async def test_market_node_accounting_import_meter_must_be_energy(
 async def test_market_node_accounting_export_stored_as_none_when_omitted(
     hass: HomeAssistant,
 ) -> None:
-    """Export meter omitted: stored as None; coordinator applies fallback at runtime."""
+    """Export meter omitted: stored as None (no implicit fallback entity)."""
     hass.states.async_set(
         "sensor.import_meter",
         "456.0",
@@ -561,5 +561,199 @@ async def test_market_node_accounting_export_stored_as_none_when_omitted(
     )
     assert result2["type"] is FlowResultType.CREATE_ENTRY
     assert result2["data"]["import_meter_entity_id"] == "sensor.import_meter"
-    # Export stored as None; coordinator uses import meter as fallback at runtime
+    # Export stored as None when omitted
     assert result2["data"]["export_meter_entity_id"] is None
+
+
+async def test_validate_meter_rejects_entity_with_last_reset(
+    hass: HomeAssistant,
+) -> None:
+    """Entity with last_reset attribute (utility meter helper) is rejected."""
+    hass.states.async_set(
+        "sensor.utility_meter",
+        "123.0",
+        {
+            "device_class": "energy",
+            "unit_of_measurement": "kWh",
+            "last_reset": "2026-06-01T00:00:00+12:00",
+        },
+    )
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Electricityinfo NZ",
+        data={CONF_CLIENT_ID: "client123", CONF_CLIENT_SECRET: "secret123"},
+    )
+    entry.add_to_hass(hass)
+    result = await hass.config_entries.subentries.async_init(
+        (entry.entry_id, "market_node"),
+        context={"source": config_entries.SOURCE_USER},
+    )
+    result2 = await hass.config_entries.subentries.async_configure(
+        result["flow_id"],
+        user_input={
+            "node": "HAY2201",
+            "price_unit": "c/kWh",
+            "enable_live_price": False,
+            "enable_forecast": False,
+            "enable_accounting": True,
+            "accounting_retention_hours": "24",
+            "import_meter_entity_id": "sensor.utility_meter",
+        },
+    )
+    assert result2["type"] is FlowResultType.FORM
+    assert result2["errors"]["import_meter_entity_id"] == "entity_has_last_reset_import"
+
+
+async def test_validate_meter_accepts_integral_sensor_without_last_reset(
+    hass: HomeAssistant,
+) -> None:
+    """Riemann sum integration helper (no last_reset) is accepted."""
+    hass.states.async_set(
+        "sensor.integral_energy",
+        "42.0",
+        {
+            "device_class": "energy",
+            "unit_of_measurement": "kWh",
+        },
+    )
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Electricityinfo NZ",
+        data={CONF_CLIENT_ID: "client123", CONF_CLIENT_SECRET: "secret123"},
+    )
+    entry.add_to_hass(hass)
+    result = await hass.config_entries.subentries.async_init(
+        (entry.entry_id, "market_node"),
+        context={"source": config_entries.SOURCE_USER},
+    )
+    result2 = await hass.config_entries.subentries.async_configure(
+        result["flow_id"],
+        user_input={
+            "node": "HAY2201",
+            "price_unit": "c/kWh",
+            "enable_live_price": False,
+            "enable_forecast": False,
+            "enable_accounting": True,
+            "accounting_retention_hours": "24",
+            "import_meter_entity_id": "sensor.integral_energy",
+        },
+    )
+    assert result2["type"] is FlowResultType.CREATE_ENTRY
+
+
+async def test_validate_meter_accepts_native_cumulative_sensor(
+    hass: HomeAssistant,
+) -> None:
+    """Native total_increasing energy sensor (no last_reset) is accepted."""
+    hass.states.async_set(
+        "sensor.smart_meter",
+        "1000.0",
+        {
+            "device_class": "energy",
+            "unit_of_measurement": "kWh",
+            "state_class": "total_increasing",
+        },
+    )
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Electricityinfo NZ",
+        data={CONF_CLIENT_ID: "client123", CONF_CLIENT_SECRET: "secret123"},
+    )
+    entry.add_to_hass(hass)
+    result = await hass.config_entries.subentries.async_init(
+        (entry.entry_id, "market_node"),
+        context={"source": config_entries.SOURCE_USER},
+    )
+    result2 = await hass.config_entries.subentries.async_configure(
+        result["flow_id"],
+        user_input={
+            "node": "HAY2201",
+            "price_unit": "c/kWh",
+            "enable_live_price": False,
+            "enable_forecast": False,
+            "enable_accounting": True,
+            "accounting_retention_hours": "24",
+            "import_meter_entity_id": "sensor.smart_meter",
+        },
+    )
+    assert result2["type"] is FlowResultType.CREATE_ENTRY
+
+
+async def test_same_entity_import_export_shows_validation_error(
+    hass: HomeAssistant,
+) -> None:
+    """Same entity for import and export shows a base validation error."""
+    hass.states.async_set(
+        "sensor.energy_meter",
+        "100.0",
+        {"device_class": "energy", "unit_of_measurement": "kWh"},
+    )
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Electricityinfo NZ",
+        data={CONF_CLIENT_ID: "client123", CONF_CLIENT_SECRET: "secret123"},
+    )
+    entry.add_to_hass(hass)
+    result = await hass.config_entries.subentries.async_init(
+        (entry.entry_id, "market_node"),
+        context={"source": config_entries.SOURCE_USER},
+    )
+    result2 = await hass.config_entries.subentries.async_configure(
+        result["flow_id"],
+        user_input={
+            "node": "HAY2201",
+            "price_unit": "c/kWh",
+            "enable_live_price": False,
+            "enable_forecast": False,
+            "enable_accounting": True,
+            "accounting_retention_hours": "24",
+            "import_meter_entity_id": "sensor.energy_meter",
+            "export_meter_entity_id": "sensor.energy_meter",
+        },
+    )
+    assert result2["type"] is FlowResultType.FORM
+    assert result2["errors"].get("base") == "same_entity_import_export"
+
+
+async def test_individual_validation_failure_does_not_trigger_same_entity_error(
+    hass: HomeAssistant,
+) -> None:
+    """If individual meter fails validation, same-entity check does not fire."""
+    hass.states.async_set(
+        "sensor.utility_meter",
+        "100.0",
+        {
+            "device_class": "energy",
+            "unit_of_measurement": "kWh",
+            "last_reset": "2026-01-01T00:00:00+12:00",
+        },
+    )
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Electricityinfo NZ",
+        data={CONF_CLIENT_ID: "client123", CONF_CLIENT_SECRET: "secret123"},
+    )
+    entry.add_to_hass(hass)
+    result = await hass.config_entries.subentries.async_init(
+        (entry.entry_id, "market_node"),
+        context={"source": config_entries.SOURCE_USER},
+    )
+    result2 = await hass.config_entries.subentries.async_configure(
+        result["flow_id"],
+        user_input={
+            "node": "HAY2201",
+            "price_unit": "c/kWh",
+            "enable_live_price": False,
+            "enable_forecast": False,
+            "enable_accounting": True,
+            "accounting_retention_hours": "24",
+            "import_meter_entity_id": "sensor.utility_meter",
+            "export_meter_entity_id": "sensor.utility_meter",
+        },
+    )
+    assert result2["type"] is FlowResultType.FORM
+    assert (
+        result2["errors"].get("import_meter_entity_id")
+        == "entity_has_last_reset_import"
+    )
+    assert result2["errors"].get("base") != "same_entity_import_export"

@@ -1009,7 +1009,7 @@ wheels = [
 
 [[package]]
 name = "ha-electricityinfo-nz"
-version = "1.0.0rc1"
+version = "1.0.0rc2"
 source = { editable = "." }
 dependencies = [
     { name = "electricityinfo-nz" },

@@ -1,9 +1,13 @@
 <!-- SYNC IMPACT REPORT
-Version Change: 1.0.0 → 1.1.0 (MINOR - Removed YAML configuration mandate from Principle III; clarified Config Subentry Flow)
-Modified Principles: III. Configurable Sensor Architecture (removed YAML requirement; config flow only; "(Options Flow)" → "(Config Subentry Flow)")
-Added Sections: None
+Version Change: 1.1.0 → 1.2.0 (MINOR - Added Principle VI: Documentation Synchronization; README sync is now mandatory)
+Modified Principles: None
+Added Sections: VI. Documentation Synchronization (new core principle)
 Removed Sections: None
-Templates Updated: ✅ No template changes required (templates are generic; YAML mandate was constitution-only)
+Templates Updated:
+  ✅ .specify/memory/constitution.md (this file)
+  ✅ Development Workflow: Code Review checklist updated (item f added)
+  ✅ .specify/templates/plan-template.md — Principle VI documentation gate added to Constitution Check section
+  ✅ .specify/templates/tasks-template.md — "Update README" task added to Phase N with mandatory Principle VI note
 Templates Pending: None
 Follow-up TODOs: None
 -->
@@ -15,33 +19,45 @@ Home Assistant custom integration providing configurable electricity price senso
 ## Core Principles
 
 ### I. Library API Wrapper First
+
 Every feature integrating with external APIs MUST use a PyPI library wrapper as the single source of truth. Custom HTTP logic is prohibited; all API communication flows through the wrapper. This ensures contract stability, error consistency, and isolated testing.
 
 **Rationale**: Direct HTTP code in integration logic causes brittleness when APIs change. Wrapping isolation enables parallel library development and Home Assistant integration development. Library must be independently testable and versioned separately.
 
 ### II. OAuth Token-Based Authentication (NON-NEGOTIABLE)
+
 All integration connections require OAuth API token authentication. Tokens are obtained through secure config flow, stored encrypted in Home Assistant, and never logged or exposed. Token refresh and expiration handling is mandatory. Hard-coded credentials or deprecated auth methods are prohibited.
 
 **Rationale**: OAuth provides secure delegated access without exposing user credentials. Home Assistant's credential encryption protects sensitive tokens. Token expiration handling prevents authentication failures breaking automations. Config flow validation ensures tokens work before saving.
 
 ### III. Configurable Sensor Architecture
+
 All sensors MUST be configurable via the Home Assistant config flow (Config Subentry Flow). Configuration drives sensor instantiation, data collection intervals, and display logic. Hard-coded sensors are prohibited.
 
 **Rationale**: End users have varying electricity data needs. The Config Subentry Flow provides a guided, validated configuration experience without requiring manual YAML editing. Configuration flexibility enables different regions/retailers to use one integration without forking. Config flow MUST validate OAuth token availability at setup time.
 
 ### IV. Test-First Methodology (NON-NEGOTIABLE)
+
 TDD is mandatory: test cases written and approved by stakeholders → red failing tests → implementation → green passing tests → refactor. Red-Green-Refactor cycle strictly enforced. Unit tests cover library wrapper usage with mocked OAuth tokens; integration tests cover config flow, OAuth token validation, and sensor platform lifecycle.
 
 **Rationale**: Home Assistant integrations are critical infrastructure; silent failures can break automation. Tests protect against regression and document expected behavior for future maintainers. OAuth flow testing prevents auth failures in production.
 
 ### V. Semantic Versioning & Breaking Changes
+
 Version format: MAJOR.MINOR.PATCH. MAJOR increments for breaking changes (config schema changes, sensor removal, OAuth scope changes, library wrapper incompatibility). MINOR for new features (new sensors, new config options). PATCH for fixes (bug fixes, typo fixes, dependency updates).
 
 **Rationale**: Home Assistant users depend on stable schemas. Breaking changes MUST be announced. Library wrapper version constraints enforced in integration requirements. OAuth scope changes require user re-authentication.
 
+### VI. Documentation Synchronization
+
+The `README.md` MUST be kept in sync with the implementation at all times. Any change to user-facing behaviour — new sensors, changed configuration options, updated setup steps, revised entity descriptions, or removed features — MUST be accompanied by a corresponding README update in the same commit or PR. Merging implementation changes without updating the README is prohibited.
+
+**Rationale**: The README is the primary reference for users installing and configuring the integration. Stale documentation causes misconfiguration, support burden, and loss of trust. Treating documentation as a first-class deliverable — not an afterthought — ensures users always have accurate guidance. This applies equally to HACS-published releases and development builds.
+
 ## Security & Authentication
 
 **OAuth Requirements**:
+
 - Integration MUST use OAuth 2.0 bearer token authentication with the PyPI library wrapper
 - OAuth flow uses `client_id` and `client_secret` to obtain access tokens from provider
 - Config flow MUST implement OAuth token validation before saving configuration
@@ -52,6 +68,7 @@ Version format: MAJOR.MINOR.PATCH. MAJOR increments for breaking changes (config
 - Config entry options MUST NOT store raw tokens or credentials (Home Assistant handles encryption)
 
 **Credential Management**:
+
 - OAuth access tokens are sensitive secrets and treated as encrypted by default
 - Client ID and secret are configured once and used by PyPI wrapper for token acquisition
 - Config flow implements OAuth redirect flow for user authorization (never collect raw tokens manually)
@@ -70,6 +87,7 @@ Version format: MAJOR.MINOR.PATCH. MAJOR increments for breaking changes (config
 **CI/CD**: GitHub Actions with tests, linting, and HACS validation gates
 
 **Core Dependencies**:
+
 - `homeassistant` (Home Assistant core API)
 - PyPI library wrapper with OAuth support (pinned to compatible MAJOR version)
 - pytest (testing)
@@ -81,7 +99,7 @@ Version format: MAJOR.MINOR.PATCH. MAJOR increments for breaking changes (config
 
 1. **Feature Planning**: Every feature starts with a spec. Config changes MUST document schema evolution and OAuth scope implications. Auth changes MUST document token handling.
 2. **Test-First**: Write acceptance tests first, approve with stakeholders (user stories), then implement. OAuth flows MUST be integration-tested.
-3. **Code Review**: All PRs reviewed for (a) test coverage >80%, (b) no direct HTTP code, (c) OAuth tokens not logged, (d) config flow token validation, (e) Ruff pass.
+3. **Code Review**: All PRs reviewed for (a) test coverage >80%, (b) no direct HTTP code, (c) OAuth tokens not logged, (d) config flow token validation, (e) Ruff pass, (f) README updated to reflect any user-facing changes (Principle VI).
 4. **Integration Gates**: Config flow tests (including OAuth validation) + sensor platform tests MUST pass before merge.
 5. **Release**: Version bumped according to semantic versioning; changelog documents breaking changes if MAJOR. OAuth scope changes require MAJOR version bump.
 
@@ -99,4 +117,4 @@ This constitution supersedes all other development practices and guides all amen
 
 All code contributions MUST verify compliance with these principles. Exceptions require explicit justification in commit messages and PR discussions. OAuth security requirements are non-negotiable.
 
-**Version**: 1.1.0 | **Ratified**: 2026-05-03 | **Last Amended**: 2026-05-09
+**Version**: 1.2.0 | **Ratified**: 2026-05-03 | **Last Amended**: 2026-06-01
