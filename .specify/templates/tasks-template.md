@@ -150,6 +150,7 @@ Examples of foundational tasks (adjust based on your project):
 
 **Purpose**: Improvements that affect multiple user stories
 
+- [ ] TXXX [P] **README update** — Update `README.md` to reflect all user-facing changes in this feature (new sensors, config options, setup steps, entity descriptions, removed features). *Mandatory per Principle VI if any user-facing behaviour changed. Block merge if skipped.*
 - [ ] TXXX [P] Documentation updates in docs/
 - [ ] TXXX Code cleanup and refactoring
 - [ ] TXXX Performance optimization across all stories

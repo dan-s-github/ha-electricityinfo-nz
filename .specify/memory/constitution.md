@@ -1,10 +1,15 @@
 <!-- SYNC IMPACT REPORT
-Version Change: 1.0.0 → 1.1.0 (MINOR - Removed YAML configuration mandate from Principle III; clarified Config Subentry Flow)
-Modified Principles: III. Configurable Sensor Architecture (removed YAML requirement; config flow only; "(Options Flow)" → "(Config Subentry Flow)")
-Added Sections: None
+Version Change: 1.1.0 → 1.2.0 (MINOR - Added Principle VI: Documentation Synchronization; README sync is now mandatory)
+Modified Principles: None
+Added Sections: VI. Documentation Synchronization (new core principle)
 Removed Sections: None
-Templates Updated: ✅ No template changes required (templates are generic; YAML mandate was constitution-only)
+Templates Updated:
+  ✅ .specify/memory/constitution.md (this file)
+  ✅ Development Workflow: Code Review checklist updated (item f added)
+  ✅ .specify/templates/plan-template.md — Principle VI documentation gate added to Constitution Check section
+  ✅ .specify/templates/tasks-template.md — "Update README" task added to Phase N with mandatory Principle VI note
 Templates Pending: None
+Follow-up TODOs: None
 Follow-up TODOs: None
 -->
 
@@ -38,6 +43,11 @@ TDD is mandatory: test cases written and approved by stakeholders → red failin
 Version format: MAJOR.MINOR.PATCH. MAJOR increments for breaking changes (config schema changes, sensor removal, OAuth scope changes, library wrapper incompatibility). MINOR for new features (new sensors, new config options). PATCH for fixes (bug fixes, typo fixes, dependency updates).
 
 **Rationale**: Home Assistant users depend on stable schemas. Breaking changes MUST be announced. Library wrapper version constraints enforced in integration requirements. OAuth scope changes require user re-authentication.
+
+### VI. Documentation Synchronization
+The `README.md` MUST be kept in sync with the implementation at all times. Any change to user-facing behaviour — new sensors, changed configuration options, updated setup steps, revised entity descriptions, or removed features — MUST be accompanied by a corresponding README update in the same commit or PR. Merging implementation changes without updating the README is prohibited.
+
+**Rationale**: The README is the primary reference for users installing and configuring the integration. Stale documentation causes misconfiguration, support burden, and loss of trust. Treating documentation as a first-class deliverable — not an afterthought — ensures users always have accurate guidance. This applies equally to HACS-published releases and development builds.
 
 ## Security & Authentication
 
@@ -81,7 +91,7 @@ Version format: MAJOR.MINOR.PATCH. MAJOR increments for breaking changes (config
 
 1. **Feature Planning**: Every feature starts with a spec. Config changes MUST document schema evolution and OAuth scope implications. Auth changes MUST document token handling.
 2. **Test-First**: Write acceptance tests first, approve with stakeholders (user stories), then implement. OAuth flows MUST be integration-tested.
-3. **Code Review**: All PRs reviewed for (a) test coverage >80%, (b) no direct HTTP code, (c) OAuth tokens not logged, (d) config flow token validation, (e) Ruff pass.
+3. **Code Review**: All PRs reviewed for (a) test coverage >80%, (b) no direct HTTP code, (c) OAuth tokens not logged, (d) config flow token validation, (e) Ruff pass, (f) README updated to reflect any user-facing changes (Principle VI).
 4. **Integration Gates**: Config flow tests (including OAuth validation) + sensor platform tests MUST pass before merge.
 5. **Release**: Version bumped according to semantic versioning; changelog documents breaking changes if MAJOR. OAuth scope changes require MAJOR version bump.
 
@@ -99,4 +109,4 @@ This constitution supersedes all other development practices and guides all amen
 
 All code contributions MUST verify compliance with these principles. Exceptions require explicit justification in commit messages and PR discussions. OAuth security requirements are non-negotiable.
 
-**Version**: 1.1.0 | **Ratified**: 2026-05-03 | **Last Amended**: 2026-05-09
+**Version**: 1.2.0 | **Ratified**: 2026-05-03 | **Last Amended**: 2026-06-01
