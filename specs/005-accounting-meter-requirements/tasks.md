@@ -35,6 +35,8 @@
 
 - [ ] T003 Add error key `"same_entity_import_export"` to `custom_components/electricityinfo/strings.json` in the flow_error section
 - [ ] T004 Add error message `"same_entity_import_export": "Import and export meter must be different entities."` to `custom_components/electricityinfo/translations/en.json`
+- [ ] T038 [P] Update the `data_description` (or equivalent label key) for the import meter selector field in `custom_components/electricityinfo/strings.json` to read: "Requires a cumulative kWh sensor (e.g. smart meter, energy monitor) or the output of an HA Riemann sum integral helper. Utility meter helpers are not supported." (FR-010)
+- [ ] T039 [P] Add the corresponding `data_description` translation in `custom_components/electricityinfo/translations/en.json` for the import meter (and export meter) selector fields to match T038 content (FR-010)
 
 **Checkpoint**: Translation strings in place — config-flow validation changes can now be tested
 
@@ -93,7 +95,7 @@
 
 #### Daily sensor snapshot tests (sensor.py changes)
 
-- [ ] T016 [P] [US4] In `tests/test_accounting.py`: write `test_daily_import_cost_captures_previous_day_total_on_rollover` — set `sensor._accumulated_total = 42.5`; inject coordinator update with a new `accounting_date_nzt`; assert `sensor._previous_day_total == 42.5` and `sensor._accumulated_total == <new_delta_only>`
+- [ ] T016 [P] [US4] In `tests/test_accounting.py`: write `test_daily_import_cost_captures_previous_day_total_on_rollover` — set `sensor._accumulated_total = 42.5`; inject coordinator update with a new `accounting_date_nzt`; in the **same** `_handle_coordinator_update` call assert `sensor._previous_day_total == 42.5` AND `sensor._accumulated_total == <new_delta_only>` (covers SC-007 atomicity: no intermediate poll should pass with inconsistent daily/previous-day state)
 - [ ] T017 [P] [US4] In `tests/test_accounting.py`: write `test_daily_import_cost_stores_previous_day_total_in_attributes` — after rollover, assert `sensor.extra_state_attributes["previous_day_total"] == 42.5`
 - [ ] T018 [P] [US4] In `tests/test_accounting.py`: write `test_daily_import_cost_restores_previous_day_total_on_restart` — simulate HA restart with `last_state.state = "10.0"` and `attributes = {"accumulation_date": today_iso, "previous_day_total": "35.0"}`; assert `sensor._previous_day_total == 35.0` after `async_added_to_hass`
 
@@ -130,10 +132,11 @@
 
 - [ ] T032 [P] [US3] In `tests/test_accounting.py`: write `test_settled_price_uses_current_period_not_future` — build Interim schedule with periods at `T-30min`, `T+0min`, `T+30min`; freeze time at `T+10min`; assert `SettledPriceSensor` reports the `T+0min` price
 - [ ] T033 [P] [US3] In `tests/test_accounting.py`: write `test_settled_price_unavailable_when_only_future_periods_available` — build Interim schedule with only future periods; assert `SettledPriceSensor.native_value is None`
+- [ ] T040 [P] [US3] In `tests/test_accounting.py`: write `test_accounting_sensors_unavailable_on_api_error` — mock coordinator fetch to raise an exception or return empty Interim data; run coordinator update; assert `SettledPriceSensor`, `ImportCostSensor`, and `ExportRevenueSensor` all have `native_value is None` or state `STATE_UNAVAILABLE` (SC-005 full coverage)
 
 ### Implementation for User Story 3
 
-- [ ] T034 [US3] Review `coordinator._populate_accounting_metrics` price-selection logic against the two new tests (T032, T033); no code change expected if tests pass — mark complete after confirming
+- [ ] T034 [US3] Review `coordinator._populate_accounting_metrics` price-selection logic against the three new tests (T032, T033, T040); no code change expected if tests pass — mark complete after confirming
 
 **Checkpoint**: Run `pytest tests/test_accounting.py -v` — T032/T033 pass; existing settled-price tests still pass
 

@@ -58,9 +58,8 @@ specs/005-accounting-meter-requirements/
 ```text
 custom_components/electricityinfo/
 ├── config_flow.py         # _validate_meter_entity: add last_reset check; add same-entity check
-├── coordinator.py         # Move daily accumulation in-coordinator; add previous-day state;
-│                          # remove bidirectional same-entity code path; add seed_daily_total()
-├── sensor.py              # Simplify DailyAccountingSensorBase (reads from coordinator data);
+├── coordinator.py         # Remove bidirectional same-entity code path; add runtime same-entity guard
+├── sensor.py              # Extend DailyAccountingSensorBase with _previous_day_total snapshot;
 │                          # add PreviousDayImportCostSensor + PreviousDayExportRevenueSensor
 └── strings.json           # New error key: same_entity_import_export
 
