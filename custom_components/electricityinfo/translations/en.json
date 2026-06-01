@@ -49,8 +49,10 @@
         "forecast_horizons_invalid": "One or more selected forecast horizons are invalid.",
         "forecast_retention_invalid": "Forecast history retention must be 6, 12, or 24 hours.",
         "accounting_retention_invalid": "Accounting retention must be 24 or 48 hours.",
-        "entity_not_energy_import": "The selected import meter is not an energy meter (device_class: energy).",
-        "entity_not_energy_export": "The selected export meter is not an energy meter (device_class: energy).",
+        "entity_not_energy_import": "The selected import meter must be an energy sensor in kWh.",
+        "entity_not_energy_export": "The selected export meter must be an energy sensor in kWh.",
+        "entity_has_last_reset_import": "The selected import meter uses last_reset (utility meter). Select a cumulative energy sensor without last_reset.",
+        "entity_has_last_reset_export": "The selected export meter uses last_reset (utility meter). Select a cumulative energy sensor without last_reset.",
         "same_entity_import_export": "Import and export meter must be different entities.",
         "no_sensor_type_enabled": "At least one sensor type must be enabled."
       },

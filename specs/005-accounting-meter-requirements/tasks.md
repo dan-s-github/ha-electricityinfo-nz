@@ -33,9 +33,9 @@
 
 **⚠️ CRITICAL**: No user story implementation can begin until this phase is complete
 
-- [ ] T003 Add error key `"same_entity_import_export"` to `custom_components/electricityinfo/strings.json` in the flow_error section
+- [ ] T003 Add error key `"same_entity_import_export"` to `custom_components/electricityinfo/translations/en.json` under `config_subentries.market_node.error`
 - [ ] T004 Add error message `"same_entity_import_export": "Import and export meter must be different entities."` to `custom_components/electricityinfo/translations/en.json`
-- [ ] T038 [P] Update the `data_description` (or equivalent label key) for the import meter selector field in `custom_components/electricityinfo/strings.json` to read: "Requires a cumulative kWh sensor (e.g. smart meter, energy monitor) or the output of an HA Riemann sum integral helper. Utility meter helpers are not supported." (FR-010)
+- [ ] T038 [P] Update the `data_description` for the import meter selector field in `custom_components/electricityinfo/translations/en.json` to read: "Requires a cumulative kWh sensor (e.g. smart meter, energy monitor) or the output of an HA Riemann sum integral helper. Utility meter helpers are not supported." (FR-010)
 - [ ] T039 [P] Add the corresponding `data_description` translation in `custom_components/electricityinfo/translations/en.json` for the import meter (and export meter) selector fields to match T038 content (FR-010)
 
 **Checkpoint**: Translation strings in place — config-flow validation changes can now be tested

@@ -531,7 +531,7 @@ async def test_market_node_accounting_import_meter_must_be_energy(
 async def test_market_node_accounting_export_stored_as_none_when_omitted(
     hass: HomeAssistant,
 ) -> None:
-    """Export meter omitted: stored as None; coordinator applies fallback at runtime."""
+    """Export meter omitted: stored as None (no implicit fallback entity)."""
     hass.states.async_set(
         "sensor.import_meter",
         "456.0",
@@ -601,7 +601,7 @@ async def test_validate_meter_rejects_entity_with_last_reset(
         },
     )
     assert result2["type"] is FlowResultType.FORM
-    assert result2["errors"]["import_meter_entity_id"] == "entity_not_energy_import"
+    assert result2["errors"]["import_meter_entity_id"] == "entity_has_last_reset_import"
 
 
 async def test_validate_meter_accepts_integral_sensor_without_last_reset(
@@ -752,5 +752,8 @@ async def test_individual_validation_failure_does_not_trigger_same_entity_error(
         },
     )
     assert result2["type"] is FlowResultType.FORM
-    assert result2["errors"].get("import_meter_entity_id") == "entity_not_energy_import"
+    assert (
+        result2["errors"].get("import_meter_entity_id")
+        == "entity_has_last_reset_import"
+    )
     assert result2["errors"].get("base") != "same_entity_import_export"

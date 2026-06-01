@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 import voluptuous as vol
 from electricityinfo_nz import AsyncMarketPricesClient
@@ -149,6 +149,31 @@ def _validate_meter_entity(hass: HomeAssistant, entity_id: str | None) -> bool:
     )
 
 
+def _meter_entity_error(
+    hass: HomeAssistant,
+    entity_id: str | None,
+    meter_kind: Literal["import", "export"],
+) -> str | None:
+    """Return a specific translation error key for invalid meter entities."""
+    if not entity_id:
+        return None
+
+    state = hass.states.get(entity_id)
+    if state is None:
+        return f"entity_not_energy_{meter_kind}"
+
+    if (
+        state.attributes.get("device_class") != "energy"
+        or state.attributes.get("unit_of_measurement") != "kWh"
+    ):
+        return f"entity_not_energy_{meter_kind}"
+
+    if "last_reset" in state.attributes:
+        return f"entity_has_last_reset_{meter_kind}"
+
+    return None
+
+
 def _normalize_forecast_horizons(value: Any) -> list[str]:
     """Normalize forecast horizons from selector payload."""
     if isinstance(value, str):
@@ -210,10 +235,12 @@ def _validate_node_fields(
 
         import_meter = user_input.get(CONF_IMPORT_METER_ENTITY_ID)
         export_meter = user_input.get(CONF_EXPORT_METER_ENTITY_ID)
-        if import_meter and not _validate_meter_entity(hass, import_meter):
-            errors[CONF_IMPORT_METER_ENTITY_ID] = "entity_not_energy_import"
-        if export_meter and not _validate_meter_entity(hass, export_meter):
-            errors[CONF_EXPORT_METER_ENTITY_ID] = "entity_not_energy_export"
+        import_meter_error = _meter_entity_error(hass, import_meter, "import")
+        export_meter_error = _meter_entity_error(hass, export_meter, "export")
+        if import_meter_error:
+            errors[CONF_IMPORT_METER_ENTITY_ID] = import_meter_error
+        if export_meter_error:
+            errors[CONF_EXPORT_METER_ENTITY_ID] = export_meter_error
         if (
             import_meter
             and export_meter

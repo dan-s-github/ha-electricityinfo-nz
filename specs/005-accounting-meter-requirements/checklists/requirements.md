@@ -31,6 +31,6 @@
 
 ## Notes
 
-- FR-001/FR-002 introduce a new constraint (must reject utility meter helpers) that requires an update to `_validate_meter_entity` in config_flow.py — specifically adding a `state_class == total_increasing` check. The Assumptions section flags this as an implementation refinement.
+- FR-001/FR-002 introduce a new constraint (must reject utility meter helpers) that requires `_validate_meter_entity` to reject entities with `last_reset` while still accepting valid cumulative kWh sensors (including Riemann sum helpers).
 - FR-010 requires updated UI labels/descriptions in the config flow schema and translations strings.
 - All items pass. Spec is ready for `/speckit-clarify` or `/speckit-plan`.

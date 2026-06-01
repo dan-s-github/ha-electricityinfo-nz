@@ -526,48 +526,38 @@ class SettledPriceSensor(MarketNodeSensorBase):
             self.async_write_ha_state()
             return
 
+        settled_price = node_data.get("settled_price")
+        settled_timestamp: datetime | None = node_data.get("settled_timestamp")
+        settled_period = node_data.get("settled_trading_period")
         accounting = node_data.get("accounting")
-        if not accounting or not getattr(accounting, "prices", None):
-            self._native_value = None
-            self._attributes = {}
-            self.async_write_ha_state()
-            return
-
-        settled_prices = [p for p in accounting.prices if p.price is not None]
-        if not settled_prices:
+        if (
+            settled_price is None
+            or settled_timestamp is None
+            or settled_period is None
+            or not accounting
+            or not getattr(accounting, "prices", None)
+        ):
             self._native_value = None
             self._attributes = {}
             self.async_write_ha_state()
             return
 
         now = dt_util.utcnow()
-        sorted_settled = sorted(settled_prices, key=lambda p: p.trading_datetime)
-        current = next(
-            (
-                p
-                for p in sorted_settled
-                if p.trading_datetime
-                <= now
-                < p.trading_datetime + timedelta(minutes=30)
-            ),
-            None,
+        settled_prices = sorted(
+            (p for p in accounting.prices if p.price is not None),
+            key=lambda p: p.trading_datetime,
         )
-        if current is not None:
-            selected = current
-        else:
-            past = [p for p in sorted_settled if p.trading_datetime <= now]
-            selected = past[-1] if past else sorted_settled[0]
         retention = int(self._config.get(CONF_ACCOUNTING_RETENTION_HOURS, 24)) * 2
         history = [
             p
-            for p in sorted_settled
+            for p in settled_prices
             if p.trading_datetime + timedelta(minutes=30) <= now
         ][-retention:]
-        self._native_value = selected.price
+        self._native_value = settled_price
         self._attributes = {
-            "trading_period": selected.trading_period,
-            "timestamp": selected.trading_datetime.isoformat(),
-            "node": selected.node,
+            "trading_period": settled_period,
+            "timestamp": settled_timestamp.isoformat(),
+            "node": node_data.get("node"),
             "history": [
                 {
                     "period_start": price.trading_datetime.isoformat(),

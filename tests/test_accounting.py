@@ -99,6 +99,9 @@ async def test_settled_price_sensor_uses_current_period_and_excludes_from_histor
         coordinator.data = {
             subentry.subentry_id: {
                 "accounting": schedule,
+                "settled_price": 0.25,
+                "settled_timestamp": current_start,
+                "settled_trading_period": 20,
                 "config": dict(subentry.data),
                 "error": None,
             }
@@ -599,21 +602,36 @@ async def test_previous_day_sensor_unavailable_before_first_rollover(
 async def test_settled_price_none_when_only_future_periods_present(
     hass, mock_entry
 ) -> None:
-    """settled_price not set when all accounting periods are in the future."""
+    """Coordinator and settled sensor stay unavailable with only future periods."""
+    subentry = create_mock_market_node_subentry(
+        enable_live_price=False,
+        enable_forecast=False,
+        enable_accounting=True,
+        accounting_retention_hours=24,
+    )
     future_time = datetime.now(UTC) + timedelta(hours=1)
     schedule = _make_accounting_schedule([(future_time, 50, 0.30)])
 
     with patch("custom_components.electricityinfo.AsyncMarketPricesClient"):
         coordinator = ElectricityInfoCoordinator(hass, mock_entry)
         coordinator.last_update_success = True
-        node_data: dict = {"accounting": schedule}
+        node_data: dict = {
+            "accounting": schedule,
+            "config": dict(subentry.data),
+            "error": None,
+        }
         coordinator._populate_accounting_metrics(
-            subentry_id="market_node_1",
+            subentry_id=subentry.subentry_id,
             config={
                 "import_meter_entity_id": None,
                 "export_meter_entity_id": None,
             },
             node_data=node_data,
         )
+        coordinator.data = {subentry.subentry_id: node_data}
+        entity = SettledPriceSensor(coordinator, mock_entry, subentry)
+        with patch.object(entity, "async_write_ha_state", MagicMock()):
+            entity._handle_coordinator_update()
 
     assert node_data.get("settled_price") is None
+    assert entity.native_value is None

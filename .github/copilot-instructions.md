@@ -33,14 +33,13 @@ pytest tests/live/ -v -m live_api # Optional: live API tests (requires .env)
 ```
 
 **Key Design Decisions**:
-- **005 is a surgical change**: only `config_flow.py`, `coordinator.py`, `sensor.py`, `strings.json`, `translations/en.json` modified; no config schema change
+- **005 is a surgical change**: only `config_flow.py`, `coordinator.py`, `sensor.py`, and `translations/en.json` modified; no config schema change
 - **Daily sensors still own accumulation**: `_accumulated_total` stays on sensor; at day rollover `_previous_day_total = _accumulated_total` captured before reset; stored in HA state attributes for RestoreEntity persistence
-- **Previous-day sensors use cross-sensor reference**: `PreviousDayImportCostSensor` holds a ref to `DailyImportCostSensor` and reads `daily_sensor._previous_day_total`; no coordinator data needed; no startup-ordering issues
+- **Previous-day sensors use cross-sensor reference**: `PreviousDayImportCostSensor` holds a ref to `DailyImportCostSensor` and reads `daily_sensor.previous_day_total`; no coordinator data needed; no startup-ordering issues
 - **Utility meter rejection**: `_validate_meter_entity` adds `"last_reset" not in state.attributes`; rejects HA utility meter helpers; accepts Riemann sum integration helpers and native cumulative sensors
 - **Same-entity hard error in config flow**: `errors["base"] = "same_entity_import_export"` when import and export meter IDs are identical
 - **Runtime guard for legacy same-entity configs**: coordinator logs warning and skips accounting if `import_meter == export_meter`; protects existing saved configs that predate this feature
 - **Bidirectional coordinator code path removed**: `bidirectional` variable and `if bidirectional:` branch deleted; `or import_meter` export fallback also removed
-- **MINOR version bump**: new sensors added, no breaking config schema changes
 
 **Prior Phase Dependency**:
 Phase 1 (001-oauth-config-flow) completed: OAuth 2.0 authentication, token management, config flow validation.
