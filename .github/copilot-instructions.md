@@ -48,9 +48,8 @@ Phase 3 (003-multi-entity-market-node) completed: all 72 tests passing; clean ru
 Phase 4 (004-rtd-live-price) completed: RTD live price sensor, 5-min coordinator interval; all 80 tests passing.
 
 **Implementation Status (Current Branch)**:
-- Planning complete: spec, research, data-model, contracts, quickstart all written.
-- Baseline: all 80 tests green; clean ruff + mypy.
-- Implementation not yet started (use `/speckit-tasks` to generate task list).
+- Implementation complete for feature 005: meter validation updates, same-entity guard, previous-day sensors, and SC-005 settled-price behavior.
+- Current baseline: tests passing with clean ruff + mypy on this branch.
 
 **Pre-commit Note**: Repository has pre-commit hooks that auto-fix formatting (trailing whitespace, EOF).
 Changes made by hooks require re-staging and re-committing. This is expected behavior.

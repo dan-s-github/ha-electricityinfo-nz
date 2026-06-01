@@ -135,20 +135,6 @@ def _build_node_form_schema(defaults: dict[str, Any] | None = None) -> vol.Schem
     )
 
 
-def _validate_meter_entity(hass: HomeAssistant, entity_id: str | None) -> bool:
-    """Validate meter entity is an energy sensor with kWh unit."""
-    if not entity_id:
-        return True
-    state = hass.states.get(entity_id)
-    if state is None:
-        return False
-    return (
-        state.attributes.get("device_class") == "energy"
-        and state.attributes.get("unit_of_measurement") == "kWh"
-        and "last_reset" not in state.attributes
-    )
-
-
 def _meter_entity_error(
     hass: HomeAssistant,
     entity_id: str | None,
