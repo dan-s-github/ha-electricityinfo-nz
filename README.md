@@ -256,14 +256,15 @@ Use this automation if Home Assistant restarts just after a schedule boundary an
 ```yaml
 alias: Reload Electricityinfo After HA Start
 description: >-
-  Wait until xx:01 or xx:31 within the first hour after Home Assistant starts,
-  then reload the Electricityinfo config entry.
+  Wait for the next xx:x1 or xx:x6 minute mark (1 minute past each 5-minute
+  price update) within the first hour after Home Assistant starts, then
+  reload the Electricityinfo config entry.
 triggers:
   - trigger: homeassistant
     event: start
 conditions: []
 actions:
-  - wait_template: "{{ now().minute == 1 or now().minute == 31 }}"
+  - wait_template: "{{ now().minute % 5 == 1 }}"
     continue_on_timeout: true
     timeout: "01:00:00"
   - choose:
@@ -275,8 +276,8 @@ actions:
             data:
               title: Electricityinfo Reload Timeout
               message: >-
-                Timed out waiting for xx:02 or xx:32 to reload the Electricityinfo
-                integration.
+                Timed out waiting for the next xx:x1 or xx:x6 minute mark to
+                reload the Electricityinfo integration.
               notification_id: electricityinfo_reload_timeout
     default:
       - action: homeassistant.reload_config_entry
@@ -285,7 +286,9 @@ actions:
 mode: single
 ```
 
-Find `YOUR_CONFIG_ENTRY_ID` under **Settings -> Devices & Services -> Electricityinfo NZ -> ⋮ -> System options**.
+Find `YOUR_CONFIG_ENTRY_ID` under **Settings -> Devices & Services -> Electricityinfo NZ -> ⋮ -> Copy entry ID**:
+
+![Copy entry ID from the Electricityinfo NZ service menu](images/copy_entry_id.png)
 
 ---
 
