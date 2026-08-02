@@ -30,7 +30,7 @@ Home Assistant custom integration for [Electricityinfo NZ](https://electricityin
 
 ## Prerequisites
 
-You need API credentials from [developer.electricityinfo.co.nz](https://developer.electricityinfo.co.nz):
+You need API credentials from [developer.electricityinfo.co.nz](https://developer.electricityinfo.co.nz/WITS/login):
 
 1. Register for an account at the developer portal
 2. Create an application to obtain a **Client ID** and **Client Secret**
@@ -302,7 +302,7 @@ Find `YOUR_CONFIG_ENTRY_ID` under **Settings -> Devices & Services -> Electricit
 
 ### Sensors show "Unavailable"
 
-- Check your API credentials are still valid at [developer.electricityinfo.co.nz](https://developer.electricityinfo.co.nz)
+- Check your API credentials are still valid at [developer.electricityinfo.co.nz](https://developer.electricityinfo.co.nz/WITS/login)
 - Check Home Assistant has internet access
 - Check the integration logs: **Settings → System → Logs**, filter for `electricityinfo`
 
