@@ -56,6 +56,8 @@ from .const import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from homeassistant.config_entries import ConfigFlowResult
     from homeassistant.core import HomeAssistant
 
@@ -337,11 +339,82 @@ class ElectricityInfoConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 self._abort_if_unique_id_configured()
                 return await self.async_step_auth_validate()
 
+        return self._credentials_form(step_id="user", errors=errors)
+
+    async def async_step_reauth(
+        self,
+        entry_data: Mapping[str, Any],  # noqa: ARG002
+    ) -> ConfigFlowResult:
+        """Handle reauthentication triggered by an authentication failure."""
+        return await self.async_step_reauth_confirm()
+
+    async def async_step_reauth_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Collect new credentials for an entry that failed authentication."""
+        errors: dict[str, str] = {}
+        reauth_entry = self._get_reauth_entry()
+
+        if user_input is not None:
+            if not user_input.get(CONF_CLIENT_ID):
+                errors[CONF_CLIENT_ID] = "client_id_required"
+            if not user_input.get(CONF_CLIENT_SECRET):
+                errors[CONF_CLIENT_SECRET] = "client_secret_required"
+
+            if not errors:
+                self.client_id = user_input[CONF_CLIENT_ID]
+                self.client_secret = user_input[CONF_CLIENT_SECRET]
+                return await self.async_step_auth_validate()
+
+        return self._credentials_form(
+            step_id="reauth_confirm",
+            errors=errors,
+            default_client_id=reauth_entry.data.get(CONF_CLIENT_ID),
+        )
+
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Let the user update stored credentials without removing the entry."""
+        errors: dict[str, str] = {}
+        reconfigure_entry = self._get_reconfigure_entry()
+
+        if user_input is not None:
+            if not user_input.get(CONF_CLIENT_ID):
+                errors[CONF_CLIENT_ID] = "client_id_required"
+            if not user_input.get(CONF_CLIENT_SECRET):
+                errors[CONF_CLIENT_SECRET] = "client_secret_required"
+
+            if not errors:
+                self.client_id = user_input[CONF_CLIENT_ID]
+                self.client_secret = user_input[CONF_CLIENT_SECRET]
+                return await self.async_step_auth_validate()
+
+        return self._credentials_form(
+            step_id="reconfigure",
+            errors=errors,
+            default_client_id=reconfigure_entry.data.get(CONF_CLIENT_ID),
+        )
+
+    def _credentials_form(
+        self,
+        *,
+        step_id: str,
+        errors: dict[str, str],
+        default_client_id: str | None = None,
+    ) -> ConfigFlowResult:
+        """Build the client ID / secret entry form for the given step."""
+        default_client_id = default_client_id or self.client_id
+        client_id_key: Any = (
+            vol.Required(CONF_CLIENT_ID, default=default_client_id)
+            if default_client_id
+            else vol.Required(CONF_CLIENT_ID)
+        )
         return self.async_show_form(
-            step_id="user",
+            step_id=step_id,
             data_schema=vol.Schema(
                 {
-                    vol.Required(CONF_CLIENT_ID): str,
+                    client_id_key: str,
                     vol.Required(CONF_CLIENT_SECRET): TextSelector(
                         TextSelectorConfig(type=TextSelectorType.PASSWORD)
                     ),
@@ -352,6 +425,14 @@ class ElectricityInfoConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 "help_url": DEVELOPER_PORTAL_URL,
             },
         )
+
+    def _credentials_step_id(self) -> str:
+        """Return the step whose form should be re-shown on validation failure."""
+        if self.source == config_entries.SOURCE_REAUTH:
+            return "reauth_confirm"
+        if self.source == config_entries.SOURCE_RECONFIGURE:
+            return "reconfigure"
+        return "user"
 
     async def async_step_auth_validate(
         self,
@@ -372,20 +453,8 @@ class ElectricityInfoConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         except AuthenticationError:
             errors["base"] = "invalid_auth"
             self.validation_attempts = 0
-            return self.async_show_form(
-                step_id="user",
-                data_schema=vol.Schema(
-                    {
-                        vol.Required(CONF_CLIENT_ID, default=self.client_id): str,
-                        vol.Required(CONF_CLIENT_SECRET): TextSelector(
-                            TextSelectorConfig(type=TextSelectorType.PASSWORD)
-                        ),
-                    }
-                ),
-                errors=errors,
-                description_placeholders={
-                    "help_url": DEVELOPER_PORTAL_URL,
-                },
+            return self._credentials_form(
+                step_id=self._credentials_step_id(), errors=errors
             )
 
         except TransportError, TimeoutError:
@@ -406,6 +475,23 @@ class ElectricityInfoConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 step_id="auth_validate",
                 errors=errors,
                 last_step=True,
+            )
+
+        if self.source == config_entries.SOURCE_REAUTH:
+            return self.async_update_reload_and_abort(
+                self._get_reauth_entry(),
+                data={
+                    CONF_CLIENT_ID: self.client_id,
+                    CONF_CLIENT_SECRET: self.client_secret,
+                },
+            )
+        if self.source == config_entries.SOURCE_RECONFIGURE:
+            return self.async_update_reload_and_abort(
+                self._get_reconfigure_entry(),
+                data={
+                    CONF_CLIENT_ID: self.client_id,
+                    CONF_CLIENT_SECRET: self.client_secret,
+                },
             )
 
         return self.async_create_entry(

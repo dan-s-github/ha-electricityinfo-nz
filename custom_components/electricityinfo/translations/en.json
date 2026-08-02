@@ -3,7 +3,9 @@
     "abort": {
       "already_configured": "Electricityinfo NZ is already configured",
       "already_in_progress": "Configuration already in progress",
-      "not_implemented": "Feature not yet implemented"
+      "not_implemented": "Feature not yet implemented",
+      "reauth_successful": "Re-authentication was successful",
+      "reconfigure_successful": "Credentials updated successfully"
     },
     "flow_title": "Electricityinfo NZ",
     "error": {
@@ -28,6 +30,30 @@
       },
       "auth_validate": {
         "title": "Validating Credentials"
+      },
+      "reauth_confirm": {
+        "title": "Re-authenticate Electricityinfo NZ",
+        "description": "Your stored credentials were rejected by {help_url}. Enter new OAuth credentials to keep this integration working.",
+        "data": {
+          "client_id": "Client ID",
+          "client_secret": "Client Secret"
+        },
+        "data_description": {
+          "client_id": "Your OAuth Client ID",
+          "client_secret": "Your OAuth Client Secret (secure)"
+        }
+      },
+      "reconfigure": {
+        "title": "Update Electricityinfo NZ Credentials",
+        "description": "Enter new OAuth credentials from {help_url}. Your existing market node sensors are kept as-is.",
+        "data": {
+          "client_id": "Client ID",
+          "client_secret": "Client Secret"
+        },
+        "data_description": {
+          "client_id": "Your OAuth Client ID",
+          "client_secret": "Your OAuth Client Secret (secure)"
+        }
       }
     }
   },

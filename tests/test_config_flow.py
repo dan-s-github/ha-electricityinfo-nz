@@ -236,6 +236,112 @@ async def test_token_validation_retry_success(hass: HomeAssistant) -> None:
         assert result3["type"] is FlowResultType.CREATE_ENTRY
 
 
+async def test_reauth_flow_updates_credentials(hass: HomeAssistant) -> None:
+    """Reauth flow prefills client_id and updates the entry on success."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Electricityinfo NZ",
+        unique_id=DOMAIN,
+        data={CONF_CLIENT_ID: "old_client", CONF_CLIENT_SECRET: "old_secret"},
+    )
+    entry.add_to_hass(hass)
+
+    result = await entry.start_reauth_flow(hass)
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "reauth_confirm"
+    assert result["data_schema"]({CONF_CLIENT_SECRET: "x"})[CONF_CLIENT_ID] == (
+        "old_client"
+    )
+
+    client_patch = _patch_client()
+    with client_patch as mock_client:
+        mock_client_instance = AsyncMock()
+        mock_client_instance.get_schedules.return_value = {"schedules": []}
+        mock_client.return_value = mock_client_instance
+
+        result2 = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            user_input={
+                CONF_CLIENT_ID: "new_client",
+                CONF_CLIENT_SECRET: "new_secret",
+            },
+        )
+
+    assert result2["type"] is FlowResultType.ABORT
+    assert result2["reason"] == "reauth_successful"
+    assert entry.data[CONF_CLIENT_ID] == "new_client"
+    assert entry.data[CONF_CLIENT_SECRET] == "new_secret"
+
+
+async def test_reauth_flow_invalid_credentials_redisplays_reauth_confirm(
+    hass: HomeAssistant,
+) -> None:
+    """Reauth flow re-shows the reauth_confirm step (not user) on auth failure."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Electricityinfo NZ",
+        unique_id=DOMAIN,
+        data={CONF_CLIENT_ID: "old_client", CONF_CLIENT_SECRET: "old_secret"},
+    )
+    entry.add_to_hass(hass)
+
+    result = await entry.start_reauth_flow(hass)
+
+    client_patch = _patch_client()
+    with client_patch as mock_client:
+        mock_client_instance = AsyncMock()
+        mock_client_instance.get_schedules.side_effect = AuthenticationError(
+            "Invalid credentials"
+        )
+        mock_client.return_value = mock_client_instance
+
+        result2 = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            user_input={
+                CONF_CLIENT_ID: "new_client",
+                CONF_CLIENT_SECRET: "wrong_secret",
+            },
+        )
+
+    assert result2["type"] is FlowResultType.FORM
+    assert result2["step_id"] == "reauth_confirm"
+    assert result2["errors"]["base"] == "invalid_auth"
+
+
+async def test_reconfigure_flow_updates_credentials(hass: HomeAssistant) -> None:
+    """Reconfigure flow lets the user replace credentials without losing the entry."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Electricityinfo NZ",
+        unique_id=DOMAIN,
+        data={CONF_CLIENT_ID: "old_client", CONF_CLIENT_SECRET: "old_secret"},
+    )
+    entry.add_to_hass(hass)
+
+    result = await entry.start_reconfigure_flow(hass)
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "reconfigure"
+
+    client_patch = _patch_client()
+    with client_patch as mock_client:
+        mock_client_instance = AsyncMock()
+        mock_client_instance.get_schedules.return_value = {"schedules": []}
+        mock_client.return_value = mock_client_instance
+
+        result2 = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            user_input={
+                CONF_CLIENT_ID: "new_client",
+                CONF_CLIENT_SECRET: "new_secret",
+            },
+        )
+
+    assert result2["type"] is FlowResultType.ABORT
+    assert result2["reason"] == "reconfigure_successful"
+    assert entry.data[CONF_CLIENT_ID] == "new_client"
+    assert entry.data[CONF_CLIENT_SECRET] == "new_secret"
+
+
 async def test_market_node_live_only_subentry_creation(hass: HomeAssistant) -> None:
     """Live-only market node subentry can be created."""
     entry = MockConfigEntry(
