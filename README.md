@@ -306,6 +306,10 @@ Find `YOUR_CONFIG_ENTRY_ID` under **Settings -> Devices & Services -> Electricit
 - Check Home Assistant has internet access
 - Check the integration logs: **Settings → System → Logs**, filter for `electricityinfo`
 
+### Updating your API credentials
+
+If your Client ID or Client Secret changes (or Home Assistant flags the integration as needing re-authentication), you don't need to remove and re-add the integration — your market node sensors would be lost. Instead, go to **Settings → Devices & Services → Electricityinfo NZ → ⋮ → Reconfigure** and enter the new credentials.
+
 ### Forecast attribute is empty
 
 - The API may not have published forward prices for the selected node yet — retry after the next `:00` or `:30`
