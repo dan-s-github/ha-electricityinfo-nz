@@ -181,6 +181,18 @@ Nodes are the grid injection/offtake points used by the WITS market. The node pi
 
 The list is sourced from the Electricity Authority's [Final Energy Prices dataset](https://www.emi.ea.govt.nz/Wholesale/Datasets/DispatchAndPricing/FinalEnergyPrices) (every node with a settled wholesale price) and cross-referenced against EMI's [Network Supply Points Table](https://www.emi.ea.govt.nz/Wholesale/Datasets/MappingsAndGeospatial/NetworkSupplyPointsTable) for site names. A handful of nodes have no published site name and appear as their code only.
 
+### Finding the right node for your location
+
+The node picker is a searchable dropdown — start typing your town or suburb name and matching nodes will filter as you go (e.g. typing "hamilton" surfaces `HAM0111`, `HAM0331`, `HAM0551`, `HAM2201`).
+
+The Electricity Authority itself has no address-to-node lookup (their own forum says as much when asked), but a few other resources get you there:
+
+- **Search by nearest town/substation.** Most nodes are named after the substation or town they serve. Pick the node whose site name is geographically closest to you.
+- **Transpower's [Envision map](https://experience.arcgis.com/experience/007dcdef2909420ba7420377a22799d0/page/HOME)** is an interactive, nationwide GIS map of the transmission grid, including substations and GXPs — the closest thing to a real "find it on a map" tool.
+- **Your local lines company may publish its own GIS map.** Check your power bill for your network (e.g. Vector in Auckland, Wellington Electricity, Orion in Christchurch, Unison in Hamilton/Rotorua/Hawke's Bay) — Vector, for example, publishes an [open-data network map](https://data.vector.co.nz/maps/45a165ecd0aa432484bedf1e9de9cf9d) showing zone substations, which you can cross-reference against the node names in the picker.
+- **For exact coordinates**, EMI's [Network Supply Points Table](https://www.emi.ea.govt.nz/Wholesale/Datasets/MappingsAndGeospatial/NetworkSupplyPointsTable) CSVs include NZTM easting/northing per site.
+- **Exact precision isn't critical.** Wholesale prices at neighbouring nodes are usually within a few cents of each other (they diverge mainly around transmission constraints or big island-crossing events). Picking the closest reasonable node is normally good enough — you can always change it later via **⋮ → Reconfigure** on the node's device page.
+
 ---
 
 ## Usage Examples
