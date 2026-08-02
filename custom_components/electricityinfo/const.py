@@ -18,7 +18,8 @@ CONF_CLIENT_ID = "client_id"
 CONF_CLIENT_SECRET = "client_secret"  # noqa: S105
 
 # Help URLs
-DEVELOPER_PORTAL_URL = "https://developer.electricityinfo.co.nz"
+# The bare domain 404s; sign-up/login moved under /WITS (#14).
+DEVELOPER_PORTAL_URL = "https://developer.electricityinfo.co.nz/WITS/login"
 
 # Validation retry configuration
 MAX_VALIDATION_ATTEMPTS = 3
