@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from typing import TYPE_CHECKING, Any, Literal
 
 import voluptuous as vol
@@ -16,6 +17,7 @@ from homeassistant.helpers.selector import (
     EntitySelectorConfig,
     SelectSelector,
     SelectSelectorConfig,
+    SelectSelectorMode,
     TextSelector,
     TextSelectorConfig,
     TextSelectorType,
@@ -47,13 +49,12 @@ from .const import (
     FORECAST_RETENTION_OPTIONS_SELECT,
     FORECAST_TYPE_OPTIONS,
     FORECAST_TYPES,
-    MARKET_NODE_OPTIONS,
-    MARKET_NODES,
     MAX_VALIDATION_ATTEMPTS,
     PRICE_UNIT_OPTIONS,
     PRICE_UNITS,
     SUBENTRY_TYPE,
 )
+from .nodes import MARKET_NODE_OPTIONS, MARKET_NODES
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -62,6 +63,10 @@ if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
 
 _LOGGER = logging.getLogger(__name__)
+
+# NZEM node codes are 3 letters + 4 digits (e.g. "HAY2201"). Used to sanity
+# check custom-entered nodes that aren't in our known MARKET_NODES snapshot.
+_NODE_CODE_PATTERN = re.compile(r"^[A-Z]{3}\d{4}$")
 
 
 def _node_title(data: dict[str, Any]) -> str:
@@ -74,11 +79,33 @@ def _node_title(data: dict[str, Any]) -> str:
 def _build_node_form_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
     """Build schema for market node subentry flow."""
     d = defaults or {}
+    # EntitySelector rejects None, so only set a default when a value exists —
+    # vol.Optional(key, default=None) would inject and validate None otherwise.
+    import_meter_key: Any = (
+        vol.Optional(
+            CONF_IMPORT_METER_ENTITY_ID, default=d[CONF_IMPORT_METER_ENTITY_ID]
+        )
+        if d.get(CONF_IMPORT_METER_ENTITY_ID)
+        else vol.Optional(CONF_IMPORT_METER_ENTITY_ID)
+    )
+    export_meter_key: Any = (
+        vol.Optional(
+            CONF_EXPORT_METER_ENTITY_ID, default=d[CONF_EXPORT_METER_ENTITY_ID]
+        )
+        if d.get(CONF_EXPORT_METER_ENTITY_ID)
+        else vol.Optional(CONF_EXPORT_METER_ENTITY_ID)
+    )
     return vol.Schema(
         {
             vol.Required(
                 CONF_NODE, default=d.get(CONF_NODE, MARKET_NODES[0])
-            ): SelectSelector(SelectSelectorConfig(options=MARKET_NODE_OPTIONS)),
+            ): SelectSelector(
+                SelectSelectorConfig(
+                    options=MARKET_NODE_OPTIONS,
+                    mode=SelectSelectorMode.DROPDOWN,
+                    custom_value=True,
+                )
+            ),
             vol.Required(
                 CONF_PRICE_UNIT, default=d.get(CONF_PRICE_UNIT, "c/kWh")
             ): SelectSelector(SelectSelectorConfig(options=PRICE_UNIT_OPTIONS)),
@@ -123,14 +150,10 @@ def _build_node_form_schema(defaults: dict[str, Any] | None = None) -> vol.Schem
             ): SelectSelector(
                 SelectSelectorConfig(options=ACCOUNTING_RETENTION_OPTIONS_SELECT)
             ),
-            vol.Optional(
-                CONF_IMPORT_METER_ENTITY_ID,
-            ): EntitySelector(
+            import_meter_key: EntitySelector(
                 EntitySelectorConfig(domain="sensor", device_class="energy")
             ),
-            vol.Optional(
-                CONF_EXPORT_METER_ENTITY_ID,
-            ): EntitySelector(
+            export_meter_key: EntitySelector(
                 EntitySelectorConfig(domain="sensor", device_class="energy")
             ),
         }
@@ -184,7 +207,9 @@ def _validate_node_fields(
     """Validate market node fields and return dict of field -> error key."""
     errors: dict[str, str] = {}
 
-    if user_input.get(CONF_NODE) not in MARKET_NODES:
+    node = str(user_input.get(CONF_NODE, "")).strip().upper()
+    user_input[CONF_NODE] = node
+    if node not in MARKET_NODES and not _NODE_CODE_PATTERN.match(node):
         errors[CONF_NODE] = "node_invalid"
     if user_input.get(CONF_PRICE_UNIT) not in PRICE_UNITS:
         errors[CONF_PRICE_UNIT] = "price_unit_invalid"
