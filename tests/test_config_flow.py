@@ -17,6 +17,8 @@ if TYPE_CHECKING:
 from custom_components.electricityinfo.const import (
     CONF_CLIENT_ID,
     CONF_CLIENT_SECRET,
+    CONF_EXPORT_METER_ENTITY_ID,
+    CONF_IMPORT_METER_ENTITY_ID,
     DOMAIN,
 )
 
@@ -549,6 +551,70 @@ async def test_market_node_duplicate_node_rejected_on_reconfigure(
     )
     assert result2["type"] is FlowResultType.FORM
     assert result2["errors"]["node"] == "node_already_configured"
+
+
+async def test_market_node_reconfigure_repopulates_meter_entities(
+    hass: HomeAssistant,
+) -> None:
+    """Reconfigure form prefills previously configured import/export meters (#13)."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Electricityinfo NZ",
+        data={CONF_CLIENT_ID: "client123", CONF_CLIENT_SECRET: "secret123"},
+        subentries_data=[
+            {
+                "subentry_id": "market_node_1",
+                "subentry_type": "market_node",
+                "title": "HAY2201 [c/kWh]",
+                "data": {
+                    "node": "HAY2201",
+                    "price_unit": "c/kWh",
+                    "enable_live_price": True,
+                    "enable_forecast": False,
+                    "enable_accounting": True,
+                    "import_meter_entity_id": "sensor.import_meter",
+                    "export_meter_entity_id": "sensor.export_meter",
+                },
+                "unique_id": None,
+            },
+        ],
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.subentries.async_init(
+        (entry.entry_id, "market_node"),
+        context={
+            "source": config_entries.SOURCE_RECONFIGURE,
+            "subentry_id": "market_node_1",
+        },
+    )
+    assert result["type"] is FlowResultType.FORM
+
+    defaults = result["data_schema"]({"node": "HAY2201", "price_unit": "c/kWh"})
+    assert defaults[CONF_IMPORT_METER_ENTITY_ID] == "sensor.import_meter"
+    assert defaults[CONF_EXPORT_METER_ENTITY_ID] == "sensor.export_meter"
+
+
+async def test_market_node_new_subentry_has_no_meter_defaults(
+    hass: HomeAssistant,
+) -> None:
+    """A fresh (non-reconfigure) form has no default entity for either meter."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Electricityinfo NZ",
+        data={CONF_CLIENT_ID: "client123", CONF_CLIENT_SECRET: "secret123"},
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.subentries.async_init(
+        (entry.entry_id, "market_node"),
+        context={"source": config_entries.SOURCE_USER},
+    )
+    assert result["type"] is FlowResultType.FORM
+
+    defaults = result["data_schema"]({"node": "HAY2201", "price_unit": "c/kWh"})
+    assert CONF_IMPORT_METER_ENTITY_ID not in defaults
+    assert CONF_EXPORT_METER_ENTITY_ID not in defaults
 
 
 async def test_market_node_accounting_import_meter_must_be_energy(
