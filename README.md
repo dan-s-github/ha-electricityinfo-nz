@@ -177,23 +177,9 @@ The **live price sensor** uses the dedicated RTD (Real-Time Dispatch) schedule â
 
 ## Grid Reference Nodes
 
-Nodes are the grid injection/offtake points used by the WITS market. Choose the node geographically closest to you or relevant to your region.
+Nodes are the grid injection/offtake points used by the WITS market. The node picker in the config flow lists all 246 NZEM wholesale pricing nodes, each shown as `CODE (Site, Island)` â€” choose the node geographically closest to you or relevant to your region.
 
-| Code | Location | Island |
-|---|---|---|
-| `BRB0331` | Bream Bay | North Island |
-| `OTA2201` | Otahuhu | North Island |
-| `HLY2201` | Huntly | North Island |
-| `WKM2201` | Waikamaka | North Island |
-| `TUI1101` | Tuai | North Island |
-| `SFD2201` | Stratford | North Island |
-| `HAY2201` | Haywards | North Island |
-| `STK2201` | Stoke | South Island |
-| `DOB0661` | Dobson | South Island |
-| `ISL2201` | Islington | South Island |
-| `BEN2201` | Benmore | South Island |
-| `HWB2201` | Hawea | South Island |
-| `INV2201` | Invercargill | South Island |
+The list is sourced from the Electricity Authority's [Final Energy Prices dataset](https://www.emi.ea.govt.nz/Wholesale/Datasets/DispatchAndPricing/FinalEnergyPrices) (every node with a settled wholesale price) and cross-referenced against EMI's [Network Supply Points Table](https://www.emi.ea.govt.nz/Wholesale/Datasets/MappingsAndGeospatial/NetworkSupplyPointsTable) for site names. A handful of nodes have no published site name and appear as their code only.
 
 ---
 

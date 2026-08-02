@@ -263,6 +263,64 @@ async def test_market_node_live_only_subentry_creation(hass: HomeAssistant) -> N
     assert result2["type"] is FlowResultType.CREATE_ENTRY
 
 
+async def test_market_node_custom_value_accepted_when_well_formed(
+    hass: HomeAssistant,
+) -> None:
+    """A node typed in that isn't in MARKET_NODES is accepted if well-formed."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Electricityinfo NZ",
+        data={CONF_CLIENT_ID: "client123", CONF_CLIENT_SECRET: "secret123"},
+    )
+    entry.add_to_hass(hass)
+    result = await hass.config_entries.subentries.async_init(
+        (entry.entry_id, "market_node"),
+        context={"source": config_entries.SOURCE_USER},
+    )
+
+    result2 = await hass.config_entries.subentries.async_configure(
+        result["flow_id"],
+        user_input={
+            "node": "zzz9999",
+            "price_unit": "c/kWh",
+            "enable_live_price": True,
+            "enable_forecast": False,
+            "enable_accounting": False,
+        },
+    )
+    assert result2["type"] is FlowResultType.CREATE_ENTRY
+    assert result2["data"]["node"] == "ZZZ9999"
+
+
+async def test_market_node_custom_value_rejected_when_malformed(
+    hass: HomeAssistant,
+) -> None:
+    """A typed node that doesn't match the NZEM code format is rejected."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Electricityinfo NZ",
+        data={CONF_CLIENT_ID: "client123", CONF_CLIENT_SECRET: "secret123"},
+    )
+    entry.add_to_hass(hass)
+    result = await hass.config_entries.subentries.async_init(
+        (entry.entry_id, "market_node"),
+        context={"source": config_entries.SOURCE_USER},
+    )
+
+    result2 = await hass.config_entries.subentries.async_configure(
+        result["flow_id"],
+        user_input={
+            "node": "not-a-node",
+            "price_unit": "c/kWh",
+            "enable_live_price": True,
+            "enable_forecast": False,
+            "enable_accounting": False,
+        },
+    )
+    assert result2["type"] is FlowResultType.FORM
+    assert result2["errors"]["node"] == "node_invalid"
+
+
 async def test_market_node_forecast_requires_horizon_when_enabled(
     hass: HomeAssistant,
 ) -> None:
