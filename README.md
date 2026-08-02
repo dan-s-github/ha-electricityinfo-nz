@@ -177,23 +177,21 @@ The **live price sensor** uses the dedicated RTD (Real-Time Dispatch) schedule �
 
 ## Grid Reference Nodes
 
-Nodes are the grid injection/offtake points used by the WITS market. Choose the node geographically closest to you or relevant to your region.
+Nodes are the grid injection/offtake points used by the WITS market. The node picker in the config flow lists all 246 NZEM wholesale pricing nodes, each shown as `CODE (Site, Island)` — choose the node geographically closest to you or relevant to your region.
 
-| Code | Location | Island |
-|---|---|---|
-| `BRB0331` | Bream Bay | North Island |
-| `OTA2201` | Otahuhu | North Island |
-| `HLY2201` | Huntly | North Island |
-| `WKM2201` | Waikamaka | North Island |
-| `TUI1101` | Tuai | North Island |
-| `SFD2201` | Stratford | North Island |
-| `HAY2201` | Haywards | North Island |
-| `STK2201` | Stoke | South Island |
-| `DOB0661` | Dobson | South Island |
-| `ISL2201` | Islington | South Island |
-| `BEN2201` | Benmore | South Island |
-| `HWB2201` | Hawea | South Island |
-| `INV2201` | Invercargill | South Island |
+The list is sourced from the Electricity Authority's [Final Energy Prices dataset](https://www.emi.ea.govt.nz/Wholesale/Datasets/DispatchAndPricing/FinalEnergyPrices) (every node with a settled wholesale price) and cross-referenced against EMI's [Network Supply Points Table](https://www.emi.ea.govt.nz/Wholesale/Datasets/MappingsAndGeospatial/NetworkSupplyPointsTable) for site names. A handful of nodes have no published site name and appear as their code only.
+
+### Finding the right node for your location
+
+The node picker is a searchable dropdown — start typing your town or suburb name and matching nodes will filter as you go (e.g. typing "hamilton" surfaces `HAM0111`, `HAM0331`, `HAM0551`, `HAM2201`).
+
+The Electricity Authority itself has no address-to-node lookup (their own forum says as much when asked), but a few other resources get you there:
+
+- **Search by nearest town/substation.** Most nodes are named after the substation or town they serve. Pick the node whose site name is geographically closest to you.
+- **Transpower's [Envision map](https://experience.arcgis.com/experience/007dcdef2909420ba7420377a22799d0/page/HOME)** is an interactive, nationwide GIS map of the transmission grid, including substations and GXPs — the closest thing to a real "find it on a map" tool.
+- **Your local lines company may publish its own GIS map.** Check your power bill for your network (e.g. Vector in Auckland, Wellington Electricity, Orion in Christchurch, Unison in Hamilton/Rotorua/Hawke's Bay) — Vector, for example, publishes an [open-data network map](https://data.vector.co.nz/maps/45a165ecd0aa432484bedf1e9de9cf9d) showing zone substations, which you can cross-reference against the node names in the picker.
+- **For exact coordinates**, EMI's [Network Supply Points Table](https://www.emi.ea.govt.nz/Wholesale/Datasets/MappingsAndGeospatial/NetworkSupplyPointsTable) CSVs include NZTM easting/northing per site.
+- **Exact precision isn't critical.** Wholesale prices at neighbouring nodes are usually within a few cents of each other (they diverge mainly around transmission constraints or big island-crossing events). Picking the closest reasonable node is normally good enough — you can always change it later via **⋮ → Reconfigure** on the node's device page.
 
 ---
 
