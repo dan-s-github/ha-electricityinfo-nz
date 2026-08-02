@@ -33,7 +33,7 @@
       },
       "reauth_confirm": {
         "title": "Re-authenticate Electricityinfo NZ",
-        "description": "Your stored credentials were rejected by {help_url}. Enter new OAuth credentials to keep this integration working.",
+        "description": "Your stored credentials were rejected. Enter new OAuth credentials from {help_url} to keep this integration working.",
         "data": {
           "client_id": "Client ID",
           "client_secret": "Client Secret"
