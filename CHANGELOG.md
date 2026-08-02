@@ -15,6 +15,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - State persistence with config entry
 - Full type checking and test coverage
 
+## v1.0.0rc4 (2026-08-02)
+
+### Feat
+
+- **config-flow**: support reauth and manual credential reconfigure (#18)
+
+### Fix
+
+- **config-flow**: repopulate import/export meter entities on reconfigure (#19)
+- **nodes**: replace fabricated market node list with full NZEM node set (#17)
+
 ## v1.0.0rc3 (2026-06-01)
 
 ### Feat
