@@ -72,6 +72,22 @@ def _node_title(data: dict[str, Any]) -> str:
 def _build_node_form_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
     """Build schema for market node subentry flow."""
     d = defaults or {}
+    # EntitySelector rejects None, so only set a default when a value exists —
+    # vol.Optional(key, default=None) would inject and validate None otherwise.
+    import_meter_key: Any = (
+        vol.Optional(
+            CONF_IMPORT_METER_ENTITY_ID, default=d[CONF_IMPORT_METER_ENTITY_ID]
+        )
+        if d.get(CONF_IMPORT_METER_ENTITY_ID)
+        else vol.Optional(CONF_IMPORT_METER_ENTITY_ID)
+    )
+    export_meter_key: Any = (
+        vol.Optional(
+            CONF_EXPORT_METER_ENTITY_ID, default=d[CONF_EXPORT_METER_ENTITY_ID]
+        )
+        if d.get(CONF_EXPORT_METER_ENTITY_ID)
+        else vol.Optional(CONF_EXPORT_METER_ENTITY_ID)
+    )
     return vol.Schema(
         {
             vol.Required(
@@ -121,14 +137,10 @@ def _build_node_form_schema(defaults: dict[str, Any] | None = None) -> vol.Schem
             ): SelectSelector(
                 SelectSelectorConfig(options=ACCOUNTING_RETENTION_OPTIONS_SELECT)
             ),
-            vol.Optional(
-                CONF_IMPORT_METER_ENTITY_ID,
-            ): EntitySelector(
+            import_meter_key: EntitySelector(
                 EntitySelectorConfig(domain="sensor", device_class="energy")
             ),
-            vol.Optional(
-                CONF_EXPORT_METER_ENTITY_ID,
-            ): EntitySelector(
+            export_meter_key: EntitySelector(
                 EntitySelectorConfig(domain="sensor", device_class="energy")
             ),
         }
