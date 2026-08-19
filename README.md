@@ -185,7 +185,13 @@ The list is sourced from the Electricity Authority's [Final Energy Prices datase
 
 The node picker is a searchable dropdown — start typing your town or suburb name and matching nodes will filter as you go (e.g. typing "hamilton" surfaces `HAM0111`, `HAM0331`, `HAM0551`, `HAM2201`).
 
-The Electricity Authority itself has no address-to-node lookup (their own forum says as much when asked), but a few other resources get you there:
+**Recommended**
+
+The Electricity Authority has an address/ICP to node lookup: [www.ea.govt.nz/your-power/your-meter/address/](https://www.ea.govt.nz/your-power/your-meter/address/). Enter your address or ICP, click "Show all connection information", then look for Network > POC.
+
+**Alternatives**
+
+If that doesn't work for you then try one of these other methods:
 
 - **Search by nearest town/substation.** Most nodes are named after the substation or town they serve. Pick the node whose site name is geographically closest to you.
 - **Transpower's [Envision map](https://experience.arcgis.com/experience/007dcdef2909420ba7420377a22799d0/page/HOME)** is an interactive, nationwide GIS map of the transmission grid, including substations and GXPs — the closest thing to a real "find it on a map" tool.
