@@ -98,7 +98,7 @@ lint.per-file-ignores."tests/**/*.py" = [
 
 [tool.commitizen]
 name = "cz_conventional_commits"
-version_provider = "pep621"
+version_provider = "uv"
 version_files = ["custom_components/electricityinfo/manifest.json:version"]
 tag_format = "v$version"
 update_changelog_on_bump = true
