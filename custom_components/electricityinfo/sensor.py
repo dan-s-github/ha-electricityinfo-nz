@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import contextlib
 import logging
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta
 from typing import TYPE_CHECKING, Any
 from zoneinfo import ZoneInfo
 
@@ -50,6 +50,13 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 NZ_TZ = ZoneInfo("Pacific/Auckland")
+
+
+def _nz_day_start(day: date | None) -> datetime | None:
+    """Return NZ midnight at the start of the given day."""
+    if day is None:
+        return None
+    return datetime.combine(day, time.min, tzinfo=NZ_TZ)
 
 
 async def async_setup_entry(
@@ -698,6 +705,16 @@ class DailyAccountingSensorBase(RestoreEntity, AccountingDeltaSensorBase):
         """Set the previous day's accumulated total."""
         self._previous_day_total = value
 
+    @property
+    def accumulation_date(self) -> date | None:
+        """Return the NZ date the running total is accumulating for."""
+        return self._accumulation_date
+
+    @property
+    def last_reset(self) -> datetime | None:
+        """Return NZ midnight at the start of the accumulation day."""
+        return _nz_day_start(self._accumulation_date)
+
     async def async_added_to_hass(self) -> None:
         """Restore accumulated total, date, and previous-day snapshot."""
         await super().async_added_to_hass()
@@ -715,6 +732,12 @@ class DailyAccountingSensorBase(RestoreEntity, AccountingDeltaSensorBase):
 
         today_nzt = dt_util.utcnow().astimezone(NZ_TZ).date()
         if self._accumulation_date and self._accumulation_date < today_nzt:
+            # Restored total belongs to a past day: it is yesterday's total if
+            # that day was yesterday, otherwise yesterday was never accumulated.
+            if self._accumulation_date == today_nzt - timedelta(days=1):
+                self._previous_day_total = self._accumulated_total
+            else:
+                self._previous_day_total = None
             self._accumulated_total = 0.0
             self._accumulation_date = today_nzt
         elif self._accumulation_date is None:
@@ -728,6 +751,12 @@ class DailyAccountingSensorBase(RestoreEntity, AccountingDeltaSensorBase):
 
     def _handle_coordinator_update(self) -> None:
         """Update running total from coordinator accounting deltas."""
+        # A failed refresh re-notifies listeners with the previous poll's data;
+        # accumulating it again would double-count that delta.
+        if not self.coordinator.last_update_success:
+            self.async_write_ha_state()
+            return
+
         node_data = (self.coordinator.data or {}).get(self._subentry_id)
         if not node_data or node_data.get("error"):
             self._native_value = None
@@ -736,7 +765,11 @@ class DailyAccountingSensorBase(RestoreEntity, AccountingDeltaSensorBase):
             return
 
         accounting_date: date | None = node_data.get("accounting_date_nzt")
-        if accounting_date and accounting_date != self._accumulation_date:
+        # Only roll over forward: the latest settled period can lag behind the
+        # current NZ day, and must not roll the total back to an earlier day.
+        if accounting_date and (
+            self._accumulation_date is None or accounting_date > self._accumulation_date
+        ):
             self._previous_day_total = self._accumulated_total
             self._accumulated_total = 0.0
             self._accumulation_date = accounting_date
@@ -825,11 +858,20 @@ class PreviousDayAccountingSensorBase(RestoreEntity, MarketNodeSensorBase):
             sensor_name=sensor_name,
         )
         self._daily_sensor = daily_sensor
+        self._written_last_reset: datetime | None = None
 
     @property
     def native_unit_of_measurement(self) -> str:
         """Return currency unit based on configured price unit."""
         return "c" if self._config.get(CONF_PRICE_UNIT) == "c/kWh" else "NZD"
+
+    @property
+    def last_reset(self) -> datetime | None:
+        """Return NZ midnight at the start of the day the total covers."""
+        accumulation_date = self._daily_sensor.accumulation_date
+        if accumulation_date is None:
+            return None
+        return _nz_day_start(accumulation_date - timedelta(days=1))
 
     async def async_added_to_hass(self) -> None:
         """Restore previous-day total; seed daily sensor if it has no prior value."""
@@ -845,8 +887,10 @@ class PreviousDayAccountingSensorBase(RestoreEntity, MarketNodeSensorBase):
     def _handle_coordinator_update(self) -> None:
         """Reflect daily sensor's previous-day snapshot whenever it changes."""
         prev = self._daily_sensor.previous_day_total
-        if prev != self._native_value:
+        last_reset = self.last_reset
+        if prev != self._native_value or last_reset != self._written_last_reset:
             self._native_value = prev
+            self._written_last_reset = last_reset
             self.async_write_ha_state()
 
 
