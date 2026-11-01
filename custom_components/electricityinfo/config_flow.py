@@ -6,7 +6,7 @@ import logging
 import re
 from typing import TYPE_CHECKING, Any, Literal
 
-import voluptuous as vol
+import probatio
 from electricityinfo_nz import AsyncMarketPricesClient
 from electricityinfo_nz.exceptions import AuthenticationError, TransportError
 from homeassistant import config_entries
@@ -76,28 +76,28 @@ def _node_title(data: dict[str, Any]) -> str:
     return f"{node} [{unit}]"
 
 
-def _build_node_form_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
+def _build_node_form_schema(defaults: dict[str, Any] | None = None) -> probatio.Schema:
     """Build schema for market node subentry flow."""
     d = defaults or {}
     # EntitySelector rejects None, so only set a default when a value exists —
-    # vol.Optional(key, default=None) would inject and validate None otherwise.
+    # probatio.Optional(key, default=None) would inject and validate None otherwise.
     import_meter_key: Any = (
-        vol.Optional(
+        probatio.Optional(
             CONF_IMPORT_METER_ENTITY_ID, default=d[CONF_IMPORT_METER_ENTITY_ID]
         )
         if d.get(CONF_IMPORT_METER_ENTITY_ID)
-        else vol.Optional(CONF_IMPORT_METER_ENTITY_ID)
+        else probatio.Optional(CONF_IMPORT_METER_ENTITY_ID)
     )
     export_meter_key: Any = (
-        vol.Optional(
+        probatio.Optional(
             CONF_EXPORT_METER_ENTITY_ID, default=d[CONF_EXPORT_METER_ENTITY_ID]
         )
         if d.get(CONF_EXPORT_METER_ENTITY_ID)
-        else vol.Optional(CONF_EXPORT_METER_ENTITY_ID)
+        else probatio.Optional(CONF_EXPORT_METER_ENTITY_ID)
     )
-    return vol.Schema(
+    return probatio.Schema(
         {
-            vol.Required(
+            probatio.Required(
                 CONF_NODE, default=d.get(CONF_NODE, MARKET_NODES[0])
             ): SelectSelector(
                 SelectSelectorConfig(
@@ -106,26 +106,26 @@ def _build_node_form_schema(defaults: dict[str, Any] | None = None) -> vol.Schem
                     custom_value=True,
                 )
             ),
-            vol.Required(
+            probatio.Required(
                 CONF_PRICE_UNIT, default=d.get(CONF_PRICE_UNIT, "c/kWh")
             ): SelectSelector(SelectSelectorConfig(options=PRICE_UNIT_OPTIONS)),
-            vol.Optional(
+            probatio.Optional(
                 CONF_ENABLE_LIVE_PRICE, default=d.get(CONF_ENABLE_LIVE_PRICE, True)
             ): BooleanSelector(),
-            vol.Optional(
+            probatio.Optional(
                 CONF_ENABLE_FORECAST, default=d.get(CONF_ENABLE_FORECAST, False)
             ): BooleanSelector(),
-            vol.Optional(
+            probatio.Optional(
                 CONF_FORECAST_TYPE,
                 default=d.get(CONF_FORECAST_TYPE, "price_responsive"),
             ): SelectSelector(SelectSelectorConfig(options=FORECAST_TYPE_OPTIONS)),
-            vol.Optional(
+            probatio.Optional(
                 CONF_FORECAST_HORIZONS,
                 default=d.get(CONF_FORECAST_HORIZONS, ["day_ahead"]),
             ): SelectSelector(
                 SelectSelectorConfig(options=FORECAST_HORIZON_OPTIONS, multiple=True)
             ),
-            vol.Optional(
+            probatio.Optional(
                 CONF_FORECAST_RETENTION_HOURS,
                 default=str(
                     d.get(
@@ -136,10 +136,10 @@ def _build_node_form_schema(defaults: dict[str, Any] | None = None) -> vol.Schem
             ): SelectSelector(
                 SelectSelectorConfig(options=FORECAST_RETENTION_OPTIONS_SELECT)
             ),
-            vol.Optional(
+            probatio.Optional(
                 CONF_ENABLE_ACCOUNTING, default=d.get(CONF_ENABLE_ACCOUNTING, False)
             ): BooleanSelector(),
-            vol.Optional(
+            probatio.Optional(
                 CONF_ACCOUNTING_RETENTION_HOURS,
                 default=str(
                     d.get(
@@ -431,16 +431,16 @@ class ElectricityInfoConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Build the client ID / secret entry form for the given step."""
         default_client_id = default_client_id or self.client_id
         client_id_key: Any = (
-            vol.Required(CONF_CLIENT_ID, default=default_client_id)
+            probatio.Required(CONF_CLIENT_ID, default=default_client_id)
             if default_client_id
-            else vol.Required(CONF_CLIENT_ID)
+            else probatio.Required(CONF_CLIENT_ID)
         )
         return self.async_show_form(
             step_id=step_id,
-            data_schema=vol.Schema(
+            data_schema=probatio.Schema(
                 {
                     client_id_key: str,
-                    vol.Required(CONF_CLIENT_SECRET): TextSelector(
+                    probatio.Required(CONF_CLIENT_SECRET): TextSelector(
                         TextSelectorConfig(type=TextSelectorType.PASSWORD)
                     ),
                 }
