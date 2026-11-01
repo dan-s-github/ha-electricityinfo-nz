@@ -808,6 +808,7 @@ class PreviousDayAccountingSensorBase(RestoreEntity, MarketNodeSensorBase):
 
     def __init__(  # noqa: PLR0913
         self,
+        *,
         coordinator: ElectricityInfoCoordinator,
         entry: ConfigEntry,
         subentry: ConfigSubentry,
