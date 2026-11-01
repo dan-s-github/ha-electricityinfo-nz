@@ -61,9 +61,9 @@ jobs:
         run: |
           INCREMENT=$(echo "${{ inputs.increment }}" | sed 's/_RC$//')
           if [[ "${{ inputs.increment }}" == *_RC ]]; then
-            uv run --group dev cz bump --yes --changelog --increment "$INCREMENT" --prerelease rc
+            uv run --frozen --group dev cz bump --yes --changelog --increment "$INCREMENT" --prerelease rc
           else
-            uv run --group dev cz bump --yes --changelog --increment "$INCREMENT"
+            uv run --frozen --group dev cz bump --yes --changelog --increment "$INCREMENT"
           fi
 
       - name: Push commit and tags
@@ -88,7 +88,7 @@ jobs:
           else
             # Lead with the commitizen changelog section (covers direct commits,
             # not just merged PRs); GitHub's generated PR list is appended.
-            uv run --group dev cz changelog "${TAG#v}" --dry-run \
+            uv run --frozen --group dev cz changelog "${TAG#v}" --dry-run \
               | sed '1{/^## /d;}' > "$RUNNER_TEMP/release-notes.md"
             PRERELEASE_FLAG=()
             if [[ "${{ inputs.increment }}" == *_RC ]]; then
