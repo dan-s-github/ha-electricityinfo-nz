@@ -76,6 +76,39 @@ def _normalized_horizons(raw_horizons: Any) -> set[str]:
     return {horizon for horizon in values if horizon in {"day_ahead", "intraday"}}
 
 
+def _schedule_requests(config: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Return the price schedule requests for a market node, keyed by feature."""
+    requests: dict[str, dict[str, Any]] = {}
+    if config.get(CONF_ENABLE_LIVE_PRICE):
+        requests["rtd"] = {"schedule": "RTD", "back": RTD_BACK_PERIODS}
+
+    if config.get(CONF_ENABLE_FORECAST):
+        schedule_map = FORECAST_SCHEDULE_MAP.get(
+            config.get(CONF_FORECAST_TYPE, "price_responsive"),
+            FORECAST_SCHEDULE_MAP["price_responsive"],
+        )
+        forecast_back = int(config.get(CONF_FORECAST_RETENTION_HOURS, 24)) * 2
+        horizons = _normalized_horizons(config.get(CONF_FORECAST_HORIZONS, []))
+        forward_periods = {
+            "day_ahead": DAY_AHEAD_FORWARD_PERIODS,
+            "intraday": INTRADAY_FORWARD_PERIODS,
+        }
+        for horizon, forward in forward_periods.items():
+            if horizon in horizons:
+                requests[horizon] = {
+                    "schedule": schedule_map[horizon],
+                    "forward": forward,
+                    "back": forecast_back,
+                }
+
+    if config.get(CONF_ENABLE_ACCOUNTING):
+        requests["accounting"] = {
+            "schedule": "Interim",
+            "back": int(config.get(CONF_ACCOUNTING_RETENTION_HOURS, 24)) * 2,
+        }
+    return requests
+
+
 def _extract_live_price_payload(
     rtd: Any,
 ) -> dict[str, Any] | None:
@@ -168,7 +201,30 @@ class ElectricityInfoCoordinator(DataUpdateCoordinator):
             raise ConfigEntryAuthFailed(msg)
         return self.client
 
-    async def _fetch_market_node_data(self, subentry: Any) -> dict[str, Any]:  # noqa: PLR0912, PLR0915
+    @staticmethod
+    async def _fetch_schedule(
+        client: AsyncMarketPricesClient,
+        node: str | None,
+        price_unit: str,
+        key: str,
+        params: dict[str, Any],
+    ) -> Any:
+        """Fetch one price schedule for a node, converted to the display unit."""
+        kwargs = {"market_type": "E", "nodes": [node] if node else None, **params}
+        _LOGGER.debug("Fetching %s prices for node %s: %s", key, node, kwargs)
+        schedule = await client.get_schedule_prices(**kwargs)
+        if schedule:
+            for p in schedule.prices:
+                p.price = _convert_price(p.price, price_unit)
+        _LOGGER.debug(
+            "%s response for node %s: %s prices returned",
+            key,
+            node,
+            len(getattr(schedule, "prices", None) or []),
+        )
+        return schedule
+
+    async def _fetch_market_node_data(self, subentry: Any) -> dict[str, Any]:
         """Fetch data for 003 market_node subentry."""
         client = self._get_client()
         config = dict(subentry.data)
@@ -194,127 +250,27 @@ class ElectricityInfoCoordinator(DataUpdateCoordinator):
             "error": None,
         }
 
-        forecast_type = config.get(CONF_FORECAST_TYPE, "price_responsive")
-        schedule_map = FORECAST_SCHEDULE_MAP.get(
-            forecast_type, FORECAST_SCHEDULE_MAP["price_responsive"]
-        )
-        horizons = _normalized_horizons(config.get(CONF_FORECAST_HORIZONS, []))
-        forecast_back = (
-            int(config.get(CONF_FORECAST_RETENTION_HOURS, 24)) * 2
-            if config.get(CONF_ENABLE_FORECAST)
-            else None
-        )
-        accounting_back = (
-            int(config.get(CONF_ACCOUNTING_RETENTION_HOURS, 24)) * 2
-            if config.get(CONF_ENABLE_ACCOUNTING)
-            else None
-        )
-
-        if config.get(CONF_ENABLE_LIVE_PRICE):
-            _LOGGER.debug("Fetching RTD prices for node %s", node)
+        # Each schedule is fetched independently so one failing endpoint only
+        # blanks its own sensors; the node errors only if every fetch failed.
+        requests = _schedule_requests(config)
+        errors: list[Exception] = []
+        for key, params in requests.items():
             try:
-                rtd = await client.get_schedule_prices(
-                    schedule="RTD",
-                    back=RTD_BACK_PERIODS,
-                    market_type="E",
-                    nodes=[node] if node else None,
+                node_data[key] = await self._fetch_schedule(
+                    client, node, price_unit, key, params
                 )
-                if rtd:
-                    for p in rtd.prices:
-                        p.price = _convert_price(p.price, price_unit)
-                node_data["rtd"] = rtd
-                node_data["live_current"] = _extract_live_price_payload(rtd)
             except AuthenticationError:
                 raise
             except Exception as err:  # noqa: BLE001
-                _LOGGER.warning("RTD fetch failed for node %s: %s", node, err)
+                _LOGGER.warning("%s fetch failed for node %s: %s", key, node, err)
+                errors.append(err)
 
-        if config.get(CONF_ENABLE_FORECAST) and "day_ahead" in horizons:
-            day_ahead_kwargs: dict[str, Any] = {
-                "schedule": schedule_map["day_ahead"],
-                "market_type": "E",
-                "nodes": [node] if node else None,
-                "forward": DAY_AHEAD_FORWARD_PERIODS,
-            }
-            if forecast_back is not None:
-                day_ahead_kwargs["back"] = forecast_back
-            _LOGGER.debug(
-                "Fetching day-ahead prices for node %s with params: %s",
-                node,
-                day_ahead_kwargs,
-            )
-            day_ahead = await client.get_schedule_prices(**day_ahead_kwargs)
-            price_count = (
-                len(day_ahead.prices)
-                if day_ahead and hasattr(day_ahead, "prices")
-                else 0
-            )
-            _LOGGER.debug(
-                "Day-ahead prices response for node %s: %s prices returned",
-                node,
-                price_count,
-            )
-            if day_ahead:
-                for p in day_ahead.prices:
-                    p.price = _convert_price(p.price, price_unit)
-            node_data["day_ahead"] = day_ahead
+        if errors and len(errors) == len(requests):
+            raise errors[-1]
 
-        if config.get(CONF_ENABLE_FORECAST) and "intraday" in horizons:
-            intraday_kwargs: dict[str, Any] = {
-                "schedule": schedule_map["intraday"],
-                "market_type": "E",
-                "nodes": [node] if node else None,
-                "forward": INTRADAY_FORWARD_PERIODS,
-            }
-            if forecast_back is not None:
-                intraday_kwargs["back"] = forecast_back
-            _LOGGER.debug(
-                "Fetching intraday prices for node %s with params: %s",
-                node,
-                intraday_kwargs,
-            )
-            intraday = await client.get_schedule_prices(**intraday_kwargs)
-            intraday_price_count = (
-                len(intraday.prices) if intraday and hasattr(intraday, "prices") else 0
-            )
-            _LOGGER.debug(
-                "Intraday prices response for node %s: %s prices returned",
-                node,
-                intraday_price_count,
-            )
-            if intraday:
-                for p in intraday.prices:
-                    p.price = _convert_price(p.price, price_unit)
-            node_data["intraday"] = intraday
-
-        if config.get(CONF_ENABLE_ACCOUNTING):
-            accounting_kwargs: dict[str, Any] = {
-                "schedule": "Interim",
-                "market_type": "E",
-                "nodes": [node] if node else None,
-            }
-            if accounting_back is not None:
-                accounting_kwargs["back"] = accounting_back
-            _LOGGER.debug(
-                "Fetching accounting prices for node %s with params: %s",
-                node,
-                accounting_kwargs,
-            )
-            accounting = await client.get_schedule_prices(**accounting_kwargs)
-            accounting_price_count = (
-                len(accounting.prices)
-                if accounting and hasattr(accounting, "prices")
-                else 0
-            )
-            _LOGGER.debug(
-                "Accounting prices response for node %s: %s prices returned",
-                node,
-                accounting_price_count,
-            )
-            if accounting:
-                for p in accounting.prices:
-                    p.price = _convert_price(p.price, price_unit)
-            node_data["accounting"] = accounting
+        if node_data["rtd"] is not None:
+            node_data["live_current"] = _extract_live_price_payload(node_data["rtd"])
+        if node_data["accounting"] is not None:
             self._populate_accounting_metrics(subentry.subentry_id, config, node_data)
 
         return node_data

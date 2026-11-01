@@ -720,3 +720,81 @@ async def test_rtd_failure_does_not_abort_forecast_fetch(hass) -> None:
     assert data["market_node_1"]["live_current"] is None
     assert data["market_node_1"]["rtd"] is None
     assert data["market_node_1"]["day_ahead"] is not None
+
+
+def _all_features_node() -> dict:
+    """Return market node config with live, forecast and accounting enabled."""
+    return {
+        "node": "HAY2201",
+        "price_unit": "c/kWh",
+        "enable_live_price": True,
+        "enable_forecast": True,
+        "forecast_type": "price_responsive",
+        "forecast_horizons": ["day_ahead", "intraday"],
+        "enable_accounting": True,
+    }
+
+
+def _rtd_schedule() -> SimpleNamespace:
+    """Create a minimal RTD schedule with one dispatched row."""
+    now = datetime.now(UTC).replace(minute=0, second=0, microsecond=0)
+    return SimpleNamespace(
+        prices=[
+            SimpleNamespace(
+                trading_datetime=now,
+                trading_period=24,
+                node="HAY2201",
+                price=100.0,
+                schedule="RTD",
+                run_type="A",
+            )
+        ]
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failing", ["PRSS", "PRSL", "Interim"])
+async def test_one_failing_schedule_keeps_live_price(hass, failing) -> None:
+    """A failing forecast or accounting fetch does not take down live price."""
+    coordinator = ElectricityInfoCoordinator(
+        hass, _entry_with_market_node(_all_features_node())
+    )
+
+    def _side_effect(**kwargs) -> SimpleNamespace:
+        if kwargs["schedule"] == failing:
+            msg = "boom"
+            raise MarketPricesAPIError(msg)
+        if kwargs["schedule"] == "Interim":
+            return _make_accounting_schedule()
+        return _rtd_schedule()
+
+    with patch(CLIENT_PATH) as client_cls:
+        client = AsyncMock()
+        client.get_schedule_prices.side_effect = _side_effect
+        client_cls.return_value = client
+        data = await coordinator._async_update_data()
+
+    node = data["market_node_1"]
+    assert node["error"] is None
+    assert node["live_current"]["price"] == pytest.approx(10.0)
+    assert client.get_schedule_prices.call_count == 4
+    failed_key = {"PRSL": "day_ahead", "PRSS": "intraday", "Interim": "accounting"}
+    for key in ("day_ahead", "intraday", "accounting"):
+        assert (node[key] is None) == (key == failed_key[failing])
+    assert (node["settled_price"] is None) == (failing == "Interim")
+
+
+@pytest.mark.asyncio
+async def test_all_schedules_failing_marks_node_error(hass) -> None:
+    """If every enabled fetch fails, the node reports the error."""
+    coordinator = ElectricityInfoCoordinator(
+        hass, _entry_with_market_node(_all_features_node())
+    )
+
+    with patch(CLIENT_PATH) as client_cls:
+        client = AsyncMock()
+        client.get_schedule_prices.side_effect = MarketPricesAPIError("api down")
+        client_cls.return_value = client
+        data = await coordinator._async_update_data()
+
+    assert data["market_node_1"]["error"] == "api down"
