@@ -6,9 +6,14 @@ import logging
 import re
 from typing import TYPE_CHECKING, Any, Literal
 
+import aiohttp
 import probatio
 from electricityinfo_nz import AsyncMarketPricesClient
-from electricityinfo_nz.exceptions import AuthenticationError, TransportError
+from electricityinfo_nz.exceptions import (
+    AuthenticationError,
+    RateLimitError,
+    TransportError,
+)
 from homeassistant import config_entries
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
@@ -477,29 +482,29 @@ class ElectricityInfoConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         except AuthenticationError:
             errors["base"] = "invalid_auth"
-            self.validation_attempts = 0
-            return self._credentials_form(
-                step_id=self._credentials_step_id(), errors=errors
-            )
 
-        except TransportError, TimeoutError:
+        except TransportError, RateLimitError, TimeoutError, aiohttp.ClientError:
             self.validation_attempts += 1
-
-            if self.validation_attempts < MAX_VALIDATION_ATTEMPTS:
-                errors["base"] = "cannot_connect"
-                return self.async_show_form(
-                    step_id="auth_validate",
-                    errors=errors,
-                    description_placeholders={
-                        "help_url": DEVELOPER_PORTAL_URL,
-                    },
-                    last_step=False,
-                )
+            if self.validation_attempts >= MAX_VALIDATION_ATTEMPTS:
+                return self.async_abort(reason="cannot_connect")
             errors["base"] = "cannot_connect"
             return self.async_show_form(
                 step_id="auth_validate",
                 errors=errors,
-                last_step=True,
+                description_placeholders={
+                    "help_url": DEVELOPER_PORTAL_URL,
+                },
+                last_step=False,
+            )
+
+        except Exception:
+            _LOGGER.exception("Unexpected error validating credentials")
+            errors["base"] = "unknown"
+
+        self.validation_attempts = 0
+        if errors:
+            return self._credentials_form(
+                step_id=self._credentials_step_id(), errors=errors
             )
 
         if self.source == config_entries.SOURCE_REAUTH:

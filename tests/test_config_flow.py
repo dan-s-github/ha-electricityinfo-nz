@@ -5,8 +5,14 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, patch
 
+import aiohttp
 import pytest
-from electricityinfo_nz.exceptions import AuthenticationError, TransportError
+from electricityinfo_nz.exceptions import (
+    AuthenticationError,
+    MarketPricesAPIError,
+    RateLimitError,
+    TransportError,
+)
 from homeassistant import config_entries
 from homeassistant.data_entry_flow import FlowResultType, InvalidData
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -20,6 +26,7 @@ from custom_components.electricityinfo.const import (
     CONF_EXPORT_METER_ENTITY_ID,
     CONF_IMPORT_METER_ENTITY_ID,
     DOMAIN,
+    MAX_VALIDATION_ATTEMPTS,
 )
 
 
@@ -987,3 +994,66 @@ async def test_individual_validation_failure_does_not_trigger_same_entity_error(
         == "entity_has_last_reset_import"
     )
     assert result2["errors"].get("base") != "same_entity_import_export"
+
+
+async def _submit_credentials(hass: HomeAssistant, side_effect: Exception) -> dict:
+    """Start a user flow and submit credentials with validation raising."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_USER},
+    )
+    with _patch_client() as mock_client:
+        mock_client.return_value.get_schedules = AsyncMock(side_effect=side_effect)
+        return await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            user_input={
+                CONF_CLIENT_ID: "client123",
+                CONF_CLIENT_SECRET: "secret123",
+            },
+        )
+
+
+@pytest.mark.parametrize(
+    "error",
+    [MarketPricesAPIError("server error"), ValueError("unexpected")],
+)
+async def test_token_validation_unexpected_error(
+    hass: HomeAssistant, error: Exception
+) -> None:
+    """Unexpected validation errors re-show the credentials form."""
+    result = await _submit_credentials(hass, error)
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "user"
+    assert result["errors"]["base"] == "unknown"
+
+
+@pytest.mark.parametrize(
+    "error",
+    [aiohttp.ClientError("conn reset"), RateLimitError("slow down")],
+)
+async def test_token_validation_connection_errors_offer_retry(
+    hass: HomeAssistant, error: Exception
+) -> None:
+    """Rate limits and aiohttp errors are treated as connection problems."""
+    result = await _submit_credentials(hass, error)
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "auth_validate"
+    assert result["errors"]["base"] == "cannot_connect"
+
+
+async def test_token_validation_aborts_after_max_attempts(
+    hass: HomeAssistant,
+) -> None:
+    """The flow aborts once connection retries are exhausted."""
+    result = await _submit_credentials(hass, TransportError("down"))
+    with _patch_client() as mock_client:
+        mock_client.return_value.get_schedules = AsyncMock(
+            side_effect=TransportError("down")
+        )
+        for _ in range(MAX_VALIDATION_ATTEMPTS - 1):
+            result = await hass.config_entries.flow.async_configure(result["flow_id"])
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "cannot_connect"

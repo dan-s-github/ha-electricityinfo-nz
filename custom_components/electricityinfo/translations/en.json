@@ -5,7 +5,8 @@
       "already_in_progress": "Configuration already in progress",
       "not_implemented": "Feature not yet implemented",
       "reauth_successful": "Re-authentication was successful",
-      "reconfigure_successful": "Credentials updated successfully"
+      "reconfigure_successful": "Credentials updated successfully",
+      "cannot_connect": "Could not connect to the Electricityinfo API after several attempts. Please try again later."
     },
     "flow_title": "Electricityinfo NZ",
     "error": {
@@ -13,7 +14,8 @@
       "client_secret_required": "Client Secret is required",
       "invalid_token": "Token validation failed. Please check your credentials.",
       "cannot_connect": "Cannot connect to API. Please try again.",
-      "invalid_auth": "Invalid credentials. Please check your client ID and secret."
+      "invalid_auth": "Invalid credentials. Please check your client ID and secret.",
+      "unknown": "Unexpected error. Check the Home Assistant logs for details."
     },
     "step": {
       "user": {
