@@ -31,7 +31,6 @@ from .const import (
     DAY_AHEAD_FORWARD_PERIODS,
     FORECAST_SCHEDULE_MAP,
     INTRADAY_FORWARD_PERIODS,
-    MAX_RETRIES,
     NZD_PER_MWH_TO_C_PER_KWH,
     NZD_PER_MWH_TO_NZD_PER_KWH,
     RETRY_INTERVAL_MINUTES,
@@ -385,7 +384,7 @@ class ElectricityInfoCoordinator(DataUpdateCoordinator):
         if settled_price is not None and export_delta is not None:
             node_data["export_revenue_delta"] = round(settled_price * export_delta, 6)
 
-    async def _async_update_data(self) -> dict[str, Any]:  # noqa: PLR0912
+    async def _async_update_data(self) -> dict[str, Any]:
         """Fetch price data from API."""
         try:
             self._ensure_client()
@@ -427,10 +426,11 @@ class ElectricityInfoCoordinator(DataUpdateCoordinator):
             raise ConfigEntryAuthFailed(msg) from err
         except (MarketPricesAPIError, Exception) as err:
             self._retry_count += 1
-            if self._retry_count >= MAX_RETRIES:
-                self.last_update_success = False
-
-            retry_interval = RETRY_INTERVAL_MINUTES * (2 ** (self._retry_count - 1))
+            # Back off exponentially, but never poll less often than normal.
+            retry_interval = min(
+                RETRY_INTERVAL_MINUTES * (2 ** (self._retry_count - 1)),
+                UPDATE_INTERVAL_MINUTES,
+            )
             self.update_interval = timedelta(minutes=retry_interval)
             msg = f"Error fetching prices: {err}"
             raise UpdateFailed(msg) from err
