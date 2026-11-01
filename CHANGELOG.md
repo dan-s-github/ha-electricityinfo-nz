@@ -15,6 +15,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - State persistence with config entry
 - Full type checking and test coverage
 
+## v1.0.0rc7 (2026-11-01)
+
+### Fix
+
+- **accounting**: persist meter readings across restarts and reloads
+
 ## v1.0.0rc6 (2026-11-01)
 
 ### Fix
