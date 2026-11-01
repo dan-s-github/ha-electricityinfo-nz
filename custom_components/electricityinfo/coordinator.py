@@ -11,6 +11,7 @@ from electricityinfo_nz import AsyncMarketPricesClient
 from electricityinfo_nz.exceptions import AuthenticationError, MarketPricesAPIError
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
@@ -29,8 +30,11 @@ from .const import (
     CONF_NODE,
     CONF_PRICE_UNIT,
     DAY_AHEAD_FORWARD_PERIODS,
+    DOMAIN,
     FORECAST_SCHEDULE_MAP,
     INTRADAY_FORWARD_PERIODS,
+    METER_READING_MAX_AGE_MINUTES,
+    METER_STORE_VERSION,
     NZD_PER_MWH_TO_C_PER_KWH,
     NZD_PER_MWH_TO_NZD_PER_KWH,
     RETRY_INTERVAL_MINUTES,
@@ -54,6 +58,11 @@ def _convert_price(price_nzd_mwh: float | None, price_unit: str) -> float | None
     if price_unit == "c/kWh":
         return round(price_nzd_mwh * NZD_PER_MWH_TO_C_PER_KWH, 4)
     return round(price_nzd_mwh * NZD_PER_MWH_TO_NZD_PER_KWH, 6)
+
+
+def meter_store(hass: HomeAssistant, entry_id: str) -> Store[dict[str, Any]]:
+    """Return the store holding the last meter readings for a config entry."""
+    return Store(hass, METER_STORE_VERSION, f"{DOMAIN}.{entry_id}.meter_readings")
 
 
 def _normalized_horizons(raw_horizons: Any) -> set[str]:
@@ -109,6 +118,31 @@ class ElectricityInfoCoordinator(DataUpdateCoordinator):
         self._retry_count = 0
         self._meter_prev_import: dict[str, float | None] = {}
         self._meter_prev_export: dict[str, float | None] = {}
+        self._meter_store = meter_store(hass, entry.entry_id)
+        self._meter_readings: dict[str, dict[str, Any]] = {}
+
+    async def async_load_meter_readings(self) -> None:
+        """Restore recent meter readings saved before a restart or reload."""
+        stored = await self._meter_store.async_load() or {}
+        now = dt_util.utcnow()
+        max_age = timedelta(minutes=METER_READING_MAX_AGE_MINUTES)
+        for subentry in self.entry.subentries.values():
+            reading = stored.get(subentry.subentry_id)
+            if not isinstance(reading, dict):
+                continue
+            saved_at = dt_util.parse_datetime(str(reading.get("saved_at")))
+            if saved_at is None or now - saved_at > max_age:
+                continue
+            config = dict(subentry.data)
+            # Only reuse a reading taken from the meter still configured.
+            if reading.get("import_entity") == config.get(CONF_IMPORT_METER_ENTITY_ID):
+                self._meter_prev_import[subentry.subentry_id] = reading.get("import")
+            if reading.get("export_entity") == config.get(CONF_EXPORT_METER_ENTITY_ID):
+                self._meter_prev_export[subentry.subentry_id] = reading.get("export")
+
+    async def async_save_meter_readings(self) -> None:
+        """Write the latest meter readings to storage immediately."""
+        await self._meter_store.async_save(self._meter_readings)
 
     def _ensure_client(self) -> None:
         """Initialize API client from config entry if needed."""
@@ -366,6 +400,14 @@ class ElectricityInfoCoordinator(DataUpdateCoordinator):
 
         self._meter_prev_import[subentry_id] = import_current
         self._meter_prev_export[subentry_id] = export_current
+        self._meter_readings[subentry_id] = {
+            "saved_at": dt_util.utcnow().isoformat(),
+            "import_entity": import_meter,
+            "import": import_current,
+            "export_entity": export_meter,
+            "export": export_current,
+        }
+        self._meter_store.async_delay_save(lambda: self._meter_readings, 0)
 
         import_delta_raw = self._compute_delta(import_previous, import_current)
         export_delta_raw = self._compute_delta(export_previous, export_current)
