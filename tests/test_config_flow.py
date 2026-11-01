@@ -1028,19 +1028,32 @@ async def test_token_validation_unexpected_error(
     assert result["errors"]["base"] == "unknown"
 
 
-@pytest.mark.parametrize(
-    "error",
-    [aiohttp.ClientError("conn reset"), RateLimitError("slow down")],
-)
-async def test_token_validation_connection_errors_offer_retry(
-    hass: HomeAssistant, error: Exception
+async def test_token_validation_connection_error_offers_retry(
+    hass: HomeAssistant,
 ) -> None:
-    """Rate limits and aiohttp errors are treated as connection problems."""
-    result = await _submit_credentials(hass, error)
+    """Aiohttp errors are treated as connection problems."""
+    result = await _submit_credentials(hass, aiohttp.ClientError("conn reset"))
 
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "auth_validate"
     assert result["errors"]["base"] == "cannot_connect"
+
+
+async def test_token_validation_rate_limit_does_not_use_attempts(
+    hass: HomeAssistant,
+) -> None:
+    """Rate limits ask the user to wait and never abort the flow."""
+    result = await _submit_credentials(hass, RateLimitError("slow down"))
+    with _patch_client() as mock_client:
+        mock_client.return_value.get_schedules = AsyncMock(
+            side_effect=RateLimitError("slow down")
+        )
+        for _ in range(MAX_VALIDATION_ATTEMPTS):
+            result = await hass.config_entries.flow.async_configure(result["flow_id"])
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "auth_validate"
+    assert result["errors"]["base"] == "rate_limited"
 
 
 async def test_token_validation_aborts_after_max_attempts(

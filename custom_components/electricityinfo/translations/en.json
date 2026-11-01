@@ -15,6 +15,7 @@
       "invalid_token": "Token validation failed. Please check your credentials.",
       "cannot_connect": "Cannot connect to API. Please try again.",
       "invalid_auth": "Invalid credentials. Please check your client ID and secret.",
+      "rate_limited": "The Electricityinfo API is rate limiting requests. Wait a minute, then try again.",
       "unknown": "Unexpected error. Check the Home Assistant logs for details."
     },
     "step": {

@@ -483,11 +483,20 @@ class ElectricityInfoConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         except AuthenticationError:
             errors["base"] = "invalid_auth"
 
-        except TransportError, RateLimitError, TimeoutError, aiohttp.ClientError:
-            self.validation_attempts += 1
-            if self.validation_attempts >= MAX_VALIDATION_ATTEMPTS:
-                return self.async_abort(reason="cannot_connect")
-            errors["base"] = "cannot_connect"
+        except (
+            RateLimitError,
+            TransportError,
+            TimeoutError,
+            aiohttp.ClientError,
+        ) as err:
+            if isinstance(err, RateLimitError):
+                # Not counted as a failed attempt: retrying after a wait works.
+                errors["base"] = "rate_limited"
+            else:
+                self.validation_attempts += 1
+                if self.validation_attempts >= MAX_VALIDATION_ATTEMPTS:
+                    return self.async_abort(reason="cannot_connect")
+                errors["base"] = "cannot_connect"
             return self.async_show_form(
                 step_id="auth_validate",
                 errors=errors,
