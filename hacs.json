@@ -1,5 +1,8 @@
 {
   "name": "Electricityinfo NZ",
   "content_in_root": false,
-  "country": ["NZ"]
+  "country": [
+    "NZ"
+  ],
+  "homeassistant": "2026.9.0"
 }

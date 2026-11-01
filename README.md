@@ -357,7 +357,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines.
 [license-shield]: https://img.shields.io/github/license/dan-s-github/ha-electricityinfo-nz.svg?style=flat
 [python-shield]: https://img.shields.io/badge/python-3.14+-blue.svg?style=flat&logo=python&logoColor=white
 [python]: https://www.python.org/
-[ha-shield]: https://img.shields.io/badge/Home%20Assistant-2026.3.0+-blue.svg?style=flat&logo=homeassistant&logoColor=white
+[ha-shield]: https://img.shields.io/badge/Home%20Assistant-2026.9.0+-blue.svg?style=flat&logo=homeassistant&logoColor=white
 [ha]: https://www.home-assistant.io/
 [tests-shield]: https://img.shields.io/github/actions/workflow/status/dan-s-github/ha-electricityinfo-nz/ci.yml?branch=main&style=flat&logo=github
 [tests]: https://github.com/dan-s-github/ha-electricityinfo-nz/actions/workflows/ci.yml

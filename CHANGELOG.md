@@ -15,6 +15,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - State persistence with config entry
 - Full type checking and test coverage
 
+## v1.0.0rc5 (2026-11-01)
+
+### Fix
+
+- **sensor**: import RestoreEntity from helpers.restore_state
+
+### Refactor
+
+- **config-flow**: migrate from voluptuous to probatio
+
 ## v1.0.0rc4 (2026-08-02)
 
 ### Feat

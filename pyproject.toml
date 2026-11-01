@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ha-electricityinfo-nz"
-version = "1.0.0rc4"
+version = "1.0.0rc5"
 description = "Home Assistant custom integration for Electricityinfo NZ"
 readme = "README.md"
 license = { text = "MIT" }
@@ -33,11 +33,11 @@ dev = [
     "aiousbwatcher",
     "commitizen>=3.29.1",
     "colorlog>=6.10.1",
-    "homeassistant==2026.3.1",
+    "homeassistant==2026.10.4",
     "pycares>=5.0.0,<6",
     "pytest>=8.2.0",
     "pytest-asyncio>=1.3.0",
-    "pytest-homeassistant-custom-component==0.13.317",
+    "pytest-homeassistant-custom-component==0.13.375",
     "pyserial",
     "ruff>=0.15.0",
     "mypy>=1.8.0",
@@ -72,8 +72,10 @@ lint.ignore = [
     "D203", # no-blank-line-before-class (incompatible with formatter)
     "D212", # multi-line-summary-first-line (incompatible with formatter)
     "COM812", # incompatible with formatter
+    "CPY001", # No copyright header convention in this repo
     "ISC001", # incompatible with formatter
 ]
+format.exclude = ["*.md"] # Spec docs contain illustrative, not formatted, code
 lint.isort.known-first-party = ["custom_components", "tests"]
 lint.flake8-pytest-style.fixture-parentheses = false
 lint.pyupgrade.keep-runtime-typing = true
@@ -88,6 +90,7 @@ lint.per-file-ignores."tests/**/*.py" = [
     "FBT001", # Boolean positional args are fine in test helpers
     "FBT002", # Boolean default positional args are fine in test helpers
     "PLR0913", # Test fixtures/helpers may need multiple explicit fields
+    "PLR0917", # Test helpers may take many positional args
     "PLR2004", # Literal values in test assertions are intentional
     "S101", # Pytest uses assert statements
     "SLF001", # Intentional private member access in tests

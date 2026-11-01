@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING, Any
 from zoneinfo import ZoneInfo
 
 from homeassistant.components.sensor import (
-    RestoreEntity,
     SensorDeviceClass,
     SensorEntity,
     SensorStateClass,
@@ -23,6 +22,7 @@ from homeassistant.helpers.entity_registry import (
     async_entries_for_config_entry,
     async_get,
 )
+from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 
@@ -808,6 +808,7 @@ class PreviousDayAccountingSensorBase(RestoreEntity, MarketNodeSensorBase):
 
     def __init__(  # noqa: PLR0913
         self,
+        *,
         coordinator: ElectricityInfoCoordinator,
         entry: ConfigEntry,
         subentry: ConfigSubentry,
