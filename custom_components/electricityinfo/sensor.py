@@ -52,6 +52,11 @@ _LOGGER = logging.getLogger(__name__)
 NZ_TZ = ZoneInfo("Pacific/Auckland")
 
 
+def _currency_precision(config: dict[str, Any]) -> int:
+    """Return display precision for cost sensors in c (2) or NZD (4)."""
+    return 2 if config.get(CONF_PRICE_UNIT) == "c/kWh" else 4
+
+
 def _nz_day_start(day: date | None) -> datetime | None:
     """Return NZ midnight at the start of the given day."""
     if day is None:
@@ -589,6 +594,11 @@ class AccountingDeltaSensorBase(MarketNodeSensorBase):
         """Return currency unit based on configured price unit."""
         return "c" if self._config.get(CONF_PRICE_UNIT) == "c/kWh" else "NZD"
 
+    @property
+    def suggested_display_precision(self) -> int:
+        """Show cents to 2 decimals and NZD to 4."""
+        return _currency_precision(self._config)
+
     def _handle_coordinator_update(self) -> None:
         """Handle coordinator update for per-period accounting values."""
         node_data = (self.coordinator.data or {}).get(self._subentry_id)
@@ -864,6 +874,11 @@ class PreviousDayAccountingSensorBase(RestoreEntity, MarketNodeSensorBase):
     def native_unit_of_measurement(self) -> str:
         """Return currency unit based on configured price unit."""
         return "c" if self._config.get(CONF_PRICE_UNIT) == "c/kWh" else "NZD"
+
+    @property
+    def suggested_display_precision(self) -> int:
+        """Show cents to 2 decimals and NZD to 4."""
+        return _currency_precision(self._config)
 
     @property
     def last_reset(self) -> datetime | None:

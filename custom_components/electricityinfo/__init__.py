@@ -25,7 +25,7 @@ from .const import (
     DOMAIN,
     SUBENTRY_TYPE,
 )
-from .coordinator import ElectricityInfoCoordinator
+from .coordinator import ElectricityInfoCoordinator, meter_store
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
@@ -126,6 +126,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Create coordinator
     coordinator = ElectricityInfoCoordinator(hass, entry)
+    await coordinator.async_load_meter_readings()
 
     # Store coordinator in hass data before setup
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
@@ -164,6 +165,14 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
     if unload_ok:
-        hass.data[DOMAIN].pop(entry.entry_id)
+        entry_data = hass.data[DOMAIN].pop(entry.entry_id)
+        # Flush before a reload's new coordinator loads the readings back.
+        if coordinator := entry_data.get("coordinator"):
+            await coordinator.async_save_meter_readings()
 
     return unload_ok
+
+
+async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Remove stored meter readings when the config entry is deleted."""
+    await meter_store(hass, entry.entry_id).async_remove()

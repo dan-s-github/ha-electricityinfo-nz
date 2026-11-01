@@ -133,6 +133,12 @@ MARKET_TYPE_OPTIONS: list[SelectOptionDict] = [
     {"value": "R", "label": "Reserve (R)"},
 ]
 
+# Meter readings persisted across restarts/reloads for accounting deltas
+METER_STORE_VERSION = 1
+# Older saved readings are discarded: the energy used over a longer gap would
+# all be costed at a single settled price.
+METER_READING_MAX_AGE_MINUTES = 30
+
 # Price Unit Conversion (1 NZD/MWh = 0.1 c/kWh)
 NZD_PER_MWH_TO_C_PER_KWH = 0.1
 C_PER_KWH_TO_NZD_PER_MWH = 10.0
