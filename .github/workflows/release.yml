@@ -90,5 +90,9 @@ jobs:
             # not just merged PRs); GitHub's generated PR list is appended.
             uv run --group dev cz changelog "${TAG#v}" --dry-run \
               | sed '1{/^## /d;}' > "$RUNNER_TEMP/release-notes.md"
-            gh release create "$TAG" --generate-notes --notes-file "$RUNNER_TEMP/release-notes.md"
+            PRERELEASE_FLAG=()
+            if [[ "${{ inputs.increment }}" == *_RC ]]; then
+              PRERELEASE_FLAG=(--prerelease)
+            fi
+            gh release create "$TAG" --generate-notes --notes-file "$RUNNER_TEMP/release-notes.md" "${PRERELEASE_FLAG[@]}"
           fi
