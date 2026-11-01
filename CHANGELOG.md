@@ -15,6 +15,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - State persistence with config entry
 - Full type checking and test coverage
 
+## v1.0.0rc6 (2026-11-01)
+
+### Fix
+
+- **manifest**: sync version with the current release
+- **accounting**: correct daily totals and cap retry backoff
+
 ## v1.0.0rc5 (2026-11-01)
 
 ### Fix
