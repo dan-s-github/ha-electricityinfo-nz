@@ -5,14 +5,22 @@ from __future__ import annotations
 import logging
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
+from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from electricityinfo_nz.exceptions import MarketPricesAPIError
 from homeassistant.helpers.update_coordinator import UpdateFailed
 
-from custom_components.electricityinfo.const import UPDATE_INTERVAL_MINUTES
+from custom_components.electricityinfo.const import (
+    RETRY_INTERVAL_MINUTES,
+    STALE_SCHEDULE_MAX_AGE_MINUTES,
+    UPDATE_INTERVAL_MINUTES,
+)
 from custom_components.electricityinfo.coordinator import ElectricityInfoCoordinator
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 CLIENT_PATH = "custom_components.electricityinfo.coordinator.AsyncMarketPricesClient"
 
@@ -752,13 +760,8 @@ def _rtd_schedule() -> SimpleNamespace:
     )
 
 
-@pytest.mark.asyncio
-@pytest.mark.parametrize("failing", ["PRSS", "PRSL", "Interim"])
-async def test_one_failing_schedule_keeps_live_price(hass, failing) -> None:
-    """A failing forecast or accounting fetch does not take down live price."""
-    coordinator = ElectricityInfoCoordinator(
-        hass, _entry_with_market_node(_all_features_node())
-    )
+def _failing_side_effect(failing: str | None) -> Callable[..., SimpleNamespace]:
+    """Return a get_schedule_prices side effect where one schedule fails."""
 
     def _side_effect(**kwargs) -> SimpleNamespace:
         if kwargs["schedule"] == failing:
@@ -768,9 +771,31 @@ async def test_one_failing_schedule_keeps_live_price(hass, failing) -> None:
             return _make_accounting_schedule()
         return _rtd_schedule()
 
+    return _side_effect
+
+
+async def _poll(coordinator, failing: str | None) -> dict:
+    """Run one update with the given schedule failing and store the result."""
+    coordinator.client = None  # Recreated from the patched class below.
     with patch(CLIENT_PATH) as client_cls:
         client = AsyncMock()
-        client.get_schedule_prices.side_effect = _side_effect
+        client.get_schedule_prices.side_effect = _failing_side_effect(failing)
+        client_cls.return_value = client
+        coordinator.data = await coordinator._async_update_data()
+    return coordinator.data["market_node_1"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failing", ["PRSS", "PRSL", "Interim"])
+async def test_one_failing_schedule_keeps_live_price(hass, failing) -> None:
+    """A failing forecast or accounting fetch does not take down live price."""
+    coordinator = ElectricityInfoCoordinator(
+        hass, _entry_with_market_node(_all_features_node())
+    )
+
+    with patch(CLIENT_PATH) as client_cls:
+        client = AsyncMock()
+        client.get_schedule_prices.side_effect = _failing_side_effect(failing)
         client_cls.return_value = client
         data = await coordinator._async_update_data()
 
@@ -798,3 +823,100 @@ async def test_all_schedules_failing_marks_node_error(hass) -> None:
         data = await coordinator._async_update_data()
 
     assert data["market_node_1"]["error"] == "api down"
+
+
+@pytest.mark.asyncio
+async def test_live_price_parse_error_only_blanks_live_price(hass) -> None:
+    """An RTD payload that cannot be parsed does not take down the node."""
+    coordinator = ElectricityInfoCoordinator(
+        hass, _entry_with_market_node(_all_features_node())
+    )
+    bad_rtd = _rtd_schedule()
+    bad_rtd.prices[0].trading_datetime = None
+
+    def _side_effect(**kwargs) -> SimpleNamespace:
+        if kwargs["schedule"] == "RTD":
+            return bad_rtd
+        if kwargs["schedule"] == "Interim":
+            return _make_accounting_schedule()
+        return _rtd_schedule()
+
+    with patch(CLIENT_PATH) as client_cls:
+        client = AsyncMock()
+        client.get_schedule_prices.side_effect = _side_effect
+        client_cls.return_value = client
+        data = await coordinator._async_update_data()
+
+    node = data["market_node_1"]
+    assert node["error"] is None
+    assert node["failed_schedules"] == ["rtd"]
+    assert node["rtd"] is None
+    assert node["live_current"] is None
+    assert node["day_ahead"] is not None
+    assert node["settled_price"] is not None
+
+
+@pytest.mark.asyncio
+async def test_failed_schedule_keeps_previous_data(hass) -> None:
+    """A schedule that fails to refresh keeps its last good data."""
+    coordinator = ElectricityInfoCoordinator(
+        hass, _entry_with_market_node(_all_features_node())
+    )
+    first = await _poll(coordinator, None)
+    day_ahead = first["day_ahead"]
+    live_current = first["live_current"]
+
+    node = await _poll(coordinator, "PRSL")
+    assert node["day_ahead"] is day_ahead
+    assert node["fetched_at"]["day_ahead"] == first["fetched_at"]["day_ahead"]
+
+    node = await _poll(coordinator, "RTD")
+    assert node["live_current"] == live_current
+
+
+@pytest.mark.asyncio
+async def test_failed_accounting_keeps_settled_price_but_not_deltas(hass) -> None:
+    """Kept accounting data never re-applies a meter delta."""
+    coordinator = ElectricityInfoCoordinator(
+        hass, _entry_with_market_node(_all_features_node())
+    )
+    first = await _poll(coordinator, None)
+    first["import_cost_delta"] = 1.23
+    first["accounting_date_nzt"] = datetime.now(UTC).date()
+
+    node = await _poll(coordinator, "Interim")
+    assert node["settled_price"] == first["settled_price"]
+    assert node["import_cost_delta"] is None
+    assert node["accounting_date_nzt"] is None
+
+
+@pytest.mark.asyncio
+async def test_failed_schedule_drops_data_once_stale(hass) -> None:
+    """Kept data is dropped once it is older than the staleness limit."""
+    coordinator = ElectricityInfoCoordinator(
+        hass, _entry_with_market_node(_all_features_node())
+    )
+    first = await _poll(coordinator, None)
+    first["fetched_at"]["day_ahead"] -= timedelta(
+        minutes=STALE_SCHEDULE_MAX_AGE_MINUTES + 1
+    )
+
+    node = await _poll(coordinator, "PRSL")
+    assert node["day_ahead"] is None
+    assert "day_ahead" not in node["fetched_at"]
+
+
+@pytest.mark.asyncio
+async def test_partial_failure_retries_sooner(hass) -> None:
+    """A failed schedule shortens the poll interval until it recovers."""
+    coordinator = ElectricityInfoCoordinator(
+        hass, _entry_with_market_node(_all_features_node())
+    )
+
+    await _poll(coordinator, "PRSS")
+    assert coordinator.update_interval == timedelta(minutes=RETRY_INTERVAL_MINUTES)
+    await _poll(coordinator, "PRSS")
+    assert coordinator.update_interval == timedelta(minutes=RETRY_INTERVAL_MINUTES * 2)
+
+    await _poll(coordinator, None)
+    assert coordinator.update_interval == timedelta(minutes=UPDATE_INTERVAL_MINUTES)

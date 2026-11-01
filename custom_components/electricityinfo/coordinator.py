@@ -39,6 +39,7 @@ from .const import (
     NZD_PER_MWH_TO_NZD_PER_KWH,
     RETRY_INTERVAL_MINUTES,
     RTD_BACK_PERIODS,
+    STALE_SCHEDULE_MAX_AGE_MINUTES,
     SUBENTRY_TYPE,
     UPDATE_INTERVAL_MINUTES,
 )
@@ -49,6 +50,27 @@ if TYPE_CHECKING:
 
 _LOGGER: logging.Logger = logging.getLogger(__name__)
 NZ_TZ = ZoneInfo("Pacific/Auckland")
+
+# Node data fields derived from each schedule, kept together when it fails to
+# refresh. Meter deltas are never kept: re-applying one would double-count it.
+_SCHEDULE_FIELDS: dict[str, tuple[str, ...]] = {
+    "rtd": ("rtd", "live_current"),
+    "day_ahead": ("day_ahead",),
+    "intraday": ("intraday",),
+    "accounting": (
+        "accounting",
+        "settled_price",
+        "settled_timestamp",
+        "settled_trading_period",
+    ),
+}
+_METER_DELTA_FIELDS = (
+    "import_energy_delta",
+    "export_energy_delta",
+    "import_cost_delta",
+    "export_revenue_delta",
+    "accounting_date_nzt",
+)
 
 
 def _convert_price(price_nzd_mwh: float | None, price_unit: str) -> float | None:
@@ -224,7 +246,9 @@ class ElectricityInfoCoordinator(DataUpdateCoordinator):
         )
         return schedule
 
-    async def _fetch_market_node_data(self, subentry: Any) -> dict[str, Any]:
+    async def _fetch_market_node_data(
+        self, subentry: Any, previous: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         """Fetch data for 003 market_node subentry."""
         client = self._get_client()
         config = dict(subentry.data)
@@ -248,10 +272,12 @@ class ElectricityInfoCoordinator(DataUpdateCoordinator):
             "accounting_date_nzt": None,
             "config": config,
             "error": None,
+            "fetched_at": {},
+            "failed_schedules": [],
         }
 
         # Each schedule is fetched independently so one failing endpoint only
-        # blanks its own sensors; the node errors only if every fetch failed.
+        # affects its own sensors; the node errors only if every fetch failed.
         requests = _schedule_requests(config)
         errors: list[Exception] = []
         for key, params in requests.items():
@@ -259,21 +285,45 @@ class ElectricityInfoCoordinator(DataUpdateCoordinator):
                 node_data[key] = await self._fetch_schedule(
                     client, node, price_unit, key, params
                 )
+                if key == "rtd":
+                    node_data["live_current"] = _extract_live_price_payload(
+                        node_data["rtd"]
+                    )
+                elif key == "accounting":
+                    self._populate_accounting_metrics(
+                        subentry.subentry_id, config, node_data
+                    )
             except AuthenticationError:
                 raise
             except Exception as err:  # noqa: BLE001
                 _LOGGER.warning("%s fetch failed for node %s: %s", key, node, err)
                 errors.append(err)
+                node_data["failed_schedules"].append(key)
+                self._keep_previous_schedule(node_data, previous, key)
+            else:
+                node_data["fetched_at"][key] = dt_util.utcnow()
 
         if errors and len(errors) == len(requests):
             raise errors[-1]
 
-        if node_data["rtd"] is not None:
-            node_data["live_current"] = _extract_live_price_payload(node_data["rtd"])
-        if node_data["accounting"] is not None:
-            self._populate_accounting_metrics(subentry.subentry_id, config, node_data)
-
         return node_data
+
+    @staticmethod
+    def _keep_previous_schedule(
+        node_data: dict[str, Any], previous: dict[str, Any] | None, key: str
+    ) -> None:
+        """Fall back to the last good data for a schedule that failed to refresh."""
+        if key == "accounting":
+            for field in _METER_DELTA_FIELDS:
+                node_data[field] = None
+
+        fetched_at = ((previous or {}).get("fetched_at") or {}).get(key)
+        max_age = timedelta(minutes=STALE_SCHEDULE_MAX_AGE_MINUTES)
+        fresh = fetched_at is not None and dt_util.utcnow() - fetched_at <= max_age
+        for field in _SCHEDULE_FIELDS[key]:
+            node_data[field] = previous.get(field) if fresh and previous else None
+        if fresh:
+            node_data["fetched_at"][key] = fetched_at
 
     def _read_energy_meter(self, entity_id: str | None) -> float | None:
         """Read current energy meter value from hass state machine."""
@@ -397,7 +447,9 @@ class ElectricityInfoCoordinator(DataUpdateCoordinator):
                 subentry_id = subentry.subentry_id
                 try:
                     if subentry.subentry_type == SUBENTRY_TYPE:
-                        data[subentry_id] = await self._fetch_market_node_data(subentry)
+                        data[subentry_id] = await self._fetch_market_node_data(
+                            subentry, previous_data.get(subentry_id)
+                        )
                     else:
                         continue
                 except AuthenticationError:
@@ -416,21 +468,34 @@ class ElectricityInfoCoordinator(DataUpdateCoordinator):
                 if subentry_id in previous_data:
                     data[subentry_id] = previous_data[subentry_id]
 
-            self._retry_count = 0
-            self.update_interval = timedelta(minutes=UPDATE_INTERVAL_MINUTES)
+            self._update_poll_interval(data)
 
         except AuthenticationError as err:
             msg = "Authentication failed"
             raise ConfigEntryAuthFailed(msg) from err
         except (MarketPricesAPIError, Exception) as err:
-            self._retry_count += 1
-            # Back off exponentially, but never poll less often than normal.
-            retry_interval = min(
-                RETRY_INTERVAL_MINUTES * (2 ** (self._retry_count - 1)),
-                UPDATE_INTERVAL_MINUTES,
-            )
-            self.update_interval = timedelta(minutes=retry_interval)
+            self._schedule_retry()
             msg = f"Error fetching prices: {err}"
             raise UpdateFailed(msg) from err
         else:
             return data
+
+    def _update_poll_interval(self, data: dict[str, Any]) -> None:
+        """Retry sooner when any node or schedule failed to refresh."""
+        if any(
+            node_data.get("error") or node_data.get("failed_schedules")
+            for node_data in data.values()
+        ):
+            self._schedule_retry()
+        else:
+            self._retry_count = 0
+            self.update_interval = timedelta(minutes=UPDATE_INTERVAL_MINUTES)
+
+    def _schedule_retry(self) -> None:
+        """Back off exponentially, but never poll less often than normal."""
+        self._retry_count += 1
+        retry_interval = min(
+            RETRY_INTERVAL_MINUTES * (2 ** (self._retry_count - 1)),
+            UPDATE_INTERVAL_MINUTES,
+        )
+        self.update_interval = timedelta(minutes=retry_interval)

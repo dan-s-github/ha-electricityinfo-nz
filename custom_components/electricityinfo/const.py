@@ -36,6 +36,9 @@ RTD_BACK_PERIODS = 3  # fetch 3 x 30-min trading periods of RTD history (~90 min
 # Staleness guard for LivePriceSensor restore — kept at 30 min regardless of poll
 LIVE_PRICE_RESTORE_STALENESS_MINUTES = 30
 
+# Data from a schedule that failed to refresh is kept until it is this old
+STALE_SCHEDULE_MAX_AGE_MINUTES = 30
+
 # Sensor Configuration Options
 CONF_SENSOR_NAME = "name"
 CONF_SCHEDULE_TYPE = "schedule_type"
