@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v1.0.0rc8 (2026-11-03)
+
+### Fix
+
+- **coordinator**: keep live price through a missed poll and keep retry flag
+- **config-flow**: return to credentials form after connection retries
+- **coordinator**: address review findings on kept data and retries
+- **config-flow**: show rate limits separately from connection errors
+- **coordinator**: keep last good data and retry failed schedules sooner
+- **config-flow**: handle all credential validation errors
+- **coordinator**: isolate failures per price schedule
+- **release**: keep uv.lock version in sync on bump
+
 ## v1.0.0rc7 (2026-11-01)
 
 ### Fix
