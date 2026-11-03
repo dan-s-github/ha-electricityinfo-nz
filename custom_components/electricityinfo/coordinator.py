@@ -336,8 +336,9 @@ class ElectricityInfoCoordinator(DataUpdateCoordinator):
                 node_data["fetched_at"][key] = dt_util.utcnow()
 
         # Only error the node when every fetch failed and no kept data is left.
+        # Returning (not raising) keeps retry_soon from all of the failures.
         if errors and len(errors) == len(requests) and not node_data["fetched_at"]:
-            raise errors[-1]
+            node_data["error"] = str(errors[-1])
 
         return node_data
 

@@ -968,6 +968,19 @@ async def test_single_schedule_node_errors_without_kept_data(hass) -> None:
 
 
 @pytest.mark.asyncio
+async def test_kept_live_price_survives_one_missed_poll(hass) -> None:
+    """A live price fetched one poll interval ago is kept when RTD fails."""
+    coordinator = ElectricityInfoCoordinator(
+        hass, _entry_with_market_node(_all_features_node())
+    )
+    first = await _poll(coordinator, None)
+    first["fetched_at"]["rtd"] -= timedelta(minutes=UPDATE_INTERVAL_MINUTES, seconds=5)
+
+    node = await _poll(coordinator, "RTD")
+    assert node["live_current"] == first["live_current"]
+
+
+@pytest.mark.asyncio
 async def test_kept_live_price_dropped_after_one_poll(hass) -> None:
     """A kept live price expires sooner than other schedules' data."""
     coordinator = ElectricityInfoCoordinator(
@@ -1009,3 +1022,27 @@ async def test_node_error_from_rate_limit_keeps_normal_interval(hass) -> None:
     node = await _poll(coordinator, "RTD", RateLimitError)
     assert node["error"] == "boom"
     assert coordinator.update_interval == timedelta(minutes=UPDATE_INTERVAL_MINUTES)
+
+
+@pytest.mark.asyncio
+async def test_node_error_retries_sooner_if_any_failure_is_transient(hass) -> None:
+    """A transient failure still shortens the interval if the last one isn't."""
+    coordinator = ElectricityInfoCoordinator(
+        hass,
+        _entry_with_market_node({**_live_only_node(), "enable_accounting": True}),
+    )
+
+    def _side_effect(**kwargs) -> SimpleNamespace:
+        if kwargs["schedule"] == "RTD":
+            raise TimeoutError
+        msg = "slow down"
+        raise RateLimitError(msg)
+
+    with patch(CLIENT_PATH) as client_cls:
+        client = AsyncMock()
+        client.get_schedule_prices.side_effect = _side_effect
+        client_cls.return_value = client
+        data = await coordinator._async_update_data()
+
+    assert data["market_node_1"]["error"] == "slow down"
+    assert coordinator.update_interval == timedelta(minutes=RETRY_INTERVAL_MINUTES)

@@ -38,8 +38,9 @@ LIVE_PRICE_RESTORE_STALENESS_MINUTES = 30
 
 # Data from a schedule that failed to refresh is kept until it is this old
 STALE_SCHEDULE_MAX_AGE_MINUTES = 30
-# Live price is from a single trading period, so it is kept for one poll only
-STALE_LIVE_PRICE_MAX_AGE_MINUTES = UPDATE_INTERVAL_MINUTES
+# Live price is from a single trading period, so it is only kept through one
+# missed poll (the next poll lands just after one interval, hence the slack)
+STALE_LIVE_PRICE_MAX_AGE_MINUTES = UPDATE_INTERVAL_MINUTES * 2
 
 # Sensor Configuration Options
 CONF_SENSOR_NAME = "name"
