@@ -6,7 +6,7 @@
 
 [![Home Assistant][ha-shield]][ha]
 [![Python Version][python-shield]][python]
-[![License][license-shield]](LICENSE)
+[![License][license-shield]](https://github.com/dan-s-github/ha-electricityinfo-nz/blob/main/LICENSE)
 
 [![Tests][tests-shield]][tests]
 [![Code Style: Ruff][ruff-shield]][ruff]
@@ -292,7 +292,7 @@ mode: single
 
 Find `YOUR_CONFIG_ENTRY_ID` under **Settings -> Devices & Services -> Electricityinfo NZ -> ⋮ -> Copy entry ID**:
 
-![Copy entry ID from the Electricityinfo NZ service menu](images/copy_entry_id.png)
+![Copy entry ID from the Electricityinfo NZ service menu](https://raw.githubusercontent.com/dan-s-github/ha-electricityinfo-nz/main/images/copy_entry_id.png)
 
 ---
 
@@ -344,7 +344,7 @@ ruff check --fix     # lint
 mypy custom_components/  # type check
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines.
+See [CONTRIBUTING.md](https://github.com/dan-s-github/ha-electricityinfo-nz/blob/main/CONTRIBUTING.md) for contribution guidelines.
 
 ---
 
