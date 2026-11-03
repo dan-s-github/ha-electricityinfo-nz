@@ -16,7 +16,7 @@ Key Design Documents:
 
 **Technology Stack**:
 - Python 3.14+ with Home Assistant 2026.10.4
-- electricityinfo-nz==1.0.0rc2 PyPI library (OAuth Client Credentials flow)
+- electricityinfo-nz==1.0.0 PyPI library (OAuth Client Credentials flow)
 - Home Assistant DataUpdateCoordinator (single **5-minute** coordinator per config entry for all sensor types)
 - Home Assistant RestoreEntity (LivePriceSensor + DailyImportCostSensor + DailyExportRevenueSensor + PreviousDayImportCostSensor + PreviousDayExportRevenueSensor)
 - pytest + pytest-asyncio + pytest-homeassistant-custom-component (mocked API in CI)
