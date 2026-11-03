@@ -7,8 +7,16 @@ from datetime import timedelta
 from typing import TYPE_CHECKING, Any
 from zoneinfo import ZoneInfo
 
+import aiohttp
 from electricityinfo_nz import AsyncMarketPricesClient
-from electricityinfo_nz.exceptions import AuthenticationError, MarketPricesAPIError
+from electricityinfo_nz.exceptions import (
+    AuthenticationError,
+    MarketPricesAPIError,
+    NotFoundError,
+    RateLimitError,
+    ResponseFormatError,
+    ValidationError,
+)
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.storage import Store
@@ -39,6 +47,8 @@ from .const import (
     NZD_PER_MWH_TO_NZD_PER_KWH,
     RETRY_INTERVAL_MINUTES,
     RTD_BACK_PERIODS,
+    STALE_LIVE_PRICE_MAX_AGE_MINUTES,
+    STALE_SCHEDULE_MAX_AGE_MINUTES,
     SUBENTRY_TYPE,
     UPDATE_INTERVAL_MINUTES,
 )
@@ -49,6 +59,48 @@ if TYPE_CHECKING:
 
 _LOGGER: logging.Logger = logging.getLogger(__name__)
 NZ_TZ = ZoneInfo("Pacific/Auckland")
+
+# Node data fields derived from each schedule, kept together when it fails to
+# refresh. Meter deltas are never kept: re-applying one would double-count it.
+_SCHEDULE_FIELDS: dict[str, tuple[str, ...]] = {
+    "rtd": ("rtd", "live_current"),
+    "day_ahead": ("day_ahead",),
+    "intraday": ("intraday",),
+    "accounting": (
+        "accounting",
+        "settled_price",
+        "settled_timestamp",
+        "settled_trading_period",
+        "accounting_date_nzt",
+    ),
+}
+
+# A kept live price would be from a past trading period, so it is only kept
+# for about one missed poll.
+_SCHEDULE_MAX_AGE_MINUTES: dict[str, int] = {"rtd": STALE_LIVE_PRICE_MAX_AGE_MINUTES}
+
+_METER_DELTA_FIELDS = (
+    "import_energy_delta",
+    "export_energy_delta",
+    "import_cost_delta",
+    "export_revenue_delta",
+)
+
+# Errors that retrying sooner won't fix (bad request, unknown node, payload we
+# can't parse) or would make worse (rate limits).
+_NO_FAST_RETRY_ERRORS = (
+    NotFoundError,
+    RateLimitError,
+    ResponseFormatError,
+    ValidationError,
+)
+
+
+def _retry_soon(err: Exception) -> bool:
+    """Return whether a failed fetch is worth retrying before the next poll."""
+    return isinstance(
+        err, (MarketPricesAPIError, TimeoutError, aiohttp.ClientError)
+    ) and not isinstance(err, _NO_FAST_RETRY_ERRORS)
 
 
 def _convert_price(price_nzd_mwh: float | None, price_unit: str) -> float | None:
@@ -74,6 +126,39 @@ def _normalized_horizons(raw_horizons: Any) -> set[str]:
     else:
         values = []
     return {horizon for horizon in values if horizon in {"day_ahead", "intraday"}}
+
+
+def _schedule_requests(config: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Return the price schedule requests for a market node, keyed by feature."""
+    requests: dict[str, dict[str, Any]] = {}
+    if config.get(CONF_ENABLE_LIVE_PRICE):
+        requests["rtd"] = {"schedule": "RTD", "back": RTD_BACK_PERIODS}
+
+    if config.get(CONF_ENABLE_FORECAST):
+        schedule_map = FORECAST_SCHEDULE_MAP.get(
+            config.get(CONF_FORECAST_TYPE, "price_responsive"),
+            FORECAST_SCHEDULE_MAP["price_responsive"],
+        )
+        forecast_back = int(config.get(CONF_FORECAST_RETENTION_HOURS, 24)) * 2
+        horizons = _normalized_horizons(config.get(CONF_FORECAST_HORIZONS, []))
+        forward_periods = {
+            "day_ahead": DAY_AHEAD_FORWARD_PERIODS,
+            "intraday": INTRADAY_FORWARD_PERIODS,
+        }
+        for horizon, forward in forward_periods.items():
+            if horizon in horizons:
+                requests[horizon] = {
+                    "schedule": schedule_map[horizon],
+                    "forward": forward,
+                    "back": forecast_back,
+                }
+
+    if config.get(CONF_ENABLE_ACCOUNTING):
+        requests["accounting"] = {
+            "schedule": "Interim",
+            "back": int(config.get(CONF_ACCOUNTING_RETENTION_HOURS, 24)) * 2,
+        }
+    return requests
 
 
 def _extract_live_price_payload(
@@ -168,7 +253,32 @@ class ElectricityInfoCoordinator(DataUpdateCoordinator):
             raise ConfigEntryAuthFailed(msg)
         return self.client
 
-    async def _fetch_market_node_data(self, subentry: Any) -> dict[str, Any]:  # noqa: PLR0912, PLR0915
+    @staticmethod
+    async def _fetch_schedule(
+        client: AsyncMarketPricesClient,
+        node: str | None,
+        price_unit: str,
+        key: str,
+        params: dict[str, Any],
+    ) -> Any:
+        """Fetch one price schedule for a node, converted to the display unit."""
+        kwargs = {"market_type": "E", "nodes": [node] if node else None, **params}
+        _LOGGER.debug("Fetching %s prices for node %s: %s", key, node, kwargs)
+        schedule = await client.get_schedule_prices(**kwargs)
+        if schedule:
+            for p in schedule.prices:
+                p.price = _convert_price(p.price, price_unit)
+        _LOGGER.debug(
+            "%s response for node %s: %s prices returned",
+            key,
+            node,
+            len(getattr(schedule, "prices", None) or []),
+        )
+        return schedule
+
+    async def _fetch_market_node_data(
+        self, subentry: Any, previous: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         """Fetch data for 003 market_node subentry."""
         client = self._get_client()
         config = dict(subentry.data)
@@ -192,132 +302,64 @@ class ElectricityInfoCoordinator(DataUpdateCoordinator):
             "accounting_date_nzt": None,
             "config": config,
             "error": None,
+            "fetched_at": {},
+            "failed_schedules": [],
+            "retry_soon": False,
         }
 
-        forecast_type = config.get(CONF_FORECAST_TYPE, "price_responsive")
-        schedule_map = FORECAST_SCHEDULE_MAP.get(
-            forecast_type, FORECAST_SCHEDULE_MAP["price_responsive"]
-        )
-        horizons = _normalized_horizons(config.get(CONF_FORECAST_HORIZONS, []))
-        forecast_back = (
-            int(config.get(CONF_FORECAST_RETENTION_HOURS, 24)) * 2
-            if config.get(CONF_ENABLE_FORECAST)
-            else None
-        )
-        accounting_back = (
-            int(config.get(CONF_ACCOUNTING_RETENTION_HOURS, 24)) * 2
-            if config.get(CONF_ENABLE_ACCOUNTING)
-            else None
-        )
-
-        if config.get(CONF_ENABLE_LIVE_PRICE):
-            _LOGGER.debug("Fetching RTD prices for node %s", node)
+        # Each schedule is fetched independently so one failing endpoint only
+        # affects its own sensors; the node errors only if every fetch failed.
+        requests = _schedule_requests(config)
+        errors: list[Exception] = []
+        for key, params in requests.items():
             try:
-                rtd = await client.get_schedule_prices(
-                    schedule="RTD",
-                    back=RTD_BACK_PERIODS,
-                    market_type="E",
-                    nodes=[node] if node else None,
+                node_data[key] = await self._fetch_schedule(
+                    client, node, price_unit, key, params
                 )
-                if rtd:
-                    for p in rtd.prices:
-                        p.price = _convert_price(p.price, price_unit)
-                node_data["rtd"] = rtd
-                node_data["live_current"] = _extract_live_price_payload(rtd)
+                if key == "rtd":
+                    node_data["live_current"] = _extract_live_price_payload(
+                        node_data["rtd"]
+                    )
+                elif key == "accounting":
+                    self._populate_accounting_metrics(
+                        subentry.subentry_id, config, node_data
+                    )
             except AuthenticationError:
                 raise
             except Exception as err:  # noqa: BLE001
-                _LOGGER.warning("RTD fetch failed for node %s: %s", node, err)
+                _LOGGER.warning("%s fetch failed for node %s: %s", key, node, err)
+                errors.append(err)
+                node_data["failed_schedules"].append(key)
+                node_data["retry_soon"] |= _retry_soon(err)
+                self._keep_previous_schedule(node_data, previous, key)
+            else:
+                node_data["fetched_at"][key] = dt_util.utcnow()
 
-        if config.get(CONF_ENABLE_FORECAST) and "day_ahead" in horizons:
-            day_ahead_kwargs: dict[str, Any] = {
-                "schedule": schedule_map["day_ahead"],
-                "market_type": "E",
-                "nodes": [node] if node else None,
-                "forward": DAY_AHEAD_FORWARD_PERIODS,
-            }
-            if forecast_back is not None:
-                day_ahead_kwargs["back"] = forecast_back
-            _LOGGER.debug(
-                "Fetching day-ahead prices for node %s with params: %s",
-                node,
-                day_ahead_kwargs,
-            )
-            day_ahead = await client.get_schedule_prices(**day_ahead_kwargs)
-            price_count = (
-                len(day_ahead.prices)
-                if day_ahead and hasattr(day_ahead, "prices")
-                else 0
-            )
-            _LOGGER.debug(
-                "Day-ahead prices response for node %s: %s prices returned",
-                node,
-                price_count,
-            )
-            if day_ahead:
-                for p in day_ahead.prices:
-                    p.price = _convert_price(p.price, price_unit)
-            node_data["day_ahead"] = day_ahead
-
-        if config.get(CONF_ENABLE_FORECAST) and "intraday" in horizons:
-            intraday_kwargs: dict[str, Any] = {
-                "schedule": schedule_map["intraday"],
-                "market_type": "E",
-                "nodes": [node] if node else None,
-                "forward": INTRADAY_FORWARD_PERIODS,
-            }
-            if forecast_back is not None:
-                intraday_kwargs["back"] = forecast_back
-            _LOGGER.debug(
-                "Fetching intraday prices for node %s with params: %s",
-                node,
-                intraday_kwargs,
-            )
-            intraday = await client.get_schedule_prices(**intraday_kwargs)
-            intraday_price_count = (
-                len(intraday.prices) if intraday and hasattr(intraday, "prices") else 0
-            )
-            _LOGGER.debug(
-                "Intraday prices response for node %s: %s prices returned",
-                node,
-                intraday_price_count,
-            )
-            if intraday:
-                for p in intraday.prices:
-                    p.price = _convert_price(p.price, price_unit)
-            node_data["intraday"] = intraday
-
-        if config.get(CONF_ENABLE_ACCOUNTING):
-            accounting_kwargs: dict[str, Any] = {
-                "schedule": "Interim",
-                "market_type": "E",
-                "nodes": [node] if node else None,
-            }
-            if accounting_back is not None:
-                accounting_kwargs["back"] = accounting_back
-            _LOGGER.debug(
-                "Fetching accounting prices for node %s with params: %s",
-                node,
-                accounting_kwargs,
-            )
-            accounting = await client.get_schedule_prices(**accounting_kwargs)
-            accounting_price_count = (
-                len(accounting.prices)
-                if accounting and hasattr(accounting, "prices")
-                else 0
-            )
-            _LOGGER.debug(
-                "Accounting prices response for node %s: %s prices returned",
-                node,
-                accounting_price_count,
-            )
-            if accounting:
-                for p in accounting.prices:
-                    p.price = _convert_price(p.price, price_unit)
-            node_data["accounting"] = accounting
-            self._populate_accounting_metrics(subentry.subentry_id, config, node_data)
+        # Only error the node when every fetch failed and no kept data is left.
+        # Returning (not raising) keeps retry_soon from all of the failures.
+        if errors and len(errors) == len(requests) and not node_data["fetched_at"]:
+            node_data["error"] = str(errors[-1])
 
         return node_data
+
+    @staticmethod
+    def _keep_previous_schedule(
+        node_data: dict[str, Any], previous: dict[str, Any] | None, key: str
+    ) -> None:
+        """Fall back to the last good data for a schedule that failed to refresh."""
+        if key == "accounting":
+            for field in _METER_DELTA_FIELDS:
+                node_data[field] = None
+
+        fetched_at = ((previous or {}).get("fetched_at") or {}).get(key)
+        max_age = timedelta(
+            minutes=_SCHEDULE_MAX_AGE_MINUTES.get(key, STALE_SCHEDULE_MAX_AGE_MINUTES)
+        )
+        fresh = fetched_at is not None and dt_util.utcnow() - fetched_at <= max_age
+        for field in _SCHEDULE_FIELDS[key]:
+            node_data[field] = previous.get(field) if fresh and previous else None
+        if fresh:
+            node_data["fetched_at"][key] = fetched_at
 
     def _read_energy_meter(self, entity_id: str | None) -> float | None:
         """Read current energy meter value from hass state machine."""
@@ -441,7 +483,9 @@ class ElectricityInfoCoordinator(DataUpdateCoordinator):
                 subentry_id = subentry.subentry_id
                 try:
                     if subentry.subentry_type == SUBENTRY_TYPE:
-                        data[subentry_id] = await self._fetch_market_node_data(subentry)
+                        data[subentry_id] = await self._fetch_market_node_data(
+                            subentry, previous_data.get(subentry_id)
+                        )
                     else:
                         continue
                 except AuthenticationError:
@@ -451,6 +495,7 @@ class ElectricityInfoCoordinator(DataUpdateCoordinator):
                         "error": str(err),
                         "node": dict(subentry.data).get(CONF_NODE),
                         "config": dict(subentry.data),
+                        "retry_soon": _retry_soon(err),
                     }
 
             for subentry in subentries:
@@ -460,21 +505,31 @@ class ElectricityInfoCoordinator(DataUpdateCoordinator):
                 if subentry_id in previous_data:
                     data[subentry_id] = previous_data[subentry_id]
 
-            self._retry_count = 0
-            self.update_interval = timedelta(minutes=UPDATE_INTERVAL_MINUTES)
+            self._update_poll_interval(data)
 
         except AuthenticationError as err:
             msg = "Authentication failed"
             raise ConfigEntryAuthFailed(msg) from err
         except (MarketPricesAPIError, Exception) as err:
-            self._retry_count += 1
-            # Back off exponentially, but never poll less often than normal.
-            retry_interval = min(
-                RETRY_INTERVAL_MINUTES * (2 ** (self._retry_count - 1)),
-                UPDATE_INTERVAL_MINUTES,
-            )
-            self.update_interval = timedelta(minutes=retry_interval)
+            self._schedule_retry()
             msg = f"Error fetching prices: {err}"
             raise UpdateFailed(msg) from err
         else:
             return data
+
+    def _update_poll_interval(self, data: dict[str, Any]) -> None:
+        """Retry sooner when a node or schedule failed with a transient error."""
+        if any(node_data.get("retry_soon") for node_data in data.values()):
+            self._schedule_retry()
+        else:
+            self._retry_count = 0
+            self.update_interval = timedelta(minutes=UPDATE_INTERVAL_MINUTES)
+
+    def _schedule_retry(self) -> None:
+        """Back off exponentially, but never poll less often than normal."""
+        self._retry_count += 1
+        retry_interval = min(
+            RETRY_INTERVAL_MINUTES * (2 ** (self._retry_count - 1)),
+            UPDATE_INTERVAL_MINUTES,
+        )
+        self.update_interval = timedelta(minutes=retry_interval)

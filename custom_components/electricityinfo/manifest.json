@@ -11,7 +11,7 @@
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/dan-s-github/ha-electricityinfo-nz/issues",
   "requirements": [
-    "electricityinfo-nz==1.0.0rc2"
+    "electricityinfo-nz==1.0.0"
   ],
   "single_config_entry": true,
   "version": "1.0.0rc7"
