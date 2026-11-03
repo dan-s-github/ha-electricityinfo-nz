@@ -7,8 +7,16 @@ from datetime import timedelta
 from typing import TYPE_CHECKING, Any
 from zoneinfo import ZoneInfo
 
+import aiohttp
 from electricityinfo_nz import AsyncMarketPricesClient
-from electricityinfo_nz.exceptions import AuthenticationError, MarketPricesAPIError
+from electricityinfo_nz.exceptions import (
+    AuthenticationError,
+    MarketPricesAPIError,
+    NotFoundError,
+    RateLimitError,
+    ResponseFormatError,
+    ValidationError,
+)
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.storage import Store
@@ -39,6 +47,7 @@ from .const import (
     NZD_PER_MWH_TO_NZD_PER_KWH,
     RETRY_INTERVAL_MINUTES,
     RTD_BACK_PERIODS,
+    STALE_LIVE_PRICE_MAX_AGE_MINUTES,
     STALE_SCHEDULE_MAX_AGE_MINUTES,
     SUBENTRY_TYPE,
     UPDATE_INTERVAL_MINUTES,
@@ -62,15 +71,36 @@ _SCHEDULE_FIELDS: dict[str, tuple[str, ...]] = {
         "settled_price",
         "settled_timestamp",
         "settled_trading_period",
+        "accounting_date_nzt",
     ),
 }
+
+# A kept live price would be from a past trading period, so it is only kept
+# for about one missed poll.
+_SCHEDULE_MAX_AGE_MINUTES: dict[str, int] = {"rtd": STALE_LIVE_PRICE_MAX_AGE_MINUTES}
+
 _METER_DELTA_FIELDS = (
     "import_energy_delta",
     "export_energy_delta",
     "import_cost_delta",
     "export_revenue_delta",
-    "accounting_date_nzt",
 )
+
+# Errors that retrying sooner won't fix (bad request, unknown node, payload we
+# can't parse) or would make worse (rate limits).
+_NO_FAST_RETRY_ERRORS = (
+    NotFoundError,
+    RateLimitError,
+    ResponseFormatError,
+    ValidationError,
+)
+
+
+def _retry_soon(err: Exception) -> bool:
+    """Return whether a failed fetch is worth retrying before the next poll."""
+    return isinstance(
+        err, (MarketPricesAPIError, TimeoutError, aiohttp.ClientError)
+    ) and not isinstance(err, _NO_FAST_RETRY_ERRORS)
 
 
 def _convert_price(price_nzd_mwh: float | None, price_unit: str) -> float | None:
@@ -274,6 +304,7 @@ class ElectricityInfoCoordinator(DataUpdateCoordinator):
             "error": None,
             "fetched_at": {},
             "failed_schedules": [],
+            "retry_soon": False,
         }
 
         # Each schedule is fetched independently so one failing endpoint only
@@ -299,11 +330,13 @@ class ElectricityInfoCoordinator(DataUpdateCoordinator):
                 _LOGGER.warning("%s fetch failed for node %s: %s", key, node, err)
                 errors.append(err)
                 node_data["failed_schedules"].append(key)
+                node_data["retry_soon"] |= _retry_soon(err)
                 self._keep_previous_schedule(node_data, previous, key)
             else:
                 node_data["fetched_at"][key] = dt_util.utcnow()
 
-        if errors and len(errors) == len(requests):
+        # Only error the node when every fetch failed and no kept data is left.
+        if errors and len(errors) == len(requests) and not node_data["fetched_at"]:
             raise errors[-1]
 
         return node_data
@@ -318,7 +351,9 @@ class ElectricityInfoCoordinator(DataUpdateCoordinator):
                 node_data[field] = None
 
         fetched_at = ((previous or {}).get("fetched_at") or {}).get(key)
-        max_age = timedelta(minutes=STALE_SCHEDULE_MAX_AGE_MINUTES)
+        max_age = timedelta(
+            minutes=_SCHEDULE_MAX_AGE_MINUTES.get(key, STALE_SCHEDULE_MAX_AGE_MINUTES)
+        )
         fresh = fetched_at is not None and dt_util.utcnow() - fetched_at <= max_age
         for field in _SCHEDULE_FIELDS[key]:
             node_data[field] = previous.get(field) if fresh and previous else None
@@ -459,6 +494,7 @@ class ElectricityInfoCoordinator(DataUpdateCoordinator):
                         "error": str(err),
                         "node": dict(subentry.data).get(CONF_NODE),
                         "config": dict(subentry.data),
+                        "retry_soon": _retry_soon(err),
                     }
 
             for subentry in subentries:
@@ -481,11 +517,8 @@ class ElectricityInfoCoordinator(DataUpdateCoordinator):
             return data
 
     def _update_poll_interval(self, data: dict[str, Any]) -> None:
-        """Retry sooner when any node or schedule failed to refresh."""
-        if any(
-            node_data.get("error") or node_data.get("failed_schedules")
-            for node_data in data.values()
-        ):
+        """Retry sooner when a node or schedule failed with a transient error."""
+        if any(node_data.get("retry_soon") for node_data in data.values()):
             self._schedule_retry()
         else:
             self._retry_count = 0
