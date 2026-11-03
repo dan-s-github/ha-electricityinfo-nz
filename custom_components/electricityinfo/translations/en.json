@@ -5,8 +5,7 @@
       "already_in_progress": "Configuration already in progress",
       "not_implemented": "Feature not yet implemented",
       "reauth_successful": "Re-authentication was successful",
-      "reconfigure_successful": "Credentials updated successfully",
-      "cannot_connect": "Could not connect to the Electricityinfo API after several attempts. Please try again later."
+      "reconfigure_successful": "Credentials updated successfully"
     },
     "flow_title": "Electricityinfo NZ",
     "error": {

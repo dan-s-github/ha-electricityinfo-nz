@@ -464,6 +464,17 @@ class ElectricityInfoConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             return "reconfigure"
         return "user"
 
+    def _retry_validation_form(self, error: str) -> ConfigFlowResult:
+        """Re-show the validation step so the user can retry the same credentials."""
+        return self.async_show_form(
+            step_id="auth_validate",
+            errors={"base": error},
+            description_placeholders={
+                "help_url": DEVELOPER_PORTAL_URL,
+            },
+            last_step=False,
+        )
+
     async def async_step_auth_validate(
         self,
         user_input: dict[str, Any] | None = None,  # noqa: ARG002
@@ -483,28 +494,17 @@ class ElectricityInfoConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         except AuthenticationError:
             errors["base"] = "invalid_auth"
 
-        except (
-            RateLimitError,
-            TransportError,
-            TimeoutError,
-            aiohttp.ClientError,
-        ) as err:
-            if isinstance(err, RateLimitError):
-                # Not counted as a failed attempt: retrying after a wait works.
-                errors["base"] = "rate_limited"
-            else:
-                self.validation_attempts += 1
-                if self.validation_attempts >= MAX_VALIDATION_ATTEMPTS:
-                    return self.async_abort(reason="cannot_connect")
-                errors["base"] = "cannot_connect"
-            return self.async_show_form(
-                step_id="auth_validate",
-                errors=errors,
-                description_placeholders={
-                    "help_url": DEVELOPER_PORTAL_URL,
-                },
-                last_step=False,
-            )
+        except RateLimitError:
+            # Not counted as a failed attempt: retrying after a wait works.
+            return self._retry_validation_form("rate_limited")
+
+        except TransportError, TimeoutError, aiohttp.ClientError:
+            self.validation_attempts += 1
+            if self.validation_attempts < MAX_VALIDATION_ATTEMPTS:
+                return self._retry_validation_form("cannot_connect")
+            # Out of retries: go back to the credentials form rather than
+            # aborting, so a reauth flow isn't ended by a short outage.
+            errors["base"] = "cannot_connect"
 
         except Exception:
             _LOGGER.exception("Unexpected error validating credentials")

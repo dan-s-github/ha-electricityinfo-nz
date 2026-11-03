@@ -1056,10 +1056,10 @@ async def test_token_validation_rate_limit_does_not_use_attempts(
     assert result["errors"]["base"] == "rate_limited"
 
 
-async def test_token_validation_aborts_after_max_attempts(
+async def test_token_validation_returns_to_credentials_after_max_attempts(
     hass: HomeAssistant,
 ) -> None:
-    """The flow aborts once connection retries are exhausted."""
+    """Exhausted connection retries go back to the credentials form."""
     result = await _submit_credentials(hass, TransportError("down"))
     with _patch_client() as mock_client:
         mock_client.return_value.get_schedules = AsyncMock(
@@ -1068,5 +1068,38 @@ async def test_token_validation_aborts_after_max_attempts(
         for _ in range(MAX_VALIDATION_ATTEMPTS - 1):
             result = await hass.config_entries.flow.async_configure(result["flow_id"])
 
-    assert result["type"] is FlowResultType.ABORT
-    assert result["reason"] == "cannot_connect"
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "user"
+    assert result["errors"]["base"] == "cannot_connect"
+    assert result["data_schema"]({CONF_CLIENT_SECRET: "x"})[CONF_CLIENT_ID] == (
+        "client123"
+    )
+
+
+async def test_reauth_connection_failures_keep_flow_open(
+    hass: HomeAssistant,
+) -> None:
+    """A reauth flow is not ended by an outage during validation."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Electricityinfo NZ",
+        unique_id=DOMAIN,
+        data={CONF_CLIENT_ID: "old_client", CONF_CLIENT_SECRET: "old_secret"},
+    )
+    entry.add_to_hass(hass)
+    result = await entry.start_reauth_flow(hass)
+
+    with _patch_client() as mock_client:
+        mock_client.return_value.get_schedules = AsyncMock(
+            side_effect=TransportError("down")
+        )
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            user_input={CONF_CLIENT_ID: "new_client", CONF_CLIENT_SECRET: "s"},
+        )
+        for _ in range(MAX_VALIDATION_ATTEMPTS - 1):
+            result = await hass.config_entries.flow.async_configure(result["flow_id"])
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "reauth_confirm"
+    assert result["errors"]["base"] == "cannot_connect"
